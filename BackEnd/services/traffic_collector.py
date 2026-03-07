@@ -9,6 +9,8 @@ import logging
 from typing import List, Tuple, Optional
 import requests
 from dotenv import load_dotenv
+
+# Atualização de Importação devido à nova arquitetura de pastas
 from models import db_manager
 
 load_dotenv()
@@ -19,15 +21,16 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 def load_keys_from_json(filepath: str) -> List[dict]:
     """Leia o arquivo JSON e retorne a lista de chaves estruturadas."""
     try:
+        # Puxa o arquivo assumindo que a pasta raiz do TCC está sendo executada
         with open(filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
             return data.get('tomtom_keys', [])
     except Exception as e:
         logging.error(f"Erro ao carregar o arquivo JSON de chaves: {e}")
-        raise ValueError("Arquivo tomtom_keys.json ausente ou mal formatado.")
+        raise ValueError(f"Arquivo {filepath} ausente ou mal formatado.")
 
-# Extraia as chaves do arquivo JSON
-API_KEYS_DATA = load_keys_from_json('tomtom_keys.json')
+# Extraia as chaves do arquivo JSON que deve estar na pasta config
+API_KEYS_DATA = load_keys_from_json('config/tomtom_keys.json')
 if not API_KEYS_DATA:
     raise ValueError("Nenhuma chave encontrada no arquivo JSON.")
 
@@ -66,7 +69,7 @@ class TrafficCollector:
     def _fetch_tomtom_data(self, lat: float, lon: float) -> Optional[dict]:
         """
         Faça a requisição à API TomTom.
-        Trate ativamente os limites de QPS e de cota diária lendo o corpo do erro HTTP 403.
+        Trate ativamente os limites de QPS e de cota diária lendo o corpo do erro HTTP.
         """
         tentativas_chave = 0
         max_tentativas_chave = len(self.api_keys_data)
@@ -94,7 +97,7 @@ class TrafficCollector:
                         logging.error(f"Formato JSON inesperado retornado: {data}")
                         return None
                         
-                elif response.status_code == 403:
+                elif response.status_code in [403, 429]:
                     error_text = response.text.lower()
                     
                     # Verifique se o erro é apenas excesso de velocidade (QPS)
@@ -108,19 +111,24 @@ class TrafficCollector:
                             logging.error("Múltiplas falhas de QPS seguidas. Abortando ponto.")
                             return None
                             
-                    # Verifique se o erro é o esgotamento da cota diária da chave
-                    elif "over rate" in error_text or "over quota" in error_text or "limit exceeded" in error_text:
-                        logging.warning(f"Cota diária da chave ID [{self._get_current_key_id()}] esgotada. Iniciando rotação.")
+                    # Verifique se o erro é o esgotamento da cota diária da chave 
+                    # Lida com os alertas de "over quota" e "insufficientfunds" da TomTom
+                    elif any(phrase in error_text for phrase in ["over rate", "over quota", "limit exceeded", "insufficientfunds", "credits"]):
+                        logging.warning(f"Cota da chave ID [{self._get_current_key_id()}] esgotada! Iniciando rotação...")
                         if not self._rotate_key():
                             break
                         tentativas_chave += 1
                         tentativas_qps = 0
                         continue
                         
-                    # Trate outros tipos de bloqueio 403
+                    # Trate outros tipos de bloqueio 403 não mapeados rotacionando por precaução
                     else:
-                        logging.error(f"Erro 403 desconhecido no ponto ({lat},{lon}): {response.text}")
-                        return None
+                        logging.error(f"Erro 403 desconhecido no ponto ({lat},{lon}): {response.text}. Forçando rotação.")
+                        if not self._rotate_key():
+                            break
+                        tentativas_chave += 1
+                        tentativas_qps = 0
+                        continue
                         
                 else:
                     logging.error(f"Erro HTTP {response.status_code} no ponto ({lat},{lon}): {response.text}")
