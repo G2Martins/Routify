@@ -145,10 +145,10 @@ class TrafficCollector:
                 try:
                     historico_batch.append((
                         id_ponto,
-                        float(segment_data['currentSpeed']),
-                        float(segment_data['freeFlowSpeed']),
-                        float(segment_data['currentTravelTime']),
-                        float(segment_data.get('confidence', 0.0))
+                        int(float(segment_data['currentSpeed'])),
+                        int(float(segment_data['freeFlowSpeed'])),
+                        int(float(segment_data['currentTravelTime'])),
+                        float(segment_data.get('confidence', 0.0)) 
                     ))
                 except (ValueError, KeyError) as e:
                     logging.error(f"Falha ao processar os tipos de dados do segmento: {e}")
