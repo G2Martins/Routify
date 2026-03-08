@@ -143,30 +143,39 @@ class TrafficCollector:
     def collect_for_all_vias(self, vias: List[Tuple[int, str, float, float]]) -> None:
         """
         Itere sobre a lista de vias, extraia os dados e insira no banco em lote.
+        Garante o salvamento parcial no banco caso o processo seja interrompido (Ctrl+C).
         """
         historico_batch = []
-        for id_ponto, nome_via, lat, lon in vias:
-            logging.info(f"Monitorando ponto ID {id_ponto} ({nome_via})...")
-            segment_data = self._fetch_tomtom_data(lat, lon)
+        try:
+            for id_ponto, nome_via, lat, lon in vias:
+                logging.info(f"Monitorando ponto ID {id_ponto} ({nome_via})...")
+                segment_data = self._fetch_tomtom_data(lat, lon)
+                
+                if segment_data:
+                    try:
+                        historico_batch.append((
+                            id_ponto,
+                            int(float(segment_data['currentSpeed'])),
+                            int(float(segment_data['freeFlowSpeed'])),
+                            int(float(segment_data['currentTravelTime'])),
+                            float(segment_data.get('confidence', 0.0)) 
+                        ))
+                    except (ValueError, KeyError) as e:
+                        logging.error(f"Falha ao processar os tipos de dados do segmento: {e}")
+                        continue
+                        
+        except KeyboardInterrupt:
+            logging.warning("Interrupção manual detectada (Ctrl+C) durante a varredura das vias.")
+            # Propaga o erro para o main.py para parar o sistema, mas passa pelo 'finally' antes
+            raise
             
-            if segment_data:
-                try:
-                    historico_batch.append((
-                        id_ponto,
-                        int(float(segment_data['currentSpeed'])),
-                        int(float(segment_data['freeFlowSpeed'])),
-                        int(float(segment_data['currentTravelTime'])),
-                        float(segment_data.get('confidence', 0.0)) 
-                    ))
-                except (ValueError, KeyError) as e:
-                    logging.error(f"Falha ao processar os tipos de dados do segmento: {e}")
-                    continue
-
-        if historico_batch:
-            db_manager.insert_historico_batch(historico_batch)
-            logging.info(f"Lote de {len(historico_batch)} registros inserido no banco de dados com sucesso.")
-        else:
-            logging.warning("Nenhum dado válido extraído neste ciclo.")
+        finally:
+            # Este bloco SEMPRE será executado, não importa como o loop terminou
+            if historico_batch:
+                logging.info(f"Salvando lote de {len(historico_batch)} registros capturados com sucesso no banco...")
+                db_manager.insert_historico_batch(historico_batch)
+            else:
+                logging.warning("Nenhum dado válido extraído neste ciclo para ser salvo.")
 
 # Instancie o coletor globalmente para preservar o índice da chave ativa entre as execuções
 _collector_instance = None
