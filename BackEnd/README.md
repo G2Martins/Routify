@@ -1,13 +1,13 @@
 📦 Routify/BackEnd
  ┣ 📂 config
  ┃ ┣ 📜 .env                 # Credenciais do Supabase
- ┃ ┗ 📜 tomtom_keys.json     # Suas 10 chaves da API
- ┣ 📂 models                 # Equivalente aos "models" do Node
+ ┃ ┗ 📜 tomtom_keys.json     # chave da API do TomTom
+ ┣ 📂 models                 
  ┃ ┗ 📜 db_manager.py        # Único arquivo que conversa com o Supabase
- ┣ 📂 services               # Equivalente aos "controllers" do Node
+ ┣ 📂 services               
  ┃ ┣ 📜 map_extractor.py     # Lógica isolada de baixar e processar o mapa
- ┃ ┗ 📜 traffic_collector.py # Lógica isolada de bater na TomTom
+ ┃ ┗ 📜 traffic_collector.py # Lógica isolada de requisição para o TomTom
  ┣ 📜 .gitignore
  ┣ 📜 requirements.txt
  ┣ 📜 README.md
- ┗ 📜 main.py                # Equivalente ao seu "app.js" ou "index.js"
+ ┗ 📜 main.py  
