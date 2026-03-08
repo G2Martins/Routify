@@ -8,7 +8,7 @@ from typing import List, Tuple, Optional
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
-load_dotenv()
+load_dotenv(os.path.join('config', '.env'))
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 SUPABASE_URL = os.getenv('SUPABASE_URL')

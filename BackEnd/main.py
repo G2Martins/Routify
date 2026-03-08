@@ -4,6 +4,7 @@ Módulo principal que orquestra todo o pipeline:
 - Popule a tabela de vias se estiver vazia.
 - Agende a coleta de tráfego a cada 10 minutos.
 """
+import os
 import time
 import logging
 import schedule
@@ -13,7 +14,7 @@ from services import map_extractor
 from services import traffic_collector
 
 # Carregue as variáveis de ambiente do arquivo .env
-load_dotenv()
+load_dotenv(os.path.join('config', '.env'))
 
 # Configure o logging para exibir informações no console
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

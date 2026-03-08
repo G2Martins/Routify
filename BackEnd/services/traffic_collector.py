@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 # Atualização de Importação devido à nova arquitetura de pastas
 from models import db_manager
 
-load_dotenv()
+load_dotenv(os.path.join('config', '.env'))
 
 # Configure o logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
