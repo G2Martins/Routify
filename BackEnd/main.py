@@ -38,7 +38,7 @@ def main():
     map_extractor.populate_vias()
 
     # Configure a coleta de tráfego para executar a cada 10 minutos
-    schedule.every(10).minutes.do(traffic_collector.run_collection)
+    schedule.every(5).minutes.do(traffic_collector.run_collection)
     
     # Execute uma coleta imediata ao iniciar o sistema
     traffic_collector.run_collection()
