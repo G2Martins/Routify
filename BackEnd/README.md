@@ -14,3 +14,6 @@
 
  Instalar requirements
  - pip install -r .\requirements.txt
+
+ Rodar projeto 
+ - python .\main.py
