@@ -11,3 +11,6 @@
  ┣ 📜 requirements.txt
  ┣ 📜 README.md
  ┗ 📜 main.py  
+
+ Instalar requirements
+ - pip install -r .\requirements.txt
