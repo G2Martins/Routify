@@ -24,10 +24,12 @@
     "react-native-maps-directions": "^1.9.0",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
-    "react-native-web": "^0.21.0"
+    "react-native-web": "^0.21.0",
+    "leaflet": "^1.9.4"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
+    "@types/leaflet": "^1.9.12",
     "typescript": "~5.9.2"
   },
   "private": true

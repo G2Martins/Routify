@@ -1,6 +1,20 @@
-.env
-tomtom_keys.json
-cache
-__pycache__
-Assets
-config
+# ----------------------------------------
+# BackEnd/Servidor — coleta TomTom/OSMnx
+# ----------------------------------------
+
+# Segredos — JAMAIS commitar
+config/.env
+config/tomtom_keys.json
+config/*.key
+
+# Cache Python e OSMnx
+__pycache__/
+*.pyc
+cache/
+
+# Logs
+*.log
+
+# Dumps de dados — não versionar (gerados localmente)
+Assets/*.csv
+Assets/*.parquet
