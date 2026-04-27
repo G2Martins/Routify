@@ -37,7 +37,7 @@ export default function MapStyleToggle() {
                   setMapStyle(s);
                   setOpen(false);
                 }}
-                style={({ pressed }) => [
+                style={({ pressed }: { pressed: boolean }) => [
                   styles.menuItem,
                   {
                     backgroundColor: active
@@ -68,7 +68,7 @@ export default function MapStyleToggle() {
 
       <Pressable
         onPress={() => setOpen((o) => !o)}
-        style={({ pressed }) => [
+        style={({ pressed }: { pressed: boolean }) => [
           styles.fab,
           {
             backgroundColor: c.surface,

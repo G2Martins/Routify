@@ -55,11 +55,11 @@ const Input = forwardRef<TextInput, Props>(function Input(
           ref={ref}
           {...rest}
           secureTextEntry={secure}
-          onFocus={(e) => {
+          onFocus={(e: Parameters<NonNullable<TextInputProps['onFocus']>>[0]) => {
             setFocused(true);
             rest.onFocus?.(e);
           }}
-          onBlur={(e) => {
+          onBlur={(e: Parameters<NonNullable<TextInputProps['onBlur']>>[0]) => {
             setFocused(false);
             rest.onBlur?.(e);
           }}

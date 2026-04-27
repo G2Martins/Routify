@@ -8,29 +8,30 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
+import { API_URL } from '../lib/api';
 import Input from './Input';
 import Icon from './Icon';
-
-const API_URL =
-  process.env.EXPO_PUBLIC_API_URL ||
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ((globalThis as any).__DEV__ ? 'http://localhost:8000' : 'https://routify-api.railway.app');
 
 export interface PlaceSuggestion {
   label: string;
   sublabel: string;
   lat: number;
   lon: number;
-  source: 'monitorada' | 'nominatim';
+  source: 'malha' | 'nominatim';
   id_ponto?: number;
+}
+
+// Backend já dedupe por nome_via. Aqui mantém pass-through.
+function dedupeByProximity(list: PlaceSuggestion[]): PlaceSuggestion[] {
+  return list;
 }
 
 interface Props {
@@ -39,6 +40,7 @@ interface Props {
   value: string;
   onChangeText: (v: string) => void;
   onSelect: (p: PlaceSuggestion) => void;
+  zIndex?: number;
 }
 
 export default function AddressAutocomplete({
@@ -47,6 +49,7 @@ export default function AddressAutocomplete({
   value,
   onChangeText,
   onSelect,
+  zIndex = 50,
 }: Props) {
   const { theme } = useTheme();
   const c = theme.colors;
@@ -68,8 +71,8 @@ export default function AddressAutocomplete({
           `${API_URL}/search/places?q=${encodeURIComponent(value)}&limit=8`
         );
         if (res.ok) {
-          const data = await res.json();
-          setItems(data);
+          const data: PlaceSuggestion[] = await res.json();
+          setItems(dedupeByProximity(data));
           setOpen(true);
         }
       } catch {
@@ -85,19 +88,20 @@ export default function AddressAutocomplete({
   }, [value]);
 
   const handlePick = (item: PlaceSuggestion) => {
+    // Só onSelect — parent atualiza texto + place no mesmo tick.
+    // Evita race onde onChangeText ("usuário digitou") limpa o place.
     onSelect(item);
-    onChangeText(item.label);
     setOpen(false);
     setItems([]);
   };
 
   return (
-    <View style={{ position: 'relative', zIndex: 50 }}>
+    <View style={{ position: 'relative', zIndex }}>
       <Input
         placeholder={placeholder}
         iconLeft={iconLeft}
         value={value}
-        onChangeText={(v) => {
+        onChangeText={(v: string) => {
           onChangeText(v);
           if (!open) setOpen(true);
         }}
@@ -122,16 +126,15 @@ export default function AddressAutocomplete({
               <ActivityIndicator color={c.text} />
             </View>
           ) : (
-            <FlatList
-              data={items}
-              keyExtractor={(item, i) =>
-                `${item.lat}_${item.lon}_${i}`
-              }
+            <ScrollView
               keyboardShouldPersistTaps="handled"
-              renderItem={({ item }) => (
+              style={{ maxHeight: 320 }}
+            >
+              {items.map((item: PlaceSuggestion, i: number) => (
                 <Pressable
+                  key={`${item.lat}_${item.lon}_${i}`}
                   onPress={() => handlePick(item)}
-                  style={({ pressed }) => [
+                  style={({ pressed }: { pressed: boolean }) => [
                     styles.row,
                     {
                       backgroundColor: pressed ? c.surfaceMuted : 'transparent',
@@ -144,18 +147,18 @@ export default function AddressAutocomplete({
                       styles.iconBox,
                       {
                         backgroundColor:
-                          item.source === 'monitorada' ? c.success + '22' : c.surfaceMuted,
+                          item.source === 'malha' ? c.success + '22' : c.surfaceMuted,
                       },
                     ]}
                   >
                     <Icon
                       name={
-                        item.source === 'monitorada'
+                        item.source === 'malha'
                           ? 'ion:flash-outline'
                           : 'ion:location-outline'
                       }
                       size={16}
-                      color={item.source === 'monitorada' ? c.success : c.textMuted}
+                      color={item.source === 'malha' ? c.success : c.textMuted}
                     />
                   </View>
                   <View style={{ flex: 1 }}>
@@ -170,8 +173,8 @@ export default function AddressAutocomplete({
                     </Text>
                   </View>
                 </Pressable>
-              )}
-            />
+              ))}
+            </ScrollView>
           )}
         </View>
       ) : null}

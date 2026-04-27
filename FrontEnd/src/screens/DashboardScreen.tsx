@@ -8,13 +8,22 @@ import {
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import { useDesktopLayout } from '../navigation/MainNavigator';
+import { API_URL } from '../lib/api';
+import { supabase, RouteHistoryRow } from '../lib/supabase';
 import LIAIndicator from '../components/LIAIndicator';
 import Icon from '../components/Icon';
 
-const API_URL =
-  process.env.EXPO_PUBLIC_API_URL ||
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ((globalThis as any).__DEV__ ? 'http://localhost:8000' : 'https://routify-api.railway.app');
+interface HistoryStats {
+  rotas: number;
+  km_total: number;
+  min_total: number;
+  co2_kg_economizado: number;
+  vias_evitadas: number;
+}
+
+const CO2_BASELINE_KG_KM = 0.192; // emissão média carro a gasolina
+const CO2_LIA_KG_KM = 0.155;      // estimativa rota otimizada (~19% menos)
 
 interface Metrics {
   modelo_ativo: string;
@@ -40,9 +49,11 @@ export default function DashboardScreen() {
   const { theme } = useTheme();
   const c = theme.colors;
   const { user, profile } = useAuth();
+  const desktop = useDesktopLayout();
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [apiOnline, setApiOnline] = useState(false);
+  const [stats, setStats] = useState<HistoryStats | null>(null);
 
   useEffect(() => {
     fetch(`${API_URL}/metrics`)
@@ -55,6 +66,36 @@ export default function DashboardScreen() {
       .finally(() => setLoading(false));
   }, []);
 
+  // Agrega histórico do usuário: km, min, CO2 economizado vs baseline carro gasolina.
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('route_history')
+        .select('distancia_km, tempo_total_seg, via_principal')
+        .eq('user_id', user.id);
+      if (cancelled || error || !data) return;
+      const rows = data as Pick<RouteHistoryRow, 'distancia_km' | 'tempo_total_seg' | 'via_principal'>[];
+      const km_total = rows.reduce((s, r) => s + Number(r.distancia_km || 0), 0);
+      const min_total = rows.reduce((s, r) => s + Number(r.tempo_total_seg || 0), 0) / 60;
+      const co2_kg_economizado = km_total * (CO2_BASELINE_KG_KM - CO2_LIA_KG_KM);
+      const vias_evitadas = new Set(
+        rows.map((r) => (r.via_principal || '').trim()).filter(Boolean)
+      ).size;
+      setStats({
+        rotas: rows.length,
+        km_total,
+        min_total,
+        co2_kg_economizado,
+        vias_evitadas,
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
   const rmse = metrics?.cv_rmse_seg;
   const pontos = metrics?.n_pontos_monitorados ?? 0;
   const amostras = metrics?.total_amostras_treino ?? 0;
@@ -64,7 +105,14 @@ export default function DashboardScreen() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: c.background }}
-      contentContainerStyle={{ padding: 20, paddingTop: 60, paddingBottom: 80 }}
+      contentContainerStyle={{
+        padding: desktop ? 32 : 20,
+        paddingTop: desktop ? 40 : 60,
+        paddingBottom: 80,
+        maxWidth: desktop ? 1100 : undefined,
+        width: '100%',
+        alignSelf: 'center',
+      }}
     >
       <View style={styles.greeting}>
         <Text style={{ color: c.textMuted, fontSize: 13 }}>{formatDate()}</Text>
@@ -128,7 +176,7 @@ export default function DashboardScreen() {
         ) : null}
       </View>
 
-      {/* Grid 2x1 */}
+      {/* Grid 2x1 — Modelo */}
       <View style={styles.statsRow}>
         <StatCard
           icon="ion:git-network-outline"
@@ -142,6 +190,45 @@ export default function DashboardScreen() {
           icon="ion:server-outline"
           label="Amostras treino"
           value={loading ? '—' : amostras > 0 ? `${(amostras / 1000).toFixed(0)}k` : '—'}
+          colorBg={c.surface}
+          colorText={c.text}
+          colorSub={c.textMuted}
+        />
+      </View>
+
+      {/* Histórico do usuário — impacto */}
+      <Text style={[styles.sectionTitle, { color: c.textMuted }]}>SEU IMPACTO</Text>
+      <View style={styles.statsRow}>
+        <StatCard
+          icon="ion:leaf-outline"
+          label="CO₂ economizado"
+          value={stats ? `${stats.co2_kg_economizado.toFixed(1)} kg` : '—'}
+          colorBg={c.surface}
+          colorText={c.success}
+          colorSub={c.textMuted}
+        />
+        <StatCard
+          icon="ion:navigate-outline"
+          label="Distância otimizada"
+          value={stats ? `${stats.km_total.toFixed(0)} km` : '—'}
+          colorBg={c.surface}
+          colorText={c.text}
+          colorSub={c.textMuted}
+        />
+      </View>
+      <View style={styles.statsRow}>
+        <StatCard
+          icon="ion:flag-outline"
+          label="Rotas otimizadas"
+          value={stats ? `${stats.rotas}` : '—'}
+          colorBg={c.surface}
+          colorText={c.text}
+          colorSub={c.textMuted}
+        />
+        <StatCard
+          icon="ion:swap-horizontal-outline"
+          label="Vias diferentes"
+          value={stats ? `${stats.vias_evitadas}` : '—'}
           colorBg={c.surface}
           colorText={c.text}
           colorSub={c.textMuted}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Platform, useWindowDimensions, View } from 'react-native';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -38,11 +38,40 @@ const TAB_ICONS: Record<string, { active: string; inactive: string }> = {
   Perfil: { active: 'ion:person', inactive: 'ion:person-outline' },
 };
 
+export const DESKTOP_BREAKPOINT = 1024;
+
+export function useDesktopLayout(): boolean {
+  const { width } = useWindowDimensions();
+  return Platform.OS === 'web' && width >= DESKTOP_BREAKPOINT;
+}
+
 function MainTabs() {
   const { theme } = useTheme();
   const c = theme.colors;
+  const desktop = useDesktopLayout();
+
+  // Desktop web: tabBar vertical à esquerda. Mobile/native: bottom.
+  const tabBarStyle = desktop
+    ? {
+        backgroundColor: c.surface,
+        borderRightColor: c.surfaceMuted,
+        borderRightWidth: 1,
+        width: 220,
+        paddingTop: 24,
+      }
+    : {
+        backgroundColor: c.surface,
+        borderTopColor: c.surfaceMuted,
+        borderTopWidth: 1,
+        height: 64,
+        paddingTop: 6,
+        paddingBottom: 8,
+      };
+
   return (
     <Tab.Navigator
+      // tabBarPosition disponível em @react-navigation/bottom-tabs v7+
+      tabBarPosition={desktop ? 'left' : 'bottom'}
       screenOptions={({ route }: { route: { name: string } }) => ({
         headerShown: false,
         tabBarIcon: ({ focused, size }: { focused: boolean; size: number }) => {
@@ -51,21 +80,16 @@ function MainTabs() {
             <Icon
               name={focused ? map.active : map.inactive}
               size={size}
-              color={focused ? c.text : c.textSubtle}
+              color={focused ? c.accent : c.textSubtle}
             />
           );
         },
-        tabBarActiveTintColor: c.text,
+        tabBarActiveTintColor: c.accent,
         tabBarInactiveTintColor: c.textSubtle,
-        tabBarStyle: {
-          backgroundColor: c.surface,
-          borderTopColor: c.surfaceMuted,
-          borderTopWidth: 1,
-          height: 64,
-          paddingTop: 6,
-          paddingBottom: 8,
-        },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '500' },
+        tabBarStyle,
+        tabBarLabelStyle: desktop
+          ? { fontSize: 13, fontWeight: '500', marginLeft: 8 }
+          : { fontSize: 11, fontWeight: '500' },
       })}
     >
       <Tab.Screen name="Mapa" component={MapScreen} />

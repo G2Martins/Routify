@@ -48,8 +48,28 @@ def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * R * math.asin(math.sqrt(a))
 
 
+NON_DRIVABLE_HIGHWAYS = {
+    'footway', 'pedestrian', 'path', 'steps', 'cycleway',
+    'bridleway', 'corridor', 'platform', 'track',
+}
+PENALTY_NON_DRIVABLE_S = 1e9  # peso astronômico — A* nunca escolhe
+
+
+def _highway_value(edge_data: dict) -> str:
+    hw = edge_data.get('highway')
+    if isinstance(hw, list):
+        return (hw[0] if hw else '').lower()
+    return (hw or '').lower()
+
+
 def lia_predict_edge(model, encoder, edge_data: dict, hora: int, dia_semana: int) -> float:
     """Prediz tempo de viagem para uma aresta do grafo OSM."""
+    # Aresta não-dirigível → peso astronômico.
+    # Defesa em profundidade: network_type='drive' já filtra na construção do grafo,
+    # mas tags mistas/list e arestas legadas em cache podem escapar.
+    if _highway_value(edge_data) in NON_DRIVABLE_HIGHWAYS:
+        return PENALTY_NON_DRIVABLE_S
+
     vel_livre = float(edge_data.get('speed_kph', 50) or 50)
     length_m = float(edge_data.get('length', 100) or 100)
 

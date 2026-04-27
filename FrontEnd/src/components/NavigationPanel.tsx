@@ -148,7 +148,7 @@ export default function NavigationPanel({ route, navigating, onStart, onCancel }
       <View style={styles.footer}>
         <Pressable
           onPress={onCancel}
-          style={({ pressed }) => [
+          style={({ pressed }: { pressed: boolean }) => [
             styles.cancelBtn,
             {
               backgroundColor: c.surfaceAlt,

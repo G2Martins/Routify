@@ -1,10 +1,18 @@
 /**
- * Theme tokens — Uber-inspired (confident minimalism)
- * Spec: getdesign.md/uber/design-md
+ * Theme tokens — Uber-inspired (confident minimalism) + paleta brand Routify
  *
- * Light = preto/branco strict, sem mid-grays.
- * Dark = inversão da paleta para uso noturno.
+ * Brand:
+ *   #09C6A4  teal (saúde/eco)
+ *   #026BF8  azul vivo (ação/CTA)
+ *   #0F1F44  navy (autoridade/header)
+ *   #059BC2  cyan (info/tráfego)
  */
+export const brand = {
+  teal: '#09C6A4',
+  blue: '#026BF8',
+  navy: '#0F1F44',
+  cyan: '#059BC2',
+};
 
 export const radius = {
   none: 0,
@@ -73,14 +81,14 @@ export const lightColors: ThemeColors = {
   text: '#000000',
   textMuted: '#4b4b4b',
   textSubtle: '#afafaf',
-  inverse: '#000000',
+  inverse: brand.navy,
   onInverse: '#ffffff',
-  accent: '#0056D2',       // mantém identidade Routify (azul ESS no logo)
-  success: '#06C167',      // Uber Eats green (acento alimentar)
+  accent: brand.blue,      // CTA — azul brand
+  success: brand.teal,     // teal brand (eco/economia)
   danger: '#E11900',
   warning: '#FFC043',
-  border: '#000000',
-  borderStrong: '#000000',
+  border: brand.navy,
+  borderStrong: brand.navy,
   shadowLight: 'rgba(0,0,0,0.12)',
   shadowMedium: 'rgba(0,0,0,0.16)',
 };
@@ -94,9 +102,9 @@ export const darkColors: ThemeColors = {
   textMuted: '#c2c2c2',
   textSubtle: '#7a7a7a',
   inverse: '#ffffff',
-  onInverse: '#000000',
-  accent: '#3F8EFC',
-  success: '#06C167',
+  onInverse: brand.navy,
+  accent: brand.cyan,      // cyan brand (legível em fundo escuro)
+  success: brand.teal,
   danger: '#FF5043',
   warning: '#FFC043',
   border: '#272727',

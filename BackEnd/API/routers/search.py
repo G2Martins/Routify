@@ -1,11 +1,8 @@
 """
 GET /search/places — Autocomplete de locais.
 
-Combina:
-1. vias_monitoradas (Supabase) — vias do DF que o Routify monitora ativamente
-2. Nominatim (OSM) — fallback genérico para endereços/POIs em Brasília
-
-Retorna até 10 sugestões ordenadas: monitoradas primeiro (relevância LIA), depois Nominatim.
+Fonte primária: malha_completa (~38k vias do DF). Rápida, local, consistente.
+Fallback: Nominatim (OSM) — só se malha_completa retornou poucos resultados.
 """
 import os
 import logging
@@ -41,8 +38,24 @@ class PlaceSuggestion(BaseModel):
     sublabel: str
     lat: float
     lon: float
-    source: str  # "monitorada" | "nominatim"
+    source: str  # "malha" | "nominatim"
     id_ponto: Optional[int] = None
+
+
+def _via_sublabel(tipo_via: Optional[str]) -> str:
+    """Mapeia tipo OSM para descrição PT-BR amigável."""
+    mapa = {
+        'motorway': 'Via expressa',
+        'trunk': 'Via arterial',
+        'primary': 'Via principal',
+        'secondary': 'Via secundária',
+        'tertiary': 'Via terciária',
+        'residential': 'Via residencial',
+        'living_street': 'Via residencial',
+        'service': 'Via de serviço',
+        'unclassified': 'Via local',
+    }
+    return mapa.get((tipo_via or '').lower(), 'Via Brasília · DF')
 
 
 @router.get("/places", response_model=List[PlaceSuggestion])
@@ -51,57 +64,72 @@ async def autocomplete(
     limit: int = Query(8, ge=1, le=15),
 ):
     sugestoes: List[PlaceSuggestion] = []
+    nomes_vistos: set = set()
 
-    # 1. Vias monitoradas (LIA tem cobertura preditiva)
+    # 1. malha_completa (~38k vias locais — fonte primária)
     sb = get_supabase()
     if sb is not None:
         try:
             response = (
-                sb.table('vias_monitoradas')
-                .select('id_ponto, nome_via, latitude, longitude')
+                sb.table('malha_completa')
+                .select('id_via, nome_via, tipo_via, latitude, longitude')
                 .ilike('nome_via', f'%{q}%')
-                .limit(limit)
+                .limit(limit * 6)  # busca mais p/ deduplicar por nome
                 .execute()
             )
             for row in response.data or []:
+                nome = (row.get('nome_via') or '').strip()
+                if not nome:
+                    continue
+                key = nome.lower()
+                if key in nomes_vistos:
+                    continue
                 if row.get('latitude') is None or row.get('longitude') is None:
                     continue
+                nomes_vistos.add(key)
                 sugestoes.append(PlaceSuggestion(
-                    label=row.get('nome_via') or 'Via monitorada',
-                    sublabel='Brasília · LIA monitora',
+                    label=nome,
+                    sublabel=_via_sublabel(row.get('tipo_via')),
                     lat=float(row['latitude']),
                     lon=float(row['longitude']),
-                    source='monitorada',
-                    id_ponto=row.get('id_ponto'),
+                    source='malha',
+                    id_ponto=row.get('id_via'),
                 ))
+                if len(sugestoes) >= limit:
+                    break
         except Exception as e:
-            logger.warning(f"Falha ao consultar vias_monitoradas: {e}")
+            logger.warning(f"Falha ao consultar malha_completa: {e}")
 
-    # 2. Nominatim (OSM) — completar com endereços/POIs
-    remaining = max(0, limit - len(sugestoes))
-    if remaining > 0:
-        try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                resp = await client.get(
-                    'https://nominatim.openstreetmap.org/search',
-                    params={
-                        'q': f"{q}, Brasília, DF, Brasil",
-                        'format': 'json',
-                        'limit': remaining,
-                        'countrycodes': 'br',
-                    },
-                    headers={'User-Agent': 'Routify/1.0 TCC'},
-                )
-                if resp.status_code == 200:
-                    for item in resp.json():
-                        sugestoes.append(PlaceSuggestion(
-                            label=(item.get('display_name') or '').split(',')[0],
-                            sublabel=(item.get('display_name') or '')[:120],
-                            lat=float(item['lat']),
-                            lon=float(item['lon']),
-                            source='nominatim',
-                        ))
-        except Exception as e:
-            logger.warning(f"Falha Nominatim: {e}")
+    # 2. Nominatim — só se malha trouxe pouco (<3) ou nenhum casamento exato
+    if len(sugestoes) < 3:
+        remaining = max(0, limit - len(sugestoes))
+        if remaining > 0:
+            try:
+                async with httpx.AsyncClient(timeout=4.0) as client:
+                    resp = await client.get(
+                        'https://nominatim.openstreetmap.org/search',
+                        params={
+                            'q': f"{q}, Brasília, DF, Brasil",
+                            'format': 'json',
+                            'limit': remaining,
+                            'countrycodes': 'br',
+                        },
+                        headers={'User-Agent': 'Routify/1.0 TCC'},
+                    )
+                    if resp.status_code == 200:
+                        for item in resp.json():
+                            label = (item.get('display_name') or '').split(',')[0].strip()
+                            if not label or label.lower() in nomes_vistos:
+                                continue
+                            nomes_vistos.add(label.lower())
+                            sugestoes.append(PlaceSuggestion(
+                                label=label,
+                                sublabel=(item.get('display_name') or '')[:120],
+                                lat=float(item['lat']),
+                                lon=float(item['lon']),
+                                source='nominatim',
+                            ))
+            except Exception as e:
+                logger.warning(f"Falha Nominatim: {e}")
 
     return sugestoes[:limit]

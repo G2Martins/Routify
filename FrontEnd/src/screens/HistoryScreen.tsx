@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import { useDesktopLayout } from '../navigation/MainNavigator';
 import { supabase, RouteHistoryRow } from '../lib/supabase';
 import Icon from '../components/Icon';
 
@@ -26,6 +27,7 @@ export default function HistoryScreen() {
   const { theme } = useTheme();
   const c = theme.colors;
   const { user } = useAuth();
+  const desktop = useDesktopLayout();
   const [items, setItems] = useState<RouteHistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -79,18 +81,31 @@ export default function HistoryScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: c.background }]}>
-      <View style={styles.header}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: c.background,
+          maxWidth: desktop ? 1100 : undefined,
+          width: '100%',
+          alignSelf: 'center',
+        },
+      ]}
+    >
+      <View style={[styles.header, desktop ? { paddingTop: 32 } : null]}>
         <Text style={[styles.title, { color: c.text }]}>Histórico</Text>
         <Text style={[styles.subtitle, { color: c.textMuted }]}>
           {items.length} {items.length === 1 ? 'rota otimizada' : 'rotas otimizadas'}
         </Text>
       </View>
 
-      <FlatList
+      <FlatList<RouteHistoryRow>
         data={items}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={{ padding: 20, paddingTop: 0, paddingBottom: 100 }}
+        key={desktop ? 'grid-2' : 'list-1'}
+        numColumns={desktop ? 2 : 1}
+        columnWrapperStyle={desktop ? { gap: 12 } : undefined}
+        keyExtractor={(item: RouteHistoryRow) => item.id}
+        contentContainerStyle={{ padding: desktop ? 32 : 20, paddingTop: 0, paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.text} />}
         ListEmptyComponent={
           <View style={[styles.empty, { borderColor: c.surfaceMuted }]}>
@@ -103,11 +118,12 @@ export default function HistoryScreen() {
             </Text>
           </View>
         }
-        renderItem={({ item }) => (
+        renderItem={({ item }: { item: RouteHistoryRow }) => (
           <View
             style={[
               styles.card,
               { backgroundColor: c.surface, borderColor: c.surfaceMuted },
+              desktop ? { flex: 1 } : null,
             ]}
           >
             <View style={styles.cardHeader}>

@@ -5,11 +5,14 @@ import {
   Platform,
   Pressable,
   StyleSheet,
+  Text,
   View,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import { useDesktopLayout } from '../navigation/MainNavigator';
 import { supabase } from '../lib/supabase';
+import { API_URL } from '../lib/api';
 import AddressAutocomplete, { PlaceSuggestion } from '../components/AddressAutocomplete';
 import NavigationPanel from '../components/NavigationPanel';
 import MapStyleToggle from '../components/MapStyleToggle';
@@ -19,11 +22,6 @@ import Button from '../components/Button';
 
 // @ts-ignore
 import MapComponent from '../components/MapComponent';
-
-const API_URL =
-  process.env.EXPO_PUBLIC_API_URL ||
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ((globalThis as any).__DEV__ ? 'http://localhost:8000' : 'https://routify-api.railway.app');
 
 interface RouteResult {
   polyline: number[][];
@@ -37,6 +35,7 @@ export default function MapScreen() {
   const { theme } = useTheme();
   const c = theme.colors;
   const { user } = useAuth();
+  const desktop = useDesktopLayout();
 
   const [origemText, setOrigemText] = useState('');
   const [destinoText, setDestinoText] = useState('');
@@ -50,6 +49,17 @@ export default function MapScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const mapRef = useRef<any>(null);
+  const lastReplanRef = useRef<{ lat: number; lon: number; t: number } | null>(null);
+  const navigatingRef = useRef(false);
+  const destinoRef = useRef<PlaceSuggestion | null>(null);
+  const recalcInflightRef = useRef(false);
+
+  useEffect(() => {
+    navigatingRef.current = navigating;
+  }, [navigating]);
+  useEffect(() => {
+    destinoRef.current = destinoPlace;
+  }, [destinoPlace]);
 
   useEffect(() => {
     // Tenta centralizar no usuário em silêncio. Se falhar (HTTPS/permissão),
@@ -137,9 +147,74 @@ export default function MapScreen() {
     setDestinoText('');
     setError(null);
     mapRef.current?.clearRoute?.();
+    mapRef.current?.stopFollow?.();
   };
 
-  const handleStartNav = () => setNavigating(true);
+  const REPLAN_MIN_MS = 30_000;   // máx. 1 recálculo por 30s
+  const REPLAN_MIN_DIST_M = 80;   // só recalcula se andou >80m desde último replan
+
+  const haversineM = (a: [number, number], b: [number, number]) => {
+    const R = 6_371_000;
+    const toRad = (x: number) => (x * Math.PI) / 180;
+    const dLat = toRad(b[0] - a[0]);
+    const dLon = toRad(b[1] - a[1]);
+    const s =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(a[0])) * Math.cos(toRad(b[0])) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(s));
+  };
+
+  const replanFromHere = async (lat: number, lon: number) => {
+    const dest = destinoRef.current;
+    if (!dest || recalcInflightRef.current) return;
+    recalcInflightRef.current = true;
+    try {
+      const res = await fetch(`${API_URL}/route`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          origem: { lat, lon },
+          destino: { lat: dest.lat, lon: dest.lon },
+        }),
+      });
+      if (!res.ok) return;
+      const data: RouteResult = await res.json();
+      mapRef.current?.showRoute?.(data.polyline, [lat, lon], [dest.lat, dest.lon]);
+      setRoute(data);
+    } catch (e) {
+      console.warn('[Routify] replan fail', e);
+    } finally {
+      recalcInflightRef.current = false;
+    }
+  };
+
+  const handleUserLocation = (lat: number, lon: number) => {
+    if (!navigatingRef.current) return;
+    const now = Date.now();
+    const last = lastReplanRef.current;
+    if (last) {
+      const moved = haversineM([last.lat, last.lon], [lat, lon]);
+      if (now - last.t < REPLAN_MIN_MS) return;
+      if (moved < REPLAN_MIN_DIST_M) return;
+    }
+    lastReplanRef.current = { lat, lon, t: now };
+    replanFromHere(lat, lon);
+  };
+
+  const handleStartNav = () => {
+    setNavigating(true);
+    lastReplanRef.current = null;
+    mapRef.current?.startFollow?.(
+      (m: string) => setError(m),
+      handleUserLocation
+    );
+  };
+
+  useEffect(() => {
+    return () => {
+      mapRef.current?.stopFollow?.();
+    };
+  }, []);
 
   return (
     <KeyboardAvoidingView
@@ -148,10 +223,11 @@ export default function MapScreen() {
     >
       <MapComponent ref={mapRef} />
 
-      {/* Search card top */}
+      {/* Search card — top no mobile, sidebar esquerda no desktop */}
       <View
         style={[
           styles.searchCard,
+          desktop ? styles.searchCardDesktop : null,
           { backgroundColor: c.surface, shadowColor: '#000' },
         ]}
       >
@@ -163,7 +239,11 @@ export default function MapScreen() {
             setOrigemText(v);
             if (origemPlace) setOrigemPlace(null);
           }}
-          onSelect={(p: PlaceSuggestion) => setOrigemPlace(p)}
+          onSelect={(p: PlaceSuggestion) => {
+            setOrigemPlace(p);
+            setOrigemText(p.label);
+          }}
+          zIndex={60}
         />
         <View style={[styles.divider, { backgroundColor: c.surfaceMuted }]} />
         <AddressAutocomplete
@@ -174,22 +254,25 @@ export default function MapScreen() {
             setDestinoText(v);
             if (destinoPlace) setDestinoPlace(null);
           }}
-          onSelect={(p: PlaceSuggestion) => setDestinoPlace(p)}
+          onSelect={(p: PlaceSuggestion) => {
+            setDestinoPlace(p);
+            setDestinoText(p.label);
+          }}
+          zIndex={50}
         />
 
         {error ? (
           <View style={[styles.errorBox, { backgroundColor: c.danger + '11' }]}>
-            <Icon name="ion:close" size={14} color={c.danger} />
-            <View style={{ flex: 1, marginLeft: 8 }}>
-              <Pressable onPress={() => setError(null)}>
-                <Icon
-                  name="ion:close"
-                  size={14}
-                  color={c.danger}
-                  style={{ position: 'absolute', right: 0, top: -4 }}
-                />
-              </Pressable>
-            </View>
+            <Icon name="ion:alert-circle-outline" size={16} color={c.danger} />
+            <Text
+              style={{ flex: 1, marginLeft: 8, color: c.danger, fontSize: 13 }}
+              numberOfLines={3}
+            >
+              {error}
+            </Text>
+            <Pressable onPress={() => setError(null)} hitSlop={8}>
+              <Icon name="ion:close" size={16} color={c.danger} />
+            </Pressable>
           </View>
         ) : null}
       </View>
@@ -225,7 +308,7 @@ export default function MapScreen() {
       ) : null}
 
       {/* Bottom: NavigationPanel ou CTA Otimizar */}
-      <View style={styles.bottomDock}>
+      <View style={[styles.bottomDock, desktop ? styles.bottomDockDesktop : null]}>
         {route ? (
           <NavigationPanel
             route={route}
@@ -327,5 +410,18 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     zIndex: 25,
+  },
+  // Desktop overrides — sidebar esquerda fixa
+  searchCardDesktop: {
+    top: 24,
+    left: 24,
+    right: undefined,
+    width: 400,
+  },
+  bottomDockDesktop: {
+    bottom: 24,
+    left: 24,
+    right: undefined,
+    width: 400,
   },
 });

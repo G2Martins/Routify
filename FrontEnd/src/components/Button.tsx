@@ -61,7 +61,7 @@ export default function Button({
     <Pressable
       onPress={onPress}
       disabled={disabled || loading}
-      style={({ pressed }) => [
+      style={({ pressed }: { pressed: boolean }) => [
         styles.base,
         {
           height: heightMap[size],

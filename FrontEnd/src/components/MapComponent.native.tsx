@@ -25,6 +25,7 @@ interface LatLon {
 const MapComponent = forwardRef((_props, ref) => {
   const { mapStyle, theme } = useTheme();
   const mapRef = useRef<MapView>(null);
+  const watchSubRef = useRef<Location.LocationSubscription | null>(null);
   const [routeCoords, setRouteCoords] = useState<LatLon[]>([]);
   const [origemCoord, setOrigemCoord] = useState<LatLon | null>(null);
   const [destinoCoord, setDestinoCoord] = useState<LatLon | null>(null);
@@ -61,6 +62,20 @@ const MapComponent = forwardRef((_props, ref) => {
     ) {
       if (!polyline || polyline.length < 2) return;
       const coords = polyline.map(([lat, lon]) => ({ latitude: lat, longitude: lon }));
+      // Backend snap-a origem/destino para o nó mais próximo do grafo;
+      // estende a linha até as coords reais para tocar os marcadores.
+      if (origemLatLon) {
+        const head = coords[0];
+        if (head.latitude !== origemLatLon[0] || head.longitude !== origemLatLon[1]) {
+          coords.unshift({ latitude: origemLatLon[0], longitude: origemLatLon[1] });
+        }
+      }
+      if (destinoLatLon) {
+        const tail = coords[coords.length - 1];
+        if (tail.latitude !== destinoLatLon[0] || tail.longitude !== destinoLatLon[1]) {
+          coords.push({ latitude: destinoLatLon[0], longitude: destinoLatLon[1] });
+        }
+      }
       setRouteCoords(coords);
       if (origemLatLon) setOrigemCoord({ latitude: origemLatLon[0], longitude: origemLatLon[1] });
       if (destinoLatLon)
@@ -77,6 +92,49 @@ const MapComponent = forwardRef((_props, ref) => {
       setRouteCoords([]);
       setOrigemCoord(null);
       setDestinoCoord(null);
+    },
+
+    async startFollow(
+      onError?: (msg: string) => void,
+      onLocation?: (lat: number, lon: number) => void
+    ) {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          onError?.('Permissão de localização negada.');
+          return;
+        }
+        if (watchSubRef.current) return;
+        watchSubRef.current = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.High,
+            distanceInterval: 5,
+            timeInterval: 2_000,
+          },
+          (loc) => {
+            const { latitude, longitude } = loc.coords;
+            mapRef.current?.animateToRegion(
+              {
+                latitude,
+                longitude,
+                latitudeDelta: 0.005,
+                longitudeDelta: 0.005,
+              },
+              700
+            );
+            onLocation?.(latitude, longitude);
+          }
+        );
+      } catch (e: any) {
+        onError?.(e?.message ?? 'Erro ao iniciar follow.');
+      }
+    },
+
+    stopFollow() {
+      if (watchSubRef.current) {
+        watchSubRef.current.remove();
+        watchSubRef.current = null;
+      }
     },
   }));
 

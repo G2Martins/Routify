@@ -42,6 +42,7 @@ const MapComponent = forwardRef((_props, ref) => {
   const markerUserRef = useRef<any>(null);
   const markerOrigemRef = useRef<any>(null);
   const markerDestinoRef = useRef<any>(null);
+  const watchIdRef = useRef<number | null>(null);
   const [, setMapLoaded] = useState(false);
 
   // Inicializa o mapa uma única vez
@@ -117,30 +118,101 @@ const MapComponent = forwardRef((_props, ref) => {
         return;
       }
 
+      const placeUser = (lat: number, lon: number, zoom = 15) => {
+        mapInstanceRef.current.setView([lat, lon], zoom, { animate: true });
+        if (markerUserRef.current) {
+          markerUserRef.current.setLatLng([lat, lon]);
+        } else {
+          const icon = L.divIcon({
+            html: `<div style="width:14px;height:14px;border-radius:50%;background:#026BF8;border:3px solid white;box-shadow:0 0 0 6px rgba(2,107,248,0.25);"></div>`,
+            iconSize: [14, 14],
+            iconAnchor: [7, 7],
+            className: '',
+          });
+          markerUserRef.current = L.marker([lat, lon], { icon }).addTo(mapInstanceRef.current);
+        }
+      };
+
+      const tryIpFallback = async () => {
+        // Última tentativa — geo por IP. Precisão ~cidade, só pra centralizar mapa.
+        const endpoints = [
+          'https://ipapi.co/json/',
+          'https://ipwho.is/',
+        ];
+        for (const url of endpoints) {
+          try {
+            const r = await fetch(url);
+            if (!r.ok) continue;
+            const j = await r.json();
+            const lat = Number(j.latitude ?? j.lat);
+            const lon = Number(j.longitude ?? j.lon);
+            if (Number.isFinite(lat) && Number.isFinite(lon)) {
+              console.info('[Routify] geo IP fallback', { url, lat, lon, src: j });
+              placeUser(lat, lon, 12);
+              return true;
+            }
+          } catch (e) {
+            console.warn('[Routify] geo IP fallback fail', url, e);
+          }
+        }
+        return false;
+      };
+
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          const { latitude: lat, longitude: lon } = pos.coords;
-          mapInstanceRef.current.setView([lat, lon], 15, { animate: true });
-          if (markerUserRef.current) {
-            markerUserRef.current.setLatLng([lat, lon]);
-          } else {
-            const icon = L.divIcon({
-              html: `<div style="width:14px;height:14px;border-radius:50%;background:#0056D2;border:3px solid white;box-shadow:0 0 0 6px rgba(0,86,210,0.25);animation:pulse 2s ease-in-out infinite;"></div>`,
-              iconSize: [14, 14],
-              iconAnchor: [7, 7],
-              className: '',
-            });
-            markerUserRef.current = L.marker([lat, lon], { icon }).addTo(mapInstanceRef.current);
-          }
+          const { latitude: lat, longitude: lon, accuracy } = pos.coords;
+          console.info('[Routify] geo OK', { lat, lon, accuracy });
+          placeUser(lat, lon);
         },
-        (err) => {
-          let msg = 'Não foi possível obter sua localização.';
+        async (err) => {
+          // Diagnóstico aprofundado — código + nome + permissão atual.
+          const codeName =
+            err.code === err.PERMISSION_DENIED
+              ? 'PERMISSION_DENIED'
+              : err.code === err.POSITION_UNAVAILABLE
+              ? 'POSITION_UNAVAILABLE'
+              : err.code === err.TIMEOUT
+              ? 'TIMEOUT'
+              : `UNKNOWN(${err.code})`;
+          let permState = 'n/a';
+          try {
+            const perm = await (navigator as any).permissions?.query?.({
+              name: 'geolocation',
+            });
+            permState = perm?.state ?? 'n/a';
+          } catch {
+            // permissions API indisponível
+          }
+          console.warn('[Routify] geo FAIL', {
+            code: err.code,
+            name: codeName,
+            message: err.message,
+            permission: permState,
+            isSecureContext: window.isSecureContext,
+            host: location.hostname,
+            ua: navigator.userAgent,
+          });
+
+          // POSITION_UNAVAILABLE em Windows sem GPS é comum; tenta IP fallback.
+          if (err.code === err.POSITION_UNAVAILABLE || err.code === err.TIMEOUT) {
+            const ok = await tryIpFallback();
+            if (ok) {
+              onError?.(
+                'GPS indisponível — usando localização aproximada por IP. Veja console pra detalhes.'
+              );
+              return;
+            }
+          }
+
+          let msg: string;
           if (err.code === err.PERMISSION_DENIED) {
-            msg = 'Permissão de localização negada. Clique no cadeado da URL e libere.';
+            msg = 'Permissão negada. Cadeado da URL → permitir localização.';
           } else if (err.code === err.POSITION_UNAVAILABLE) {
-            msg = 'Localização indisponível. Verifique GPS/Wi-Fi.';
+            msg = 'Localização indisponível (GPS/Wi-Fi off). Veja console pra diagnóstico.';
           } else if (err.code === err.TIMEOUT) {
-            msg = 'Tempo esgotado tentando obter localização.';
+            msg = 'Timeout obtendo localização. Tente novamente.';
+          } else {
+            msg = `Erro desconhecido (${codeName}). Veja console.`;
           }
           onError?.(msg);
         },
@@ -158,7 +230,21 @@ const MapComponent = forwardRef((_props, ref) => {
       if (polylineRef.current) polylineRef.current.remove();
       if (!polyline || polyline.length < 2) return;
 
-      polylineRef.current = L.polyline(polyline, {
+      // Backend faz snap origem/destino para o nó mais próximo do grafo OSM,
+      // então prepende/anexa as coords reais para a linha tocar os marcadores.
+      const fullLine: [number, number][] = [...(polyline as [number, number][])];
+      if (origemCoord) {
+        const [a, b] = fullLine[0];
+        if (a !== origemCoord[0] || b !== origemCoord[1]) fullLine.unshift(origemCoord);
+      }
+      if (destinoCoord) {
+        const last = fullLine[fullLine.length - 1];
+        if (last[0] !== destinoCoord[0] || last[1] !== destinoCoord[1]) {
+          fullLine.push(destinoCoord);
+        }
+      }
+
+      polylineRef.current = L.polyline(fullLine, {
         color: theme.colors.accent,
         weight: 5,
         opacity: 0.9,
@@ -206,6 +292,53 @@ const MapComponent = forwardRef((_props, ref) => {
       if (markerDestinoRef.current) {
         markerDestinoRef.current.remove();
         markerDestinoRef.current = null;
+      }
+    },
+
+    startFollow(
+      onError?: (msg: string) => void,
+      onLocation?: (lat: number, lon: number) => void
+    ) {
+      if (!mapInstanceRef.current || typeof window === 'undefined' || !navigator.geolocation) {
+        onError?.('Geolocalização indisponível.');
+        return;
+      }
+      const isSecure =
+        window.isSecureContext ||
+        location.hostname === 'localhost' ||
+        location.hostname === '127.0.0.1';
+      if (!isSecure) {
+        onError?.('Geolocalização requer HTTPS ou localhost.');
+        return;
+      }
+      if (watchIdRef.current !== null) return;
+      watchIdRef.current = navigator.geolocation.watchPosition(
+        (pos) => {
+          const { latitude: lat, longitude: lon } = pos.coords;
+          if (!mapInstanceRef.current) return;
+          mapInstanceRef.current.setView([lat, lon], 17, { animate: true });
+          if (markerUserRef.current) {
+            markerUserRef.current.setLatLng([lat, lon]);
+          } else if (L) {
+            const icon = L.divIcon({
+              html: `<div style="width:14px;height:14px;border-radius:50%;background:#026BF8;border:3px solid white;box-shadow:0 0 0 6px rgba(2,107,248,0.25);"></div>`,
+              iconSize: [14, 14],
+              iconAnchor: [7, 7],
+              className: '',
+            });
+            markerUserRef.current = L.marker([lat, lon], { icon }).addTo(mapInstanceRef.current);
+          }
+          onLocation?.(lat, lon);
+        },
+        (err) => onError?.(err.message || 'Erro de localização.'),
+        { enableHighAccuracy: true, maximumAge: 2_000, timeout: 10_000 }
+      );
+    },
+
+    stopFollow() {
+      if (watchIdRef.current !== null && navigator?.geolocation) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
       }
     },
   }));
