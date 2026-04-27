@@ -52,7 +52,12 @@ export default function MapScreen() {
   const mapRef = useRef<any>(null);
 
   useEffect(() => {
-    const t = setTimeout(() => mapRef.current?.centerOnUser((m: string) => setError(m)), 800);
+    // Tenta centralizar no usuário em silêncio. Se falhar (HTTPS/permissão),
+    // mantém Brasília centro como default — sem popup no carregamento.
+    const t = setTimeout(
+      () => mapRef.current?.centerOnUser((_m: string) => { /* silencioso no mount */ }),
+      800
+    );
     return () => clearTimeout(t);
   }, []);
 

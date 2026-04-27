@@ -14,9 +14,22 @@ import ProfileScreen from '../screens/ProfileScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
+import EditProfileScreen from '../screens/EditProfileScreen';
+import PrivacyScreen from '../screens/PrivacyScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
+const ProfileStack = createNativeStackNavigator();
+
+function ProfileStackNavigator() {
+  return (
+    <ProfileStack.Navigator screenOptions={{ headerShown: false }}>
+      <ProfileStack.Screen name="ProfileHome" component={ProfileScreen} />
+      <ProfileStack.Screen name="EditProfile" component={EditProfileScreen} />
+      <ProfileStack.Screen name="Privacy" component={PrivacyScreen} />
+    </ProfileStack.Navigator>
+  );
+}
 
 const TAB_ICONS: Record<string, { active: string; inactive: string }> = {
   Mapa: { active: 'ion:map', inactive: 'ion:map-outline' },
@@ -58,7 +71,7 @@ function MainTabs() {
       <Tab.Screen name="Mapa" component={MapScreen} />
       <Tab.Screen name="Painel" component={DashboardScreen} />
       <Tab.Screen name="Histórico" component={HistoryScreen} />
-      <Tab.Screen name="Perfil" component={ProfileScreen} />
+      <Tab.Screen name="Perfil" component={ProfileStackNavigator} />
     </Tab.Navigator>
   );
 }

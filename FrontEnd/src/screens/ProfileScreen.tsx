@@ -18,7 +18,7 @@ const STYLE_LABEL: Record<MapStyle, string> = {
   satellite: 'Satélite',
 };
 
-export default function ProfileScreen() {
+export default function ProfileScreen({ navigation }: any) {
   const { theme, mode, preference, setPreference, mapStyle, setMapStyle } = useTheme();
   const c = theme.colors;
   const { user, profile, signOut } = useAuth();
@@ -111,13 +111,19 @@ export default function ProfileScreen() {
 
       <Text style={[styles.sectionTitle, { color: c.textMuted }]}>CONTA</Text>
       <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.surfaceMuted }]}>
-        <Pressable style={styles.menuItem}>
+        <Pressable
+          style={styles.menuItem}
+          onPress={() => navigation?.navigate('EditProfile')}
+        >
           <Icon name="ion:person-outline" size={20} color={c.text} />
           <Text style={[styles.menuText, { color: c.text }]}>Editar perfil</Text>
           <Icon name="ion:chevron-forward" size={18} color={c.textSubtle} />
         </Pressable>
         <View style={[styles.divider, { backgroundColor: c.surfaceMuted }]} />
-        <Pressable style={styles.menuItem}>
+        <Pressable
+          style={styles.menuItem}
+          onPress={() => navigation?.navigate('Privacy')}
+        >
           <Icon name="ion:lock-closed-outline" size={20} color={c.text} />
           <Text style={[styles.menuText, { color: c.text }]}>Privacidade</Text>
           <Icon name="ion:chevron-forward" size={18} color={c.textSubtle} />

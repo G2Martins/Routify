@@ -58,7 +58,7 @@ async def autocomplete(
         try:
             response = (
                 sb.table('vias_monitoradas')
-                .select('id_ponto, nome_via, latitude, longitude, regiao')
+                .select('id_ponto, nome_via, latitude, longitude')
                 .ilike('nome_via', f'%{q}%')
                 .limit(limit)
                 .execute()
@@ -68,7 +68,7 @@ async def autocomplete(
                     continue
                 sugestoes.append(PlaceSuggestion(
                     label=row.get('nome_via') or 'Via monitorada',
-                    sublabel=f"📍 {row.get('regiao') or 'Brasília'} · LIA monitora",
+                    sublabel='Brasília · LIA monitora',
                     lat=float(row['latitude']),
                     lon=float(row['longitude']),
                     source='monitorada',
