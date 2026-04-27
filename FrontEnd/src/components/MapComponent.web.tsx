@@ -161,11 +161,17 @@ const MapComponent = forwardRef((_props, ref) => {
         });
       };
 
+      // Edge usa exclusivamente Windows Geolocation Service (lfsvc).
+      // Se lfsvc estiver desabilitado, HIGH e LOW falham com POSITION_UNAVAILABLE
+      // pelo mesmo motivo — não adianta tentar LOW. Chrome/Firefox usam
+      // Google Location API próprio e funcionam sem lfsvc.
+      const isEdge = /\bEdg\//.test(navigator.userAgent);
+
       const tryGeo = (highAccuracy: boolean): Promise<GeolocationPosition> =>
         new Promise((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(resolve, reject, {
             enableHighAccuracy: highAccuracy,
-            timeout: highAccuracy ? 8000 : 12000,
+            timeout: isEdge ? (highAccuracy ? 4000 : 6000) : highAccuracy ? 8000 : 12000,
             maximumAge: 60_000,
           });
         });
@@ -211,9 +217,22 @@ const MapComponent = forwardRef((_props, ref) => {
           return;
         } catch (err) {
           await logFail('HIGH', err as GeolocationPositionError);
-          if ((err as GeolocationPositionError).code === 1) {
+          const code = (err as GeolocationPositionError).code;
+          if (code === 1) {
             // PERMISSION_DENIED — não adianta tentar low ou IP, usuário bloqueou.
             onError?.('Permissão negada. Cadeado da URL → permitir localização.');
+            return;
+          }
+          // Edge + POSITION_UNAVAILABLE = lfsvc desligado. LOW vai falhar igual,
+          // pula direto pra IP fallback.
+          if (isEdge && code === 2) {
+            console.warn('[Routify] geo skipping LOW on Edge (lfsvc unavailable)');
+            const ipOkEdge = await tryIpFallback();
+            onError?.(
+              ipOkEdge
+                ? 'Edge sem acesso à Localização do Windows. Usando IP. Ative o serviço lfsvc ou use Chrome.'
+                : 'Edge não tem acesso ao serviço de Localização do Windows. Ative em Configurações → Privacidade → Localização, ou abra no Chrome.'
+            );
             return;
           }
         }
