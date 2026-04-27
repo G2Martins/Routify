@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
-import { useDesktopLayout } from '../navigation/MainNavigator';
+import { useDesktopLayout } from '../lib/responsive';
 import { supabase } from '../lib/supabase';
 import { API_URL } from '../lib/api';
 import AddressAutocomplete, { PlaceSuggestion } from '../components/AddressAutocomplete';
@@ -216,6 +216,131 @@ export default function MapScreen() {
     };
   }, []);
 
+  const searchInputs = (
+    <>
+      <AddressAutocomplete
+        placeholder="Onde você está?"
+        iconLeft="ion:location-outline"
+        value={origemText}
+        onChangeText={(v: string) => {
+          setOrigemText(v);
+          if (origemPlace) setOrigemPlace(null);
+        }}
+        onSelect={(p: PlaceSuggestion) => {
+          setOrigemPlace(p);
+          setOrigemText(p.label);
+        }}
+        zIndex={60}
+      />
+      <View style={[styles.divider, { backgroundColor: c.surfaceMuted }]} />
+      <AddressAutocomplete
+        placeholder="Para onde você vai?"
+        iconLeft="ion:flag-outline"
+        value={destinoText}
+        onChangeText={(v: string) => {
+          setDestinoText(v);
+          if (destinoPlace) setDestinoPlace(null);
+        }}
+        onSelect={(p: PlaceSuggestion) => {
+          setDestinoPlace(p);
+          setDestinoText(p.label);
+        }}
+        zIndex={50}
+      />
+      {error ? (
+        <View style={[styles.errorBox, { backgroundColor: c.danger + '11' }]}>
+          <Icon name="ion:alert-circle-outline" size={16} color={c.danger} />
+          <Text
+            style={{ flex: 1, marginLeft: 8, color: c.danger, fontSize: 13 }}
+            numberOfLines={3}
+          >
+            {error}
+          </Text>
+          <Pressable onPress={() => setError(null)} hitSlop={8}>
+            <Icon name="ion:close" size={16} color={c.danger} />
+          </Pressable>
+        </View>
+      ) : null}
+    </>
+  );
+
+  const actionBlock = route ? (
+    <NavigationPanel
+      route={route}
+      navigating={navigating}
+      onStart={handleStartNav}
+      onCancel={handleClear}
+    />
+  ) : (
+    <Button
+      label={calculating ? 'LIA está calculando...' : 'Otimizar rota'}
+      variant="primary"
+      size="lg"
+      fullWidth
+      loading={calculating}
+      onPress={handleOptimize}
+      icon="ion:flash-outline"
+      disabled={!origemPlace || !destinoPlace}
+    />
+  );
+
+  const mapControls = (
+    <View style={[styles.rightStack, desktop ? styles.rightStackDesktop : null]}>
+      <MapStyleToggle />
+      <Pressable
+        onPress={() => mapRef.current?.centerOnUser((m: string) => setError(m))}
+        style={({ pressed }: { pressed: boolean }) => [
+          styles.gpsBtn,
+          {
+            backgroundColor: c.surface,
+            opacity: pressed ? 0.8 : 1,
+            shadowColor: '#000',
+          },
+        ]}
+      >
+        <Icon name="ion:locate" size={20} color={c.text} />
+      </Pressable>
+    </View>
+  );
+
+  // ---------------------------------------------------------------- DESKTOP
+  if (desktop) {
+    return (
+      <View style={{ flex: 1, backgroundColor: c.background }}>
+        <MapComponent ref={mapRef} />
+
+        {/* Search card flutuante — top-left sobre mapa */}
+        <View
+          style={[
+            styles.searchCardDesktopFloat,
+            { backgroundColor: c.surface, shadowColor: '#000' },
+          ]}
+        >
+          {searchInputs}
+        </View>
+
+        {/* Map controls — top-right */}
+        {mapControls}
+
+        {/* LIA indicator flutuante */}
+        {liaStatus === 'thinking' ? (
+          <View
+            style={[
+              styles.liaFloatDesktop,
+              { backgroundColor: c.surface, shadowColor: '#000' },
+            ]}
+          >
+            <LIAIndicator status="thinking" version="LIA 1.0" />
+          </View>
+        ) : null}
+
+        {/* Action block — bottom-left flutuante */}
+        <View style={styles.bottomDockDesktopFloat}>{actionBlock}</View>
+      </View>
+    );
+  }
+
+  // ----------------------------------------------------------------- MOBILE
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: c.background }}
@@ -223,79 +348,17 @@ export default function MapScreen() {
     >
       <MapComponent ref={mapRef} />
 
-      {/* Search card — top no mobile, sidebar esquerda no desktop */}
       <View
         style={[
           styles.searchCard,
-          desktop ? styles.searchCardDesktop : null,
           { backgroundColor: c.surface, shadowColor: '#000' },
         ]}
       >
-        <AddressAutocomplete
-          placeholder="Onde você está?"
-          iconLeft="ion:location-outline"
-          value={origemText}
-          onChangeText={(v: string) => {
-            setOrigemText(v);
-            if (origemPlace) setOrigemPlace(null);
-          }}
-          onSelect={(p: PlaceSuggestion) => {
-            setOrigemPlace(p);
-            setOrigemText(p.label);
-          }}
-          zIndex={60}
-        />
-        <View style={[styles.divider, { backgroundColor: c.surfaceMuted }]} />
-        <AddressAutocomplete
-          placeholder="Para onde você vai?"
-          iconLeft="ion:flag-outline"
-          value={destinoText}
-          onChangeText={(v: string) => {
-            setDestinoText(v);
-            if (destinoPlace) setDestinoPlace(null);
-          }}
-          onSelect={(p: PlaceSuggestion) => {
-            setDestinoPlace(p);
-            setDestinoText(p.label);
-          }}
-          zIndex={50}
-        />
-
-        {error ? (
-          <View style={[styles.errorBox, { backgroundColor: c.danger + '11' }]}>
-            <Icon name="ion:alert-circle-outline" size={16} color={c.danger} />
-            <Text
-              style={{ flex: 1, marginLeft: 8, color: c.danger, fontSize: 13 }}
-              numberOfLines={3}
-            >
-              {error}
-            </Text>
-            <Pressable onPress={() => setError(null)} hitSlop={8}>
-              <Icon name="ion:close" size={16} color={c.danger} />
-            </Pressable>
-          </View>
-        ) : null}
+        {searchInputs}
       </View>
 
-      {/* Right side: map style + GPS */}
-      <View style={styles.rightStack}>
-        <MapStyleToggle />
-        <Pressable
-          onPress={() => mapRef.current?.centerOnUser((m: string) => setError(m))}
-          style={({ pressed }: { pressed: boolean }) => [
-            styles.gpsBtn,
-            {
-              backgroundColor: c.surface,
-              opacity: pressed ? 0.8 : 1,
-              shadowColor: '#000',
-            },
-          ]}
-        >
-          <Icon name="ion:locate" size={20} color={c.text} />
-        </Pressable>
-      </View>
+      {mapControls}
 
-      {/* LIA indicator flutuante (somente quando calculando) */}
       {liaStatus === 'thinking' ? (
         <View
           style={[
@@ -307,28 +370,7 @@ export default function MapScreen() {
         </View>
       ) : null}
 
-      {/* Bottom: NavigationPanel ou CTA Otimizar */}
-      <View style={[styles.bottomDock, desktop ? styles.bottomDockDesktop : null]}>
-        {route ? (
-          <NavigationPanel
-            route={route}
-            navigating={navigating}
-            onStart={handleStartNav}
-            onCancel={handleClear}
-          />
-        ) : (
-          <Button
-            label={calculating ? 'LIA está calculando...' : 'Otimizar rota'}
-            variant="primary"
-            size="lg"
-            fullWidth
-            loading={calculating}
-            onPress={handleOptimize}
-            icon="ion:flash-outline"
-            disabled={!origemPlace || !destinoPlace}
-          />
-        )}
-      </View>
+      <View style={styles.bottomDock}>{actionBlock}</View>
     </KeyboardAvoidingView>
   );
 }
@@ -411,17 +453,45 @@ const styles = StyleSheet.create({
     right: 16,
     zIndex: 25,
   },
-  // Desktop overrides — sidebar esquerda fixa
-  searchCardDesktop: {
-    top: 24,
-    left: 24,
-    right: undefined,
+  // Desktop layout — search/action flutuantes sobre mapa
+  searchCardDesktopFloat: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
     width: 400,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 4,
+    ...Platform.select({
+      web: { boxShadow: '0 4px 16px rgba(0,0,0,0.16)' as any },
+      default: {},
+    }),
+    zIndex: 30,
   },
-  bottomDockDesktop: {
-    bottom: 24,
-    left: 24,
-    right: undefined,
+  bottomDockDesktopFloat: {
+    position: 'absolute',
+    bottom: 16,
+    left: 16,
     width: 400,
+    zIndex: 25,
+  },
+  liaFloatDesktop: {
+    position: 'absolute',
+    top: 16,
+    alignSelf: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    ...Platform.select({
+      web: { boxShadow: '0 4px 16px rgba(0,0,0,0.16)' as any },
+      default: {},
+    }),
+    zIndex: 20,
+  },
+  rightStackDesktop: {
+    top: 16,
+    bottom: undefined,
+    right: 16,
   },
 });

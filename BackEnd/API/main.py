@@ -66,6 +66,42 @@ BRASILIA_CENTER = (-15.793, -47.882)
 BRASILIA_RADIUS_M = int(os.getenv('GRAPH_RADIUS_KM', '15')) * 1_000
 
 
+NON_DRIVABLE_HIGHWAYS = {
+    'footway', 'pedestrian', 'path', 'steps', 'cycleway',
+    'bridleway', 'corridor', 'platform', 'track', 'construction',
+    'proposed', 'raceway', 'busway', 'bus_guideway',
+}
+
+
+def _hw_value(data: dict) -> str:
+    hw = data.get('highway')
+    if isinstance(hw, list):
+        return (hw[0] if hw else '').lower()
+    return (hw or '').lower()
+
+
+def filter_drivable(G: nx.MultiDiGraph) -> nx.MultiDiGraph:
+    """Remove edges não-drivable + nós isolados.
+
+    Garante que ox.nearest_nodes não snap origem/destino para footway/calçada,
+    causa-raiz de rotas que cortam quadras a pé.
+    """
+    edges_to_remove = [
+        (u, v, k) for u, v, k, data in G.edges(keys=True, data=True)
+        if _hw_value(data) in NON_DRIVABLE_HIGHWAYS
+    ]
+    for u, v, k in edges_to_remove:
+        G.remove_edge(u, v, k)
+    isolated = [n for n in G.nodes if G.degree(n) == 0]
+    G.remove_nodes_from(isolated)
+    logging.info(
+        f"Grafo filtrado: removidas {len(edges_to_remove)} arestas não-drivable, "
+        f"{len(isolated)} nós isolados. Restam {G.number_of_nodes()} nós, "
+        f"{G.number_of_edges()} arestas."
+    )
+    return G
+
+
 def load_graph() -> nx.MultiDiGraph:
     if os.path.exists(GRAPH_CACHE):
         logging.info(f"Carregando grafo em cache: {GRAPH_CACHE}")
@@ -96,6 +132,7 @@ def load_graph() -> nx.MultiDiGraph:
         logging.info(f"Grafo salvo em cache: {GRAPH_CACHE}")
 
     logging.info(f"Grafo carregado: {G.number_of_nodes()} nós, {G.number_of_edges()} arestas")
+    G = filter_drivable(G)
     return G
 
 

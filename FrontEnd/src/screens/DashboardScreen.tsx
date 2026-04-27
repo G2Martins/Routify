@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
@@ -6,9 +6,10 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
-import { useDesktopLayout } from '../navigation/MainNavigator';
+import { useDesktopLayout } from '../lib/responsive';
 import { API_URL } from '../lib/api';
 import { supabase, RouteHistoryRow } from '../lib/supabase';
 import LIAIndicator from '../components/LIAIndicator';
@@ -55,46 +56,51 @@ export default function DashboardScreen() {
   const [apiOnline, setApiOnline] = useState(false);
   const [stats, setStats] = useState<HistoryStats | null>(null);
 
-  useEffect(() => {
-    fetch(`${API_URL}/metrics`)
-      .then((r) => r.json())
-      .then((data: Metrics) => {
-        setMetrics(data);
-        setApiOnline(true);
-      })
-      .catch(() => setApiOnline(false))
-      .finally(() => setLoading(false));
-  }, []);
+  // Re-fetch toda vez que tab Painel ganha foco (clique no tab refresh).
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      setLoading(true);
+      fetch(`${API_URL}/metrics`)
+        .then((r) => r.json())
+        .then((data: Metrics) => {
+          if (cancelled) return;
+          setMetrics(data);
+          setApiOnline(true);
+        })
+        .catch(() => !cancelled && setApiOnline(false))
+        .finally(() => !cancelled && setLoading(false));
 
-  // Agrega histórico do usuário: km, min, CO2 economizado vs baseline carro gasolina.
-  useEffect(() => {
-    if (!user?.id) return;
-    let cancelled = false;
-    (async () => {
-      const { data, error } = await supabase
-        .from('route_history')
-        .select('distancia_km, tempo_total_seg, via_principal')
-        .eq('user_id', user.id);
-      if (cancelled || error || !data) return;
-      const rows = data as Pick<RouteHistoryRow, 'distancia_km' | 'tempo_total_seg' | 'via_principal'>[];
-      const km_total = rows.reduce((s, r) => s + Number(r.distancia_km || 0), 0);
-      const min_total = rows.reduce((s, r) => s + Number(r.tempo_total_seg || 0), 0) / 60;
-      const co2_kg_economizado = km_total * (CO2_BASELINE_KG_KM - CO2_LIA_KG_KM);
-      const vias_evitadas = new Set(
-        rows.map((r) => (r.via_principal || '').trim()).filter(Boolean)
-      ).size;
-      setStats({
-        rotas: rows.length,
-        km_total,
-        min_total,
-        co2_kg_economizado,
-        vias_evitadas,
-      });
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.id]);
+      // Agrega histórico do usuário: km, min, CO2 economizado vs baseline carro gasolina.
+      if (user?.id) {
+        (async () => {
+          const { data, error } = await supabase
+            .from('route_history')
+            .select('distancia_km, tempo_total_seg, via_principal')
+            .eq('user_id', user.id);
+          if (cancelled || error || !data) return;
+          const rows = data as Pick<RouteHistoryRow, 'distancia_km' | 'tempo_total_seg' | 'via_principal'>[];
+          const km_total = rows.reduce((s, r) => s + Number(r.distancia_km || 0), 0);
+          const min_total = rows.reduce((s, r) => s + Number(r.tempo_total_seg || 0), 0) / 60;
+          const co2_kg_economizado = km_total * (CO2_BASELINE_KG_KM - CO2_LIA_KG_KM);
+          const vias_evitadas = new Set(
+            rows.map((r) => (r.via_principal || '').trim()).filter(Boolean)
+          ).size;
+          setStats({
+            rotas: rows.length,
+            km_total,
+            min_total,
+            co2_kg_economizado,
+            vias_evitadas,
+          });
+        })();
+      }
+
+      return () => {
+        cancelled = true;
+      };
+    }, [user?.id])
+  );
 
   const rmse = metrics?.cv_rmse_seg;
   const pontos = metrics?.n_pontos_monitorados ?? 0;

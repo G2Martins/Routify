@@ -1,12 +1,19 @@
-import React from 'react';
-import { ActivityIndicator, Platform, useWindowDimensions, View } from 'react-native';
-import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, View } from 'react-native';
+import {
+  NavigationContainer,
+  DefaultTheme,
+  DarkTheme,
+  createNavigationContainerRef,
+} from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import { useDesktopLayout } from '../lib/responsive';
 import Icon from '../components/Icon';
+import SideRail from '../components/SideRail';
 
 import MapScreen from '../screens/MapScreen';
 import DashboardScreen from '../screens/DashboardScreen';
@@ -21,6 +28,18 @@ const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 const ProfileStack = createNativeStackNavigator();
 
+// Ref global pra navegar/observar state de fora do navigator.
+export const navigationRef = createNavigationContainerRef();
+
+const TAB_NAMES = ['Mapa', 'Painel', 'Histórico', 'Perfil'];
+
+const TAB_ICONS: Record<string, { active: string; inactive: string }> = {
+  Mapa: { active: 'ion:map', inactive: 'ion:map-outline' },
+  Painel: { active: 'ion:grid', inactive: 'ion:grid-outline' },
+  Histórico: { active: 'ion:time', inactive: 'ion:time-outline' },
+  Perfil: { active: 'ion:person', inactive: 'ion:person-outline' },
+};
+
 function ProfileStackNavigator() {
   return (
     <ProfileStack.Navigator screenOptions={{ headerShown: false }}>
@@ -31,47 +50,23 @@ function ProfileStackNavigator() {
   );
 }
 
-const TAB_ICONS: Record<string, { active: string; inactive: string }> = {
-  Mapa: { active: 'ion:map', inactive: 'ion:map-outline' },
-  Painel: { active: 'ion:home', inactive: 'ion:home-outline' },
-  Histórico: { active: 'ion:time-outline', inactive: 'ion:time-outline' },
-  Perfil: { active: 'ion:person', inactive: 'ion:person-outline' },
-};
-
-export const DESKTOP_BREAKPOINT = 1024;
-
-export function useDesktopLayout(): boolean {
-  const { width } = useWindowDimensions();
-  return Platform.OS === 'web' && width >= DESKTOP_BREAKPOINT;
+function tabsCommonScreens() {
+  return (
+    <>
+      <Tab.Screen name="Mapa" component={MapScreen} />
+      <Tab.Screen name="Painel" component={DashboardScreen} />
+      <Tab.Screen name="Histórico" component={HistoryScreen} />
+      <Tab.Screen name="Perfil" component={ProfileStackNavigator} />
+    </>
+  );
 }
 
-function MainTabs() {
+// --------------------------------------------------------------------- MOBILE
+function MainTabsMobile() {
   const { theme } = useTheme();
   const c = theme.colors;
-  const desktop = useDesktopLayout();
-
-  // Desktop web: tabBar vertical à esquerda. Mobile/native: bottom.
-  const tabBarStyle = desktop
-    ? {
-        backgroundColor: c.surface,
-        borderRightColor: c.surfaceMuted,
-        borderRightWidth: 1,
-        width: 220,
-        paddingTop: 24,
-      }
-    : {
-        backgroundColor: c.surface,
-        borderTopColor: c.surfaceMuted,
-        borderTopWidth: 1,
-        height: 64,
-        paddingTop: 6,
-        paddingBottom: 8,
-      };
-
   return (
     <Tab.Navigator
-      // tabBarPosition disponível em @react-navigation/bottom-tabs v7+
-      tabBarPosition={desktop ? 'left' : 'bottom'}
       screenOptions={({ route }: { route: { name: string } }) => ({
         headerShown: false,
         tabBarIcon: ({ focused, size }: { focused: boolean; size: number }) => {
@@ -86,18 +81,78 @@ function MainTabs() {
         },
         tabBarActiveTintColor: c.accent,
         tabBarInactiveTintColor: c.textSubtle,
-        tabBarStyle,
-        tabBarLabelStyle: desktop
-          ? { fontSize: 13, fontWeight: '500', marginLeft: 8 }
-          : { fontSize: 11, fontWeight: '500' },
+        tabBarStyle: {
+          backgroundColor: c.surface,
+          borderTopColor: c.surfaceMuted,
+          borderTopWidth: 1,
+          height: 64,
+          paddingTop: 6,
+          paddingBottom: 8,
+        },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '500' },
       })}
     >
-      <Tab.Screen name="Mapa" component={MapScreen} />
-      <Tab.Screen name="Painel" component={DashboardScreen} />
-      <Tab.Screen name="Histórico" component={HistoryScreen} />
-      <Tab.Screen name="Perfil" component={ProfileStackNavigator} />
+      {tabsCommonScreens()}
     </Tab.Navigator>
   );
+}
+
+// -------------------------------------------------------------------- DESKTOP
+/**
+ * Desktop: layout flex-row manual.
+ *  - SideRail à esquerda
+ *  - Tab.Navigator (sem tabBar default) à direita
+ *
+ * tabBarPosition='left' do bottom-tabs v7 não funciona consistentemente
+ * em react-native-web — daí o layout manual.
+ */
+function MainTabsDesktop() {
+  const [activeName, setActiveName] = useState<string>('Mapa');
+
+  useEffect(() => {
+    if (!navigationRef.isReady()) return;
+    const sync = () => {
+      const root = navigationRef.getRootState();
+      if (!root) return;
+      const tabState = root.routes[root.index]?.state;
+      if (tabState && typeof tabState.index === 'number') {
+        const name = tabState.routes[tabState.index]?.name;
+        if (name) setActiveName(name);
+      }
+    };
+    sync();
+    const unsub = navigationRef.addListener('state', sync);
+    return unsub;
+  }, []);
+
+  const handleSelect = (name: string) => {
+    if (navigationRef.isReady()) {
+      navigationRef.navigate(name as never);
+    }
+  };
+
+  return (
+    <View style={{ flex: 1, flexDirection: 'row' }}>
+      <SideRail
+        routes={TAB_NAMES}
+        activeName={activeName}
+        onSelect={handleSelect}
+      />
+      <View style={{ flex: 1 }}>
+        <Tab.Navigator
+          tabBar={() => null}
+          screenOptions={{ headerShown: false }}
+        >
+          {tabsCommonScreens()}
+        </Tab.Navigator>
+      </View>
+    </View>
+  );
+}
+
+function MainTabs() {
+  const desktop = useDesktopLayout();
+  return desktop ? <MainTabsDesktop /> : <MainTabsMobile />;
 }
 
 function AuthStack() {
@@ -142,7 +197,7 @@ export default function RootNavigator() {
   };
 
   return (
-    <NavigationContainer theme={navTheme}>
+    <NavigationContainer ref={navigationRef} theme={navTheme}>
       {session ? <MainTabs /> : <AuthStack />}
     </NavigationContainer>
   );

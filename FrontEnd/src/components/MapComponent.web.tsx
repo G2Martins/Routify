@@ -26,7 +26,7 @@ function injectLeafletCSS() {
   const link = document.createElement('link');
   link.id = 'leaflet-css';
   link.rel = 'stylesheet';
-  link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+  link.href = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
   document.head.appendChild(link);
 }
 
@@ -55,9 +55,9 @@ const MapComponent = forwardRef((_props, ref) => {
 
       delete (L.Icon.Default.prototype as any)._getIconUrl;
       L.Icon.Default.mergeOptions({
-        iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        iconRetinaUrl: 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+        iconUrl: 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/images/marker-icon.png',
+        shadowUrl: 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/images/marker-shadow.png',
       });
 
       const map = L.map(containerRef.current, {
@@ -133,91 +133,111 @@ const MapComponent = forwardRef((_props, ref) => {
         }
       };
 
+      const codeName = (err: GeolocationPositionError) =>
+        err.code === err.PERMISSION_DENIED
+          ? 'PERMISSION_DENIED'
+          : err.code === err.POSITION_UNAVAILABLE
+          ? 'POSITION_UNAVAILABLE'
+          : err.code === err.TIMEOUT
+          ? 'TIMEOUT'
+          : `UNKNOWN(${err.code})`;
+
+      const logFail = async (label: string, err: GeolocationPositionError) => {
+        let permState = 'n/a';
+        try {
+          const perm = await (navigator as any).permissions?.query?.({ name: 'geolocation' });
+          permState = perm?.state ?? 'n/a';
+        } catch {
+          // permissions API indisponível
+        }
+        console.warn(`[Routify] geo ${label} FAIL`, {
+          code: err.code,
+          name: codeName(err),
+          message: err.message,
+          permission: permState,
+          isSecureContext: window.isSecureContext,
+          host: location.hostname,
+          ua: navigator.userAgent,
+        });
+      };
+
+      const tryGeo = (highAccuracy: boolean): Promise<GeolocationPosition> =>
+        new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: highAccuracy,
+            timeout: highAccuracy ? 8000 : 12000,
+            maximumAge: 60_000,
+          });
+        });
+
       const tryIpFallback = async () => {
-        // Última tentativa — geo por IP. Precisão ~cidade, só pra centralizar mapa.
+        // Endpoints CORS-friendly. Precisão ~cidade, só pra centralizar.
         const endpoints = [
           'https://ipapi.co/json/',
           'https://ipwho.is/',
+          'https://api.bigdatacloud.net/data/reverse-geocode-client?localityLanguage=pt',
+          'https://geolocation-db.com/json/',
         ];
         for (const url of endpoints) {
           try {
             const r = await fetch(url);
-            if (!r.ok) continue;
+            if (!r.ok) {
+              console.warn('[Routify] geo IP', url, 'status', r.status);
+              continue;
+            }
             const j = await r.json();
             const lat = Number(j.latitude ?? j.lat);
-            const lon = Number(j.longitude ?? j.lon);
+            const lon = Number(j.longitude ?? j.lon ?? j.longitude);
             if (Number.isFinite(lat) && Number.isFinite(lon)) {
-              console.info('[Routify] geo IP fallback', { url, lat, lon, src: j });
+              console.info('[Routify] geo IP fallback OK', { url, lat, lon });
               placeUser(lat, lon, 12);
               return true;
             }
+            console.warn('[Routify] geo IP no coords', url, j);
           } catch (e) {
-            console.warn('[Routify] geo IP fallback fail', url, e);
+            console.warn('[Routify] geo IP fail', url, e);
           }
         }
         return false;
       };
 
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
+      (async () => {
+        // 1) High-accuracy (GPS)
+        try {
+          const pos = await tryGeo(true);
           const { latitude: lat, longitude: lon, accuracy } = pos.coords;
-          console.info('[Routify] geo OK', { lat, lon, accuracy });
+          console.info('[Routify] geo HIGH OK', { lat, lon, accuracy });
           placeUser(lat, lon);
-        },
-        async (err) => {
-          // Diagnóstico aprofundado — código + nome + permissão atual.
-          const codeName =
-            err.code === err.PERMISSION_DENIED
-              ? 'PERMISSION_DENIED'
-              : err.code === err.POSITION_UNAVAILABLE
-              ? 'POSITION_UNAVAILABLE'
-              : err.code === err.TIMEOUT
-              ? 'TIMEOUT'
-              : `UNKNOWN(${err.code})`;
-          let permState = 'n/a';
-          try {
-            const perm = await (navigator as any).permissions?.query?.({
-              name: 'geolocation',
-            });
-            permState = perm?.state ?? 'n/a';
-          } catch {
-            // permissions API indisponível
+          return;
+        } catch (err) {
+          await logFail('HIGH', err as GeolocationPositionError);
+          if ((err as GeolocationPositionError).code === 1) {
+            // PERMISSION_DENIED — não adianta tentar low ou IP, usuário bloqueou.
+            onError?.('Permissão negada. Cadeado da URL → permitir localização.');
+            return;
           }
-          console.warn('[Routify] geo FAIL', {
-            code: err.code,
-            name: codeName,
-            message: err.message,
-            permission: permState,
-            isSecureContext: window.isSecureContext,
-            host: location.hostname,
-            ua: navigator.userAgent,
-          });
+        }
 
-          // POSITION_UNAVAILABLE em Windows sem GPS é comum; tenta IP fallback.
-          if (err.code === err.POSITION_UNAVAILABLE || err.code === err.TIMEOUT) {
-            const ok = await tryIpFallback();
-            if (ok) {
-              onError?.(
-                'GPS indisponível — usando localização aproximada por IP. Veja console pra detalhes.'
-              );
-              return;
-            }
-          }
+        // 2) Low-accuracy (Wi-Fi/network — funciona em PC sem GPS)
+        try {
+          const pos = await tryGeo(false);
+          const { latitude: lat, longitude: lon, accuracy } = pos.coords;
+          console.info('[Routify] geo LOW OK', { lat, lon, accuracy });
+          placeUser(lat, lon, 14);
+          return;
+        } catch (err) {
+          await logFail('LOW', err as GeolocationPositionError);
+        }
 
-          let msg: string;
-          if (err.code === err.PERMISSION_DENIED) {
-            msg = 'Permissão negada. Cadeado da URL → permitir localização.';
-          } else if (err.code === err.POSITION_UNAVAILABLE) {
-            msg = 'Localização indisponível (GPS/Wi-Fi off). Veja console pra diagnóstico.';
-          } else if (err.code === err.TIMEOUT) {
-            msg = 'Timeout obtendo localização. Tente novamente.';
-          } else {
-            msg = `Erro desconhecido (${codeName}). Veja console.`;
-          }
-          onError?.(msg);
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60_000 }
-      );
+        // 3) IP geolocation
+        const ipOk = await tryIpFallback();
+        if (ipOk) {
+          onError?.('Localização aproximada por IP (PC sem GPS). Console tem detalhes.');
+          return;
+        }
+
+        onError?.('Localização indisponível em todos os métodos. Verifique console.');
+      })();
     },
 
     showRoute(

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -6,6 +6,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { MAP_STYLES, MapStyle } from '../constants/Theme';
@@ -21,7 +22,14 @@ const STYLE_LABEL: Record<MapStyle, string> = {
 export default function ProfileScreen({ navigation }: any) {
   const { theme, mode, preference, setPreference, mapStyle, setMapStyle } = useTheme();
   const c = theme.colors;
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, refreshProfile } = useAuth();
+
+  // Refresh profile ao focar tab Perfil.
+  useFocusEffect(
+    useCallback(() => {
+      refreshProfile();
+    }, [refreshProfile])
+  );
 
   const nome =
     profile?.nome ||

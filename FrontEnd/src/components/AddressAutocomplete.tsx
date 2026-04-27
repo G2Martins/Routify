@@ -57,9 +57,15 @@ export default function AddressAutocomplete({
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const debounceRef = useRef<any>(null);
+  const justPickedRef = useRef(false);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    // Pula próximo fetch — value mudou porque acabou de selecionar (programático).
+    if (justPickedRef.current) {
+      justPickedRef.current = false;
+      return;
+    }
     if (!value || value.trim().length < 3) {
       setItems([]);
       return;
@@ -89,7 +95,8 @@ export default function AddressAutocomplete({
 
   const handlePick = (item: PlaceSuggestion) => {
     // Só onSelect — parent atualiza texto + place no mesmo tick.
-    // Evita race onde onChangeText ("usuário digitou") limpa o place.
+    // justPickedRef evita re-fetch quando parent muda value programático.
+    justPickedRef.current = true;
     onSelect(item);
     setOpen(false);
     setItems([]);

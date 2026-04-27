@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
   Alert,
@@ -12,7 +13,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
-import { useDesktopLayout } from '../navigation/MainNavigator';
+import { useDesktopLayout } from '../lib/responsive';
 import { supabase, RouteHistoryRow } from '../lib/supabase';
 import Icon from '../components/Icon';
 
@@ -43,9 +44,13 @@ export default function HistoryScreen() {
     if (!error) setItems((data || []) as RouteHistoryRow[]);
   }, [user?.id]);
 
-  useEffect(() => {
-    fetchHistory().finally(() => setLoading(false));
-  }, [fetchHistory]);
+  // Refresh ao focar tab Histórico (clique no tab → re-fetch).
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      fetchHistory().finally(() => setLoading(false));
+    }, [fetchHistory])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
