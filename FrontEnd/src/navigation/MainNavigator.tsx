@@ -1,46 +1,112 @@
-// src/navigation/MainNavigator.tsx
 import React from 'react';
+import { ActivityIndicator, View } from 'react-native';
+import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Ionicons } from '@expo/vector-icons'; // Expo já traz os Ionicons!
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-// Importando as telas
+import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
+import Icon from '../components/Icon';
+
 import MapScreen from '../screens/MapScreen';
 import DashboardScreen from '../screens/DashboardScreen';
-import ProfileScreen from '../screens/ProfileScreen'; // Crie um mock simples
-import { Colors } from '../constants/Colors';
+import ProfileScreen from '../screens/ProfileScreen';
+import HistoryScreen from '../screens/HistoryScreen';
+import LoginScreen from '../screens/LoginScreen';
+import RegisterScreen from '../screens/RegisterScreen';
 
 const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator();
 
-export default function MainNavigator() {
+const TAB_ICONS: Record<string, { active: string; inactive: string }> = {
+  Mapa: { active: 'ion:map', inactive: 'ion:map-outline' },
+  Painel: { active: 'ion:home', inactive: 'ion:home-outline' },
+  Histórico: { active: 'ion:time-outline', inactive: 'ion:time-outline' },
+  Perfil: { active: 'ion:person', inactive: 'ion:person-outline' },
+};
+
+function MainTabs() {
+  const { theme } = useTheme();
+  const c = theme.colors;
   return (
     <Tab.Navigator
-      screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
-          let iconName: keyof typeof Ionicons.glyphMap;
-
-          if (route.name === 'Mapa') {
-            iconName = focused ? 'map' : 'map-outline';
-          } else if (route.name === 'Métricas') {
-            iconName = focused ? 'pie-chart' : 'pie-chart-outline'; // O ícone que você solicitou!
-          } else if (route.name === 'Perfil') {
-            iconName = focused ? 'person' : 'person-outline';
-          } else {
-            iconName = 'alert-circle-outline'; // Default para erros
-          }
-
-          // Retorna o componente de ícone do Ionicons
-          return <Ionicons name={iconName} size={size} color={color} />;
+      screenOptions={({ route }: { route: { name: string } }) => ({
+        headerShown: false,
+        tabBarIcon: ({ focused, size }: { focused: boolean; size: number }) => {
+          const map = TAB_ICONS[route.name] || TAB_ICONS.Mapa;
+          return (
+            <Icon
+              name={focused ? map.active : map.inactive}
+              size={size}
+              color={focused ? c.text : c.textSubtle}
+            />
+          );
         },
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.gray,
-        headerShown: true, // Mostra o título da tela no topo
-        headerStyle: { backgroundColor: Colors.white },
-        headerTintColor: Colors.text,
+        tabBarActiveTintColor: c.text,
+        tabBarInactiveTintColor: c.textSubtle,
+        tabBarStyle: {
+          backgroundColor: c.surface,
+          borderTopColor: c.surfaceMuted,
+          borderTopWidth: 1,
+          height: 64,
+          paddingTop: 6,
+          paddingBottom: 8,
+        },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '500' },
       })}
     >
-      <Tab.Screen name="Mapa" component={MapScreen} options={{ title: 'Routify - Brasília' }} />
-      <Tab.Screen name="Métricas" component={DashboardScreen} options={{ title: 'Estatísticas' }} />
-      <Tab.Screen name="Perfil" component={ProfileScreen} options={{ title: 'Minha Conta' }} />
+      <Tab.Screen name="Mapa" component={MapScreen} />
+      <Tab.Screen name="Painel" component={DashboardScreen} />
+      <Tab.Screen name="Histórico" component={HistoryScreen} />
+      <Tab.Screen name="Perfil" component={ProfileScreen} />
     </Tab.Navigator>
+  );
+}
+
+function AuthStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="Register" component={RegisterScreen} />
+    </Stack.Navigator>
+  );
+}
+
+export default function RootNavigator() {
+  const { theme, mode } = useTheme();
+  const { session, loading } = useAuth();
+  const c = theme.colors;
+
+  if (loading) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: c.background,
+        }}
+      >
+        <ActivityIndicator color={c.text} size="large" />
+      </View>
+    );
+  }
+
+  const navTheme = {
+    ...(mode === 'dark' ? DarkTheme : DefaultTheme),
+    colors: {
+      ...(mode === 'dark' ? DarkTheme.colors : DefaultTheme.colors),
+      background: c.background,
+      card: c.surface,
+      text: c.text,
+      border: c.surfaceMuted,
+      primary: c.text,
+    },
+  };
+
+  return (
+    <NavigationContainer theme={navTheme}>
+      {session ? <MainTabs /> : <AuthStack />}
+    </NavigationContainer>
   );
 }

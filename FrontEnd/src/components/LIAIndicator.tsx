@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View, Text } from 'react-native';
-import { Colors } from '../constants/Colors';
+import { useTheme } from '../context/ThemeContext';
 
 export type LIAStatus = 'idle' | 'thinking' | 'done';
 
@@ -11,6 +11,8 @@ interface Props {
 }
 
 export default function LIAIndicator({ status, version = 'LIA 1.0', rmse }: Props) {
+  const { theme } = useTheme();
+  const c = theme.colors;
   const ring1 = useRef(new Animated.Value(1)).current;
   const ring2 = useRef(new Animated.Value(1)).current;
   const ring3 = useRef(new Animated.Value(1)).current;
@@ -74,12 +76,12 @@ export default function LIAIndicator({ status, version = 'LIA 1.0', rmse }: Prop
     }
   }, [status]);
 
-  const ringColor = status === 'done' ? '#34C759' : Colors.primary;
-  const coreColor = status === 'done' ? '#34C759' : Colors.primary;
+  const ringColor = status === 'done' ? c.success : c.accent;
+  const coreColor = status === 'done' ? c.success : c.accent;
 
   const doneOverlayColor = doneFlash.interpolate({
     inputRange: [0, 1],
-    outputRange: ['rgba(52,199,89,0)', 'rgba(52,199,89,0.3)'],
+    outputRange: ['rgba(6,193,103,0)', 'rgba(6,193,103,0.3)'],
   });
 
   return (
@@ -103,15 +105,15 @@ export default function LIAIndicator({ status, version = 'LIA 1.0', rmse }: Prop
 
       {/* Label */}
       <View style={styles.label}>
-        <Text style={styles.versionText}>{version}</Text>
+        <Text style={[styles.versionText, { color: c.accent }]}>{version}</Text>
         {status === 'thinking' && (
-          <Text style={styles.statusText}>Calculando...</Text>
+          <Text style={[styles.statusText, { color: c.textMuted }]}>Calculando...</Text>
         )}
         {status === 'done' && (
-          <Text style={[styles.statusText, { color: '#34C759' }]}>Rota otimizada</Text>
+          <Text style={[styles.statusText, { color: c.success }]}>Rota otimizada</Text>
         )}
         {status === 'idle' && rmse !== undefined && (
-          <Text style={styles.rmseText}>RMSE ±{rmse}s</Text>
+          <Text style={[styles.rmseText, { color: c.textSubtle }]}>RMSE ±{rmse}s</Text>
         )}
       </View>
     </View>
@@ -160,17 +162,14 @@ const styles = StyleSheet.create({
   versionText: {
     fontSize: 13,
     fontWeight: '700',
-    color: Colors.primary,
     letterSpacing: 0.5,
   },
   statusText: {
     fontSize: 11,
-    color: Colors.gray,
     marginTop: 1,
   },
   rmseText: {
     fontSize: 10,
-    color: Colors.gray,
     marginTop: 1,
     opacity: 0.7,
   },

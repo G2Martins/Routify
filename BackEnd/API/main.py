@@ -22,7 +22,7 @@ import pandas as pd
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import predict, route
+from routers import predict, route, search
 
 logging.basicConfig(
     level=logging.INFO,
@@ -143,6 +143,7 @@ app.add_middleware(
 
 app.include_router(predict.router)
 app.include_router(route.router)
+app.include_router(search.router)
 
 
 @app.get("/health")

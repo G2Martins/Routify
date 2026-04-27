@@ -88,7 +88,7 @@ def get_edge_name(G: nx.MultiDiGraph, u: int, v: int) -> str:
     return "Via sem nome"
 
 
-@router.post("/", response_model=RouteOutput)
+@router.post("", response_model=RouteOutput)
 async def calculate_route(body: RouteInput, request: Request):
     model = request.app.state.model
     encoder = request.app.state.encoder

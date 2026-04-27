@@ -10,3 +10,4 @@ networkx==3.4.0
 scipy==1.14.0
 python-dotenv==1.0.0
 supabase==2.13.0
+httpx==0.27.2

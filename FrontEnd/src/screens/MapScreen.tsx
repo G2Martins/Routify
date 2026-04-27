@@ -1,242 +1,326 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  StyleSheet, View, Text, TouchableOpacity,
-  TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StyleSheet,
+  View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../constants/Colors';
+import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
+import AddressAutocomplete, { PlaceSuggestion } from '../components/AddressAutocomplete';
+import NavigationPanel from '../components/NavigationPanel';
+import MapStyleToggle from '../components/MapStyleToggle';
 import LIAIndicator, { LIAStatus } from '../components/LIAIndicator';
+import Icon from '../components/Icon';
+import Button from '../components/Button';
 
 // @ts-ignore
 import MapComponent from '../components/MapComponent';
 
-// URL da API — alterar para URL do Railway/Render em produção
-const API_URL = __DEV__ ? 'http://localhost:8000' : 'https://routify-api.railway.app';
+const API_URL =
+  process.env.EXPO_PUBLIC_API_URL ||
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ((globalThis as any).__DEV__ ? 'http://localhost:8000' : 'https://routify-api.railway.app');
 
-interface GeoResult {
-  lat: number;
-  lon: number;
-  display_name: string;
-}
-
-async function geocode(query: string): Promise<GeoResult | null> {
-  // Nominatim (OpenStreetMap) — gratuito, sem key
-  const q = encodeURIComponent(`${query}, Brasília, DF, Brasil`);
-  const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`;
-  try {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Routify/1.0 TCC' },
-    });
-    const data = await res.json();
-    if (!data || data.length === 0) return null;
-    return {
-      lat: parseFloat(data[0].lat),
-      lon: parseFloat(data[0].lon),
-      display_name: data[0].display_name,
-    };
-  } catch {
-    return null;
-  }
+interface RouteResult {
+  polyline: number[][];
+  tempo_total_seg: number;
+  distancia_km: number;
+  via_principal: string;
+  modelo_utilizado: string;
 }
 
 export default function MapScreen() {
-  const [origem, setOrigem] = useState('');
-  const [destino, setDestino] = useState('');
+  const { theme } = useTheme();
+  const c = theme.colors;
+  const { user } = useAuth();
+
+  const [origemText, setOrigemText] = useState('');
+  const [destinoText, setDestinoText] = useState('');
+  const [origemPlace, setOrigemPlace] = useState<PlaceSuggestion | null>(null);
+  const [destinoPlace, setDestinoPlace] = useState<PlaceSuggestion | null>(null);
+
   const [liaStatus, setLiaStatus] = useState<LIAStatus>('idle');
-  const [loading, setLoading] = useState(false);
-  const [routeInfo, setRouteInfo] = useState<{ tempo: number; distancia: number } | null>(null);
+  const [calculating, setCalculating] = useState(false);
+  const [route, setRoute] = useState<RouteResult | null>(null);
+  const [navigating, setNavigating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const mapRef = useRef<any>(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      mapRef.current?.centerOnUser();
-    }, 1000);
-    return () => clearTimeout(timer);
+    const t = setTimeout(() => mapRef.current?.centerOnUser((m: string) => setError(m)), 800);
+    return () => clearTimeout(t);
   }, []);
 
-  const handleCenterLocation = () => {
-    mapRef.current?.centerOnUser();
-  };
-
-  const handleOptimizeRoute = async () => {
-    if (!origem.trim() || !destino.trim()) {
-      Alert.alert('Campos obrigatórios', 'Preencha a origem e o destino.');
+  const handleOptimize = async () => {
+    if (!origemPlace || !destinoPlace) {
+      setError('Escolha origem e destino na lista de sugestões.');
       return;
     }
-
-    setLoading(true);
+    setError(null);
+    setCalculating(true);
     setLiaStatus('thinking');
-    setRouteInfo(null);
+    setRoute(null);
     mapRef.current?.clearRoute?.();
 
     try {
-      // Geocodifica os dois endereços em paralelo
-      const [origemGeo, destinoGeo] = await Promise.all([
-        geocode(origem),
-        geocode(destino),
-      ]);
-
-      if (!origemGeo) {
-        Alert.alert('Endereço não encontrado', `Origem "${origem}" não encontrada em Brasília.`);
-        setLiaStatus('idle');
-        return;
-      }
-      if (!destinoGeo) {
-        Alert.alert('Endereço não encontrado', `Destino "${destino}" não encontrado em Brasília.`);
-        setLiaStatus('idle');
-        return;
-      }
-
-      // Chama API Routify
-      const response = await fetch(`${API_URL}/route`, {
+      const res = await fetch(`${API_URL}/route`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          origem: { lat: origemGeo.lat, lon: origemGeo.lon },
-          destino: { lat: destinoGeo.lat, lon: destinoGeo.lon },
+          origem: { lat: origemPlace.lat, lon: origemPlace.lon },
+          destino: { lat: destinoPlace.lat, lon: destinoPlace.lon },
         }),
       });
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.detail || `Erro ${response.status}`);
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.detail || `Erro ${res.status}`);
       }
+      const data: RouteResult = await res.json();
 
-      const data = await response.json();
-
-      // Desenha rota no mapa
       mapRef.current?.showRoute?.(
         data.polyline,
-        [origemGeo.lat, origemGeo.lon],
-        [destinoGeo.lat, destinoGeo.lon],
+        [origemPlace.lat, origemPlace.lon],
+        [destinoPlace.lat, destinoPlace.lon]
       );
-
-      setRouteInfo({ tempo: data.tempo_total_seg, distancia: data.distancia_km });
+      setRoute(data);
       setLiaStatus('done');
+      setTimeout(() => setLiaStatus('idle'), 2500);
 
-      // Volta para idle após 3 segundos
-      setTimeout(() => setLiaStatus('idle'), 3000);
-    } catch (err: any) {
-      Alert.alert('Erro ao calcular rota', err.message || 'Verifique se a API está rodando.');
+      // Salva no histórico (Supabase)
+      if (user?.id) {
+        supabase
+          .from('route_history')
+          .insert({
+            user_id: user.id,
+            origem_label: origemPlace.label,
+            origem_lat: origemPlace.lat,
+            origem_lon: origemPlace.lon,
+            destino_label: destinoPlace.label,
+            destino_lat: destinoPlace.lat,
+            destino_lon: destinoPlace.lon,
+            polyline: data.polyline,
+            tempo_total_seg: data.tempo_total_seg,
+            distancia_km: data.distancia_km,
+            via_principal: data.via_principal,
+            modelo_versao: data.modelo_utilizado,
+          })
+          .then((r: { error: { message: string } | null }) => {
+            if (r.error) console.warn('[Routify] Falha ao salvar histórico:', r.error.message);
+          });
+      }
+    } catch (e: any) {
+      const msg = e?.message || 'Falha ao calcular rota.';
+      if (Platform.OS === 'web') setError(msg);
+      else Alert.alert('Erro ao calcular rota', msg);
       setLiaStatus('idle');
     } finally {
-      setLoading(false);
+      setCalculating(false);
     }
   };
 
-  const webInputStyle = Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {};
+  const handleClear = () => {
+    setRoute(null);
+    setNavigating(false);
+    setOrigemPlace(null);
+    setDestinoPlace(null);
+    setOrigemText('');
+    setDestinoText('');
+    setError(null);
+    mapRef.current?.clearRoute?.();
+  };
+
+  const handleStartNav = () => setNavigating(true);
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={{ flex: 1, backgroundColor: c.background }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <MapComponent ref={mapRef} />
 
-      {/* Card de busca */}
-      <View style={styles.searchContainer}>
-        <View style={styles.inputWrapper}>
-          <Ionicons name="location-outline" size={20} color={Colors.primary} style={styles.icon} />
-          <TextInput
-            style={[styles.input, webInputStyle]}
-            placeholder="Ponto de Origem"
-            value={origem}
-            onChangeText={setOrigem}
-            placeholderTextColor={Colors.gray}
-            returnKeyType="next"
-          />
-        </View>
-        <View style={styles.divider} />
-        <View style={styles.inputWrapper}>
-          <Ionicons name="flag-outline" size={20} color={Colors.danger} style={styles.icon} />
-          <TextInput
-            style={[styles.input, webInputStyle]}
-            placeholder="Destino Final"
-            value={destino}
-            onChangeText={setDestino}
-            placeholderTextColor={Colors.gray}
-            returnKeyType="done"
-            onSubmitEditing={handleOptimizeRoute}
-          />
-        </View>
+      {/* Search card top */}
+      <View
+        style={[
+          styles.searchCard,
+          { backgroundColor: c.surface, shadowColor: '#000' },
+        ]}
+      >
+        <AddressAutocomplete
+          placeholder="Onde você está?"
+          iconLeft="ion:location-outline"
+          value={origemText}
+          onChangeText={(v: string) => {
+            setOrigemText(v);
+            if (origemPlace) setOrigemPlace(null);
+          }}
+          onSelect={(p: PlaceSuggestion) => setOrigemPlace(p)}
+        />
+        <View style={[styles.divider, { backgroundColor: c.surfaceMuted }]} />
+        <AddressAutocomplete
+          placeholder="Para onde você vai?"
+          iconLeft="ion:flag-outline"
+          value={destinoText}
+          onChangeText={(v: string) => {
+            setDestinoText(v);
+            if (destinoPlace) setDestinoPlace(null);
+          }}
+          onSelect={(p: PlaceSuggestion) => setDestinoPlace(p)}
+        />
+
+        {error ? (
+          <View style={[styles.errorBox, { backgroundColor: c.danger + '11' }]}>
+            <Icon name="ion:close" size={14} color={c.danger} />
+            <View style={{ flex: 1, marginLeft: 8 }}>
+              <Pressable onPress={() => setError(null)}>
+                <Icon
+                  name="ion:close"
+                  size={14}
+                  color={c.danger}
+                  style={{ position: 'absolute', right: 0, top: -4 }}
+                />
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
       </View>
 
-      {/* Info da rota calculada */}
-      {routeInfo && (
-        <View style={styles.routeInfoCard}>
-          <LIAIndicator status={liaStatus} />
-          <View style={styles.routeStats}>
-            <Text style={styles.routeStatValue}>{Math.round(routeInfo.tempo / 60)} min</Text>
-            <Text style={styles.routeStatLabel}>Tempo LIA</Text>
-          </View>
-          <View style={styles.routeStats}>
-            <Text style={styles.routeStatValue}>{routeInfo.distancia} km</Text>
-            <Text style={styles.routeStatLabel}>Distância</Text>
-          </View>
+      {/* Right side: map style + GPS */}
+      <View style={styles.rightStack}>
+        <MapStyleToggle />
+        <Pressable
+          onPress={() => mapRef.current?.centerOnUser((m: string) => setError(m))}
+          style={({ pressed }: { pressed: boolean }) => [
+            styles.gpsBtn,
+            {
+              backgroundColor: c.surface,
+              opacity: pressed ? 0.8 : 1,
+              shadowColor: '#000',
+            },
+          ]}
+        >
+          <Icon name="ion:locate" size={20} color={c.text} />
+        </Pressable>
+      </View>
+
+      {/* LIA indicator flutuante (somente quando calculando) */}
+      {liaStatus === 'thinking' ? (
+        <View
+          style={[
+            styles.liaFloat,
+            { backgroundColor: c.surface, shadowColor: '#000' },
+          ]}
+        >
+          <LIAIndicator status="thinking" version="LIA 1.0" />
         </View>
-      )}
+      ) : null}
 
-      {/* Botão GPS */}
-      <TouchableOpacity style={styles.locationButton} onPress={handleCenterLocation}>
-        <Ionicons name="locate" size={25} color={Colors.primary} />
-      </TouchableOpacity>
-
-      {/* FAB Otimizar */}
-      <TouchableOpacity
-        style={[styles.fab, loading && styles.fabDisabled]}
-        onPress={handleOptimizeRoute}
-        disabled={loading}
-      >
-        {loading ? (
-          <ActivityIndicator color={Colors.white} size="small" style={{ marginRight: 8 }} />
+      {/* Bottom: NavigationPanel ou CTA Otimizar */}
+      <View style={styles.bottomDock}>
+        {route ? (
+          <NavigationPanel
+            route={route}
+            navigating={navigating}
+            onStart={handleStartNav}
+            onCancel={handleClear}
+          />
         ) : (
-          <Ionicons name="navigate" size={20} color={Colors.white} style={{ marginRight: 8 }} />
+          <Button
+            label={calculating ? 'LIA está calculando...' : 'Otimizar rota'}
+            variant="primary"
+            size="lg"
+            fullWidth
+            loading={calculating}
+            onPress={handleOptimize}
+            icon="ion:flash-outline"
+            disabled={!origemPlace || !destinoPlace}
+          />
         )}
-        <Text style={styles.fabText}>
-          {loading ? 'Calculando...' : 'Otimizar Rota'}
-        </Text>
-      </TouchableOpacity>
+      </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  searchContainer: {
-    position: 'absolute', top: 50, left: 20, right: 20,
-    backgroundColor: Colors.white, borderRadius: 12, padding: 10,
-    elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 5, zIndex: 1,
+  searchCard: {
+    position: 'absolute',
+    top: 50,
+    left: 16,
+    right: 16,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 4,
+    ...Platform.select({
+      web: { boxShadow: '0 4px 16px rgba(0,0,0,0.16)' as any },
+      default: {
+        shadowOpacity: 0.16,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 8,
+      },
+    }),
+    zIndex: 30,
   },
-  inputWrapper: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
-  icon: { marginRight: 10 },
-  input: { flex: 1, fontSize: 16, color: Colors.text },
-  divider: { height: 1, backgroundColor: '#E5E5EA', marginVertical: 4, marginLeft: 30 },
-  routeInfoCard: {
-    position: 'absolute', bottom: 100, left: 20, right: 20,
-    backgroundColor: Colors.white, borderRadius: 12, padding: 14,
-    flexDirection: 'row', alignItems: 'center',
-    elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2, shadowRadius: 4, zIndex: 1,
-    gap: 12,
+  divider: { height: 1, marginHorizontal: 4, marginBottom: 10, marginTop: -2 },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 10,
+    marginBottom: 10,
+    marginTop: -4,
   },
-  routeStats: { alignItems: 'center', flex: 1 },
-  routeStatValue: { fontSize: 18, fontWeight: 'bold', color: Colors.text },
-  routeStatLabel: { fontSize: 11, color: Colors.gray, marginTop: 2 },
-  locationButton: {
-    position: 'absolute', bottom: 185, right: 20,
-    backgroundColor: Colors.white, width: 50, height: 50, borderRadius: 25,
-    justifyContent: 'center', alignItems: 'center',
-    elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25, shadowRadius: 3.84, zIndex: 1,
+  rightStack: {
+    position: 'absolute',
+    right: 16,
+    bottom: 220,
+    gap: 10,
+    zIndex: 20,
   },
-  fab: {
-    position: 'absolute', bottom: 120, right: 20,
-    backgroundColor: Colors.primary, flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 15, paddingHorizontal: 25, borderRadius: 30,
-    elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25, shadowRadius: 3.84, zIndex: 1,
+  gpsBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Platform.select({
+      web: { boxShadow: '0 2px 8px rgba(0,0,0,0.16)' as any },
+      default: {
+        shadowOpacity: 0.16,
+        shadowOffset: { width: 0, height: 2 },
+        shadowRadius: 8,
+        elevation: 4,
+      },
+    }),
   },
-  fabDisabled: { backgroundColor: Colors.gray, opacity: 0.7 },
-  fabText: { color: Colors.white, fontWeight: 'bold', fontSize: 16 },
+  liaFloat: {
+    position: 'absolute',
+    top: 220,
+    alignSelf: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    ...Platform.select({
+      web: { boxShadow: '0 4px 16px rgba(0,0,0,0.16)' as any },
+      default: {
+        shadowOpacity: 0.16,
+        shadowOffset: { width: 0, height: 4 },
+        shadowRadius: 16,
+        elevation: 8,
+      },
+    }),
+    zIndex: 20,
+  },
+  bottomDock: {
+    position: 'absolute',
+    bottom: 24,
+    left: 16,
+    right: 16,
+    zIndex: 25,
+  },
 });

@@ -1,10 +1,20 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Text, ScrollView, Image, ActivityIndicator } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../constants/Colors';
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 import LIAIndicator from '../components/LIAIndicator';
+import Icon from '../components/Icon';
 
-const API_URL = __DEV__ ? 'http://localhost:8000' : 'https://routify-api.railway.app';
+const API_URL =
+  process.env.EXPO_PUBLIC_API_URL ||
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ((globalThis as any).__DEV__ ? 'http://localhost:8000' : 'https://routify-api.railway.app');
 
 interface Metrics {
   modelo_ativo: string;
@@ -13,17 +23,23 @@ interface Metrics {
   n_pontos_monitorados: number;
   periodo_dados: string;
   total_amostras_treino: number;
+  feature_importance?: Record<string, number>;
 }
 
 function formatDate(): string {
-  const dias = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
-  const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+  const dias = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+  const meses = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+  ];
   const now = new Date();
   return `${dias[now.getDay()]}, ${now.getDate()} de ${meses[now.getMonth()]}`;
 }
 
 export default function DashboardScreen() {
+  const { theme } = useTheme();
+  const c = theme.colors;
+  const { user, profile } = useAuth();
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [apiOnline, setApiOnline] = useState(false);
@@ -35,160 +51,208 @@ export default function DashboardScreen() {
         setMetrics(data);
         setApiOnline(true);
       })
-      .catch(() => {
-        setApiOnline(false);
-      })
+      .catch(() => setApiOnline(false))
       .finally(() => setLoading(false));
   }, []);
 
   const rmse = metrics?.cv_rmse_seg;
   const pontos = metrics?.n_pontos_monitorados ?? 0;
   const amostras = metrics?.total_amostras_treino ?? 0;
-  const modelVersion = metrics?.modelo_ativo ?? 'LIA 1.0';
+  const modelVersion = metrics?.modelo_ativo ?? 'lia_1.0';
+  const nome = profile?.nome || (user?.email?.split('@')[0] ?? 'piloto');
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Cabeçalho */}
-      <View style={styles.header}>
-        <Image
-          source={require('../../assets/Logo_Routify.png')}
-          style={styles.mainLogo}
-          resizeMode="contain"
-        />
-        <Text style={styles.dateText}>{formatDate()}</Text>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: c.background }}
+      contentContainerStyle={{ padding: 20, paddingTop: 60, paddingBottom: 80 }}
+    >
+      <View style={styles.greeting}>
+        <Text style={{ color: c.textMuted, fontSize: 13 }}>{formatDate()}</Text>
+        <Text style={[styles.greetingName, { color: c.text }]}>Olá, {nome}</Text>
       </View>
 
-      <View style={styles.content}>
-        <Text style={styles.sectionTitle}>Desempenho do Modelo</Text>
-
-        {/* Grid de métricas reais */}
-        <View style={styles.statsGrid}>
-          <View style={styles.statCard}>
-            <Ionicons name="analytics-outline" size={32} color={Colors.primary} />
-            {loading ? (
-              <ActivityIndicator color={Colors.primary} size="small" style={{ marginTop: 8 }} />
-            ) : (
-              <Text style={styles.statValue}>
-                {rmse !== undefined ? `±${rmse}s` : '—'}
-              </Text>
-            )}
-            <Text style={styles.statLabel}>RMSE Predição</Text>
+      {/* Hero card LIA */}
+      <View style={[styles.heroCard, { backgroundColor: c.inverse }]}>
+        <View style={styles.heroHeader}>
+          <View style={[styles.heroBadge, { backgroundColor: c.surfaceAlt }]}>
+            <Icon name="ion:flash-outline" size={12} color={c.text} />
+            <Text style={{ color: c.text, fontSize: 11, fontWeight: '700', marginLeft: 4 }}>
+              {modelVersion.replace('_', ' ').toUpperCase()}
+            </Text>
           </View>
-
-          <View style={styles.statCard}>
-            <Ionicons name="git-network-outline" size={32} color={Colors.danger} />
-            {loading ? (
-              <ActivityIndicator color={Colors.danger} size="small" style={{ marginTop: 8 }} />
-            ) : (
-              <Text style={styles.statValue}>{pontos > 0 ? pontos : '—'}</Text>
-            )}
-            <Text style={styles.statLabel}>Pontos Monitorados</Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <Ionicons name="server-outline" size={32} color={Colors.success} />
-            {loading ? (
-              <ActivityIndicator color={Colors.success} size="small" style={{ marginTop: 8 }} />
-            ) : (
-              <Text style={styles.statValue}>
-                {amostras > 0 ? `${(amostras / 1000).toFixed(0)}k` : '—'}
-              </Text>
-            )}
-            <Text style={styles.statLabel}>Amostras Treino</Text>
+          <View
+            style={[
+              styles.statusPill,
+              { backgroundColor: apiOnline ? '#06C16722' : '#E1190022' },
+            ]}
+          >
+            <View
+              style={[
+                styles.statusDot,
+                { backgroundColor: apiOnline ? c.success : c.danger },
+              ]}
+            />
+            <Text
+              style={{
+                color: apiOnline ? c.success : c.danger,
+                fontSize: 11,
+                fontWeight: '600',
+                marginLeft: 6,
+              }}
+            >
+              {apiOnline ? 'Online' : 'Offline'}
+            </Text>
           </View>
         </View>
 
-        {/* Card de Impacto da IA */}
-        <Text style={styles.sectionTitle}>Inteligência Artificial</Text>
-        <View style={styles.aiCard}>
-          <View style={styles.aiHeader}>
-            <LIAIndicator
-              status={apiOnline ? 'idle' : 'idle'}
-              version={modelVersion.replace('_', ' ').toUpperCase()}
-              rmse={rmse}
+        <Text style={[styles.heroTitle, { color: c.onInverse }]}>
+          {loading ? '—' : rmse !== undefined ? `±${rmse}s` : '—'}
+        </Text>
+        <Text style={{ color: c.onInverse, opacity: 0.6, fontSize: 13, marginTop: 2 }}>
+          Erro médio de previsão (RMSE) · meta {'<'}120s
+        </Text>
+
+        {rmse !== undefined ? (
+          <View style={styles.precisionBar}>
+            <View style={[styles.precisionTrack, { backgroundColor: c.surfaceAlt + '40' }]} />
+            <View
+              style={[
+                styles.precisionFill,
+                {
+                  backgroundColor: rmse < 120 ? c.success : c.warning,
+                  width: `${Math.max(0, Math.min(100, ((180 - rmse) / 120) * 100)).toFixed(0)}%`,
+                },
+              ]}
             />
           </View>
+        ) : null}
+      </View>
 
-          <View style={styles.aiStatusRow}>
-            <View style={[styles.statusDot, { backgroundColor: apiOnline ? Colors.success : Colors.gray }]} />
-            <Text style={[styles.aiSubtitle, { color: apiOnline ? Colors.success : Colors.gray }]}>
-              {apiOnline ? 'API Online — Operando Ativamente' : 'API Offline — Inicie o servidor local'}
+      {/* Grid 2x1 */}
+      <View style={styles.statsRow}>
+        <StatCard
+          icon="ion:git-network-outline"
+          label="Pontos monitorados"
+          value={loading ? '—' : pontos > 0 ? `${pontos}` : '—'}
+          colorBg={c.surface}
+          colorText={c.text}
+          colorSub={c.textMuted}
+        />
+        <StatCard
+          icon="ion:server-outline"
+          label="Amostras treino"
+          value={loading ? '—' : amostras > 0 ? `${(amostras / 1000).toFixed(0)}k` : '—'}
+          colorBg={c.surface}
+          colorText={c.text}
+          colorSub={c.textMuted}
+        />
+      </View>
+
+      {/* Engine card */}
+      <Text style={[styles.sectionTitle, { color: c.textMuted }]}>MOTOR PREDITIVO</Text>
+      <View style={[styles.engineCard, { backgroundColor: c.surface, borderColor: c.surfaceMuted }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <LIAIndicator status="idle" version={modelVersion.replace('_', ' ').toUpperCase()} rmse={rmse} />
+        </View>
+        <Text style={{ color: c.textMuted, fontSize: 13, lineHeight: 20, marginTop: 14 }}>
+          {apiOnline
+            ? `LIA ${modelVersion.replace('_', ' ').toUpperCase()} treinada com ${(amostras / 1000).toFixed(0)}k amostras de Brasília. Predição via XGBoost integrada ao algoritmo A*.`
+            : 'API offline. Execute "uvicorn main:app --reload" em BackEnd/API para ativar o motor preditivo.'}
+        </Text>
+
+        {metrics?.periodo_dados ? (
+          <View style={[styles.periodTag, { backgroundColor: c.surfaceMuted }]}>
+            <Icon name="ion:time-outline" size={12} color={c.textMuted} />
+            <Text style={{ color: c.textMuted, fontSize: 11, marginLeft: 5 }}>
+              {metrics.periodo_dados.split(' → ').map((d) => d.slice(0, 10)).join(' → ')}
             </Text>
           </View>
-
-          <Text style={styles.aiDescription}>
-            {apiOnline
-              ? `Modelo ${modelVersion.replace('_', ' ').toUpperCase()} treinado com ${(amostras / 1000).toFixed(0)}k amostras de Brasília. Predição de tempo de viagem via XGBoost integrada ao algoritmo A*.`
-              : 'Execute "uvicorn main:app --reload" em BackEnd/API para ativar o motor preditivo.'}
-          </Text>
-
-          {/* Barra de precisão */}
-          {rmse !== undefined && (
-            <View style={styles.progressContainer}>
-              <View style={styles.progressBarBackground}>
-                {/* Precisão visual: RMSE < 60s = 100%, RMSE 120s = 50%, RMSE 180s = 0% */}
-                <View style={[styles.progressBarFill,
-                  { width: `${Math.max(0, Math.min(100, ((180 - rmse) / 120) * 100)).toFixed(0)}%` as any }]} />
-              </View>
-              <Text style={styles.progressText}>
-                Precisão LIA: RMSE {rmse}s (meta: {'<'}120s)
-              </Text>
-            </View>
-          )}
-
-          {/* Período dos dados */}
-          {metrics?.periodo_dados && (
-            <Text style={styles.periodText}>
-              Dados: {metrics.periodo_dados}
-            </Text>
-          )}
-        </View>
+        ) : null}
       </View>
+
+      {/* Loading state */}
+      {loading ? (
+        <View style={styles.loadingRow}>
+          <ActivityIndicator color={c.text} size="small" />
+          <Text style={{ color: c.textMuted, marginLeft: 8 }}>Carregando métricas...</Text>
+        </View>
+      ) : null}
     </ScrollView>
   );
 }
 
+interface StatProps {
+  icon: string;
+  label: string;
+  value: string;
+  colorBg: string;
+  colorText: string;
+  colorSub: string;
+}
+function StatCard({ icon, label, value, colorBg, colorText, colorSub }: StatProps) {
+  return (
+    <View style={[styles.statCard, { backgroundColor: colorBg }]}>
+      <Icon name={icon} size={20} color={colorText} />
+      <Text style={{ color: colorText, fontSize: 26, fontWeight: '700', marginTop: 12 }}>{value}</Text>
+      <Text style={{ color: colorSub, fontSize: 12, marginTop: 4 }}>{label}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    backgroundColor: Colors.white,
-    paddingVertical: 20,
+  greeting: { marginBottom: 24 },
+  greetingName: { fontSize: 28, fontWeight: '700', marginTop: 4, letterSpacing: -0.5 },
+  heroCard: {
+    borderRadius: 20,
+    padding: 24,
+    marginBottom: 14,
+  },
+  heroHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    marginBottom: 18,
   },
-  mainLogo: { width: 250, height: 80, marginBottom: 10 },
-  dateText: { color: Colors.gray, fontSize: 14, fontWeight: '500' },
-  content: { padding: 20 },
-  sectionTitle: {
-    fontSize: 18, fontWeight: 'bold', color: Colors.text,
-    marginBottom: 15, marginTop: 10,
+  heroBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  statsGrid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 25 },
+  statusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  heroTitle: { fontSize: 56, fontWeight: '700', letterSpacing: -2 },
+  precisionBar: { marginTop: 18, height: 6 },
+  precisionTrack: { ...StyleSheet.absoluteFillObject, borderRadius: 3 },
+  precisionFill: { height: '100%', borderRadius: 3 },
+  statsRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
   statCard: {
-    backgroundColor: Colors.white, width: '31%', padding: 15,
-    borderRadius: 12, alignItems: 'center', elevation: 3,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1, shadowRadius: 3,
+    flex: 1,
+    padding: 18,
+    borderRadius: 16,
   },
-  statValue: { fontSize: 18, fontWeight: 'bold', color: Colors.text, marginTop: 8, marginBottom: 4 },
-  statLabel: { fontSize: 12, color: Colors.gray, textAlign: 'center' },
-  aiCard: {
-    backgroundColor: Colors.white, borderRadius: 16, padding: 20,
-    elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15, shadowRadius: 5,
-    borderLeftWidth: 4, borderLeftColor: Colors.primary,
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 8,
   },
-  aiHeader: { marginBottom: 12 },
-  aiStatusRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
-  aiSubtitle: { fontSize: 13, fontWeight: '500' },
-  aiDescription: { fontSize: 14, color: Colors.gray, lineHeight: 20, marginBottom: 16 },
-  progressContainer: { marginTop: 5 },
-  progressBarBackground: {
-    height: 8, backgroundColor: '#E5E5EA', borderRadius: 4, overflow: 'hidden',
+  engineCard: { borderRadius: 16, padding: 20, borderWidth: 1 },
+  periodTag: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 14,
   },
-  progressBarFill: { height: '100%', backgroundColor: Colors.primary },
-  progressText: { fontSize: 12, color: Colors.gray, marginTop: 8, textAlign: 'right' },
-  periodText: { fontSize: 11, color: Colors.gray, marginTop: 8, opacity: 0.7 },
+  loadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 20 },
 });

@@ -53,7 +53,7 @@ class PredictOutput(BaseModel):
     dia_semana: int
 
 
-@router.post("/", response_model=PredictOutput)
+@router.post("", response_model=PredictOutput)
 async def predict(body: PredictInput, request: Request):
     model = request.app.state.model
     encoder = request.app.state.encoder
