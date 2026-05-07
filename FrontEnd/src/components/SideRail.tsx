@@ -81,16 +81,24 @@ export default function SideRail({ routes, activeName, onSelect }: Props) {
                 styles.item,
                 collapsed ? styles.itemCollapsed : null,
                 focused
-                  ? { backgroundColor: 'rgba(255,255,255,0.12)' }
+                  ? styles.itemFocused
                   : pressed
                   ? { backgroundColor: 'rgba(255,255,255,0.06)' }
                   : null,
               ]}
             >
+              {focused ? (
+                <View
+                  style={[
+                    styles.activeIndicator,
+                    collapsed ? styles.activeIndicatorCollapsed : null,
+                  ]}
+                />
+              ) : null}
               <View
                 style={[
                   styles.itemIconWrap,
-                  focused ? { backgroundColor: brand.blue } : null,
+                  focused ? styles.itemIconWrapFocused : null,
                 ]}
               >
                 <Icon
@@ -187,10 +195,45 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
     gap: 12,
+    position: 'relative',
   },
   itemCollapsed: {
     justifyContent: 'center',
     paddingHorizontal: 6,
+  },
+  itemFocused: {
+    backgroundColor: 'rgba(2,107,248,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(2,107,248,0.45)',
+    ...Platform.select({
+      web: {
+        boxShadow:
+          '0 0 0 1px rgba(2,107,248,0.35), 0 4px 14px rgba(2,107,248,0.28)' as any,
+      } as any,
+      default: {
+        shadowColor: brand.blue,
+        shadowOpacity: 0.35,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 6,
+      },
+    }),
+  },
+  activeIndicator: {
+    position: 'absolute',
+    left: -8,
+    top: 6,
+    bottom: 6,
+    width: 4,
+    borderTopRightRadius: 4,
+    borderBottomRightRadius: 4,
+    backgroundColor: brand.blue,
+  },
+  activeIndicatorCollapsed: {
+    left: -6,
+    top: 8,
+    bottom: 8,
+    width: 3,
   },
   itemIconWrap: {
     width: 36,
@@ -198,6 +241,19 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  itemIconWrapFocused: {
+    backgroundColor: brand.blue,
+    ...Platform.select({
+      web: { boxShadow: '0 2px 10px rgba(2,107,248,0.55)' as any } as any,
+      default: {
+        shadowColor: brand.blue,
+        shadowOpacity: 0.55,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 4,
+      },
+    }),
   },
   itemLabel: {
     color: '#ffffff',

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Platform, View } from 'react-native';
 import {
   NavigationContainer,
   DefaultTheme,
@@ -62,6 +62,56 @@ function tabsCommonScreens() {
 }
 
 // --------------------------------------------------------------------- MOBILE
+function FocusedTabIcon({
+  focused,
+  size,
+  routeName,
+  accent,
+  inactive,
+}: {
+  focused: boolean;
+  size: number;
+  routeName: string;
+  accent: string;
+  inactive: string;
+}) {
+  const map = TAB_ICONS[routeName] || TAB_ICONS.Mapa;
+  return (
+    <View
+      style={{
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: focused ? `${accent}22` : 'transparent',
+        borderWidth: focused ? 1 : 0,
+        borderColor: focused ? `${accent}66` : 'transparent',
+        ...Platform.select({
+          web: focused
+            ? ({ boxShadow: `0 4px 14px ${accent}55` } as any)
+            : {},
+          default: focused
+            ? {
+                shadowColor: accent,
+                shadowOpacity: 0.45,
+                shadowRadius: 8,
+                shadowOffset: { width: 0, height: 2 },
+                elevation: 5,
+              }
+            : {},
+        }),
+      }}
+    >
+      <Icon
+        name={focused ? map.active : map.inactive}
+        size={size}
+        color={focused ? accent : inactive}
+      />
+    </View>
+  );
+}
+
 function MainTabsMobile() {
   const { theme } = useTheme();
   const c = theme.colors;
@@ -69,25 +119,24 @@ function MainTabsMobile() {
     <Tab.Navigator
       screenOptions={({ route }: { route: { name: string } }) => ({
         headerShown: false,
-        tabBarIcon: ({ focused, size }: { focused: boolean; size: number }) => {
-          const map = TAB_ICONS[route.name] || TAB_ICONS.Mapa;
-          return (
-            <Icon
-              name={focused ? map.active : map.inactive}
-              size={size}
-              color={focused ? c.accent : c.textSubtle}
-            />
-          );
-        },
+        tabBarIcon: ({ focused, size }: { focused: boolean; size: number }) => (
+          <FocusedTabIcon
+            focused={focused}
+            size={size}
+            routeName={route.name}
+            accent={c.accent}
+            inactive={c.textSubtle}
+          />
+        ),
         tabBarActiveTintColor: c.accent,
         tabBarInactiveTintColor: c.textSubtle,
         tabBarStyle: {
           backgroundColor: c.surface,
           borderTopColor: c.surfaceMuted,
           borderTopWidth: 1,
-          height: 64,
-          paddingTop: 6,
-          paddingBottom: 8,
+          height: 72,
+          paddingTop: 8,
+          paddingBottom: 10,
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '500' },
       })}
@@ -110,15 +159,15 @@ function MainTabsDesktop() {
   const [activeName, setActiveName] = useState<string>('Mapa');
 
   useEffect(() => {
-    if (!navigationRef.isReady()) return;
     const sync = () => {
+      if (!navigationRef.isReady()) return;
       const root = navigationRef.getRootState();
       if (!root) return;
-      const tabState = root.routes[root.index]?.state;
-      if (tabState && typeof tabState.index === 'number') {
-        const name = tabState.routes[tabState.index]?.name;
-        if (name) setActiveName(name);
-      }
+      // Root nav = Tab.Navigator quando logado. Tab name está em routes[index].name.
+      // Stack aninhada (Perfil) também resolve no nome do tab pai, que é o que
+      // SideRail precisa pra highlight.
+      const name = root.routes[root.index]?.name;
+      if (name) setActiveName(name);
     };
     sync();
     const unsub = navigationRef.addListener('state', sync);

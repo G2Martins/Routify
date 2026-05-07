@@ -13,7 +13,6 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/Button';
 import Input from '../components/Input';
-import Icon from '../components/Icon';
 
 export default function LoginScreen({ navigation }: any) {
   const { theme } = useTheme();
@@ -48,9 +47,12 @@ export default function LoginScreen({ navigation }: any) {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.headerArt}>
-          <View style={[styles.iconCircle, { backgroundColor: c.inverse }]}>
-            <Icon name="ion:navigate" size={32} color={c.onInverse} />
-          </View>
+          <Image
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            source={require('../../assets/Logo_Routify_icon.png')}
+            style={styles.brandLogo}
+            resizeMode="contain"
+          />
           <Text style={[styles.brandTitle, { color: c.text }]}>Routify</Text>
           <Text style={[styles.brandSub, { color: c.textMuted }]}>
             Logística inteligente com IA preditiva
@@ -113,13 +115,10 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { flexGrow: 1, padding: 24, paddingTop: 80 },
   headerArt: { alignItems: 'center', marginBottom: 48 },
-  iconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 18,
+  brandLogo: {
+    width: 80,
+    height: 80,
+    marginBottom: 16,
   },
   brandTitle: { fontSize: 38, fontWeight: '700', letterSpacing: -1 },
   brandSub: { fontSize: 14, marginTop: 6 },
