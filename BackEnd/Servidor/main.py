@@ -37,11 +37,26 @@ def main():
     # Popule a tabela de vias monitoradas caso esteja vazia
     map_extractor.populate_vias()
 
+    # Wrapper que impede ciclos sobrepostos: se um ciclo demora mais que o
+    # intervalo (por ex. todas as chaves esgotadas), o próximo é pulado em
+    # vez de ser enfileirado. Evita backlog crescente no scheduler.
+    coleta_em_andamento = {'flag': False}
+
+    def coleta_protegida():
+        if coleta_em_andamento['flag']:
+            logging.warning("Ciclo anterior ainda em execução. Pulando este disparo.")
+            return
+        coleta_em_andamento['flag'] = True
+        try:
+            traffic_collector.run_collection()
+        finally:
+            coleta_em_andamento['flag'] = False
+
     # Configure a coleta de tráfego para executar a cada 8 minutos
-    schedule.every(8).minutes.do(traffic_collector.run_collection)
-    
+    schedule.every(8).minutes.do(coleta_protegida)
+
     # Execute uma coleta imediata ao iniciar o sistema
-    traffic_collector.run_collection()
+    coleta_protegida()
 
     # Mantenha o programa em execução processando as tarefas agendadas
     while True:
