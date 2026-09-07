@@ -1,0 +1,35 @@
+# Dependências para rodar o coletor de tráfego + Fase 3 num host 24/7
+# (Servidor/main.py, que agora também agenda validar_fase3.run()).
+#
+# União de API/requirements.txt + Servidor/requirements.txt +
+# Treinamento_IA/requirements.txt, SEM torch e SEM mlflow — nenhum dos dois é
+# importado por main.py, traffic_collector.py, map_extractor.py,
+# validar_fase3.py, API/main.py ou routers/route.py (torch só é usado por
+# benchmark_lstm_xgboost.py, mlflow só por train.py — nenhum roda no VM).
+# Isso evita baixar CUDA wheels desnecessárias (torch==2.9.0+cu128 nem
+# instalaria certo numa VM ARM64 como a Ampere A1 da Oracle).
+#
+# As versões abaixo são as mesmas travadas em API/requirements.txt — os
+# artefatos em models/ são pickles sensíveis à versão exata de
+# xgboost/scikit-learn/pandas que os serializou. Não atualizar sem retreinar.
+
+fastapi==0.136.1
+uvicorn[standard]==0.46.0
+pydantic==2.12.5
+httpx==0.28.1
+python-dotenv==1.0.0
+supabase==2.13.0
+requests==2.31.0
+schedule==1.2.0
+
+xgboost==3.2.0
+scikit-learn==1.8.0
+pandas==3.0.0
+numpy==2.4.1
+joblib==1.5.3
+pyarrow==23.0.1
+
+osmnx==1.9.3
+networkx==3.6.1
+scipy==1.17.0
+shapely==2.1.2

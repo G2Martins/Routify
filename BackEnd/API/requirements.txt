@@ -1,0 +1,27 @@
+# Versões sincronizadas com o ambiente que TREINOU o modelo LIA 2.0.
+#
+# Os pins abaixo não são estéticos: os artefatos em models/ são pickles.
+# Carregar lia_2.0.pkl num XGBoost 2.x falha (o modelo foi serializado no 3.2.0),
+# e lia_2.0_profiles.pkl contém objetos pandas — divergir a major do pandas
+# quebra o unpickle. Ao retreinar em outra versão, atualize este arquivo junto.
+
+# --- API ---
+fastapi==0.136.1
+uvicorn[standard]==0.46.0
+pydantic==2.12.5
+httpx==0.28.1
+python-dotenv==1.0.0
+supabase==2.13.0
+
+# --- Inferência (versões travadas pelos pickles) ---
+xgboost==3.2.0          # serializou lia_2.0.pkl
+scikit-learn==1.8.0     # serializou lia_2.0_encoder.pkl
+pandas==3.0.0           # serializou lia_2.0_profiles.pkl
+numpy==2.4.1
+joblib==1.5.3
+pyarrow==23.0.1
+
+# --- Grafo / roteamento ---
+osmnx==1.9.3
+networkx==3.6.1
+scipy==1.17.0

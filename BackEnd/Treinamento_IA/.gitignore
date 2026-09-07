@@ -1,0 +1,17 @@
+# --------------------------------------------------
+# Artefatos de treino (grandes demais para git)
+# --------------------------------------------------
+models/*.pkl
+models/*.parquet
+models/*.graphml
+models/mlruns/
+mlruns/
+
+# Cache Python
+__pycache__/
+*.pyc
+.env
+
+# Dados intermediários
+*.csv
+*.parquet

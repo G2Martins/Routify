@@ -1,0 +1,22 @@
+# Versões do ambiente que treinou a LIA 2.0.
+# Devem acompanhar API/requirements.txt: o que treina e o que infere precisam
+# concordar, senão os pickles de models/ não carregam do outro lado.
+
+xgboost==3.2.0
+scikit-learn==1.8.0
+pandas==3.0.0
+numpy==2.4.1
+scipy==1.17.0
+pyarrow==23.0.1
+joblib==1.5.3
+mlflow==3.12.0
+supabase==2.13.0
+python-dotenv==1.0.0
+optuna==4.9.0
+
+# Usado por benchmark_lstm_xgboost.py. Instalar do índice cu128 do PyTorch, não
+# do PyPI padrão — a build padrão não traz kernels para GPUs Blackwell (sm_120,
+# ex. RTX 5070):
+#   pip install torch==2.9.0 --index-url https://download.pytorch.org/whl/cu128
+# Sem GPU compatível, o script cai para CPU automaticamente.
+torch==2.9.0
