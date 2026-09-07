@@ -365,8 +365,8 @@ validação da hipótese central contra uma referência de tráfego externa
 
 | Nome | Papel |
 |---|---|
-| Pedro Borges Alves | Backend, IA (LIA), infraestrutura de dados |
-| Gustavo Martins Gripaldi | Frontend, integração mobile |
+| Pedro Borges Alves | Desenvolvimento (Backend, IA/LIA, infraestrutura de dados, Frontend) |
+| Gustavo Martins Gripaldi | Desenvolvimento (Backend, IA/LIA, infraestrutura de dados, Frontend) |
 | Prof. Marcelo Alves Farias | Orientador |
 
 ---
