@@ -29,6 +29,8 @@ BackEnd/API/
 ├── lia_inference.py     ← montagem de features, cascata de perfis, clamp da razão
 ├── graph_enrichment.py  ← liga o grafo OSM às vias monitoradas (BallTree)
 ├── recencia_cache.py    ← cache TTL da última observação real por via
+├── tomtom.py            ← TomTom sob demanda: pool de chaves, clientes, geometria
+├── tests/               ← pytest (rodar `pytest -q` nesta pasta)
 ├── routers/
 │   ├── predict.py      ← POST /predict (inferência por segmento)
 │   ├── route.py        ← POST /route (A* com pesos LIA)
@@ -56,6 +58,17 @@ Se não existirem, rode primeiro `cd ../Treinamento_IA && python train.py`.
 
 Também depende de `../Servidor/config/.env` (`SUPABASE_URL`/`SUPABASE_KEY`) — usado pelo enriquecimento do grafo, pelo cache de recência e pelo autocomplete.
 
+**TomTom sob demanda** (opcional — sem chave, a API segue só com a LIA):
+
+| Variável | Padrão | Uso |
+|---|---|---|
+| `TOMTOM_API_KEYS` | — | chaves separadas por vírgula (deploy/secrets). Tem precedência sobre o arquivo |
+| `TOMTOM_KEYS_FILE` | `../Servidor/config/tomtom_keys.json` | mesmo formato do coletor (`{"tomtom_keys": [{"id", "key"}]}`) |
+| `TOMTOM_MAX_CHAMADAS_MIN` | `120` | teto global de chamadas por minuto (proteção de cota) |
+| `TOMTOM_ATIVO` | `1` | `0` desliga a integração |
+
+Testes: `pytest -q` (o HTTP da TomTom é simulado; nenhuma chamada real).
+
 ---
 
 ## 🌍 Grafo OSM
@@ -71,7 +84,7 @@ Após o download, o grafo fica cacheado em `.graphml` em `Treinamento_IA/models/
 ## 🔌 Endpoints
 
 ### `GET /health`
-Status básico da API e do modelo carregado.
+Status básico da API e do modelo carregado, mais `tomtom` (chaves configuradas e disponíveis por serviço — só contagens) e `vias_monitoradas` (0 = Supabase indisponível na subida, rota em heurística).
 
 ### `GET /metrics`
 Métricas reais do modelo (usadas pelo `DashboardScreen` do app): RMSE de validação cruzada, número de vias monitoradas, importância de features.
@@ -116,9 +129,12 @@ Campos opcionais avançados (`razao_ultima_observacao` + `minutos_desde_ultima_o
 ```json
 {
   "origem":  { "lat": -15.79, "lon": -47.88 },
-  "destino": { "lat": -15.84, "lon": -47.92 }
+  "destino": { "lat": -15.84, "lon": -47.92 },
+  "referencia_tomtom": false
 }
 ```
+
+Campos extras são rejeitados (422). `referencia_tomtom: true` pede também o ETA da TomTom com trânsito ao vivo (gasta 1 chamada de Routing).
 
 **Response:**
 ```json
@@ -135,25 +151,44 @@ Campos opcionais avançados (`razao_ultima_observacao` + `minutos_desde_ultima_o
   "rotas_diferentes": true,
   "lia_cobertura_pct": 74.5,
   "hora_partida": 18,
-  "dia_semana": 2
+  "dia_semana": 2,
+
+  "tomtom": {
+    "ativo": true, "degradado": false,
+    "vias_atualizadas": 6, "arestas_interditadas": 4, "interdicoes_na_rota": 0,
+    "incidentes": [
+      { "tipo": "Congestionamento", "descricao": "Trânsito parado", "atraso_seg": 213,
+        "interdicao": false, "lat": -15.80, "lon": -47.89 }
+    ],
+    "referencia_tempo_seg": 1043, "referencia_atraso_seg": 163,
+    "referencia_sem_transito_seg": 790, "referencia_distancia_km": 13.39
+  }
 }
 ```
 
-Os últimos campos são instrumentação da Fase 3 (validação da tese): a rota de
+`tempo_rota_curta_seg` … `dia_semana` são instrumentação da Fase 3 (validação da tese): a rota de
 menor distância é calculada na mesma requisição, sob as mesmas condições,
-para permitir comparação direta.
+para permitir comparação direta. O bloco `tomtom` diz o que a TomTom acrescentou;
+`degradado: true` = rota só com a LIA (sem chave, cota esgotada ou TomTom fora do ar).
 
 **Pipeline interno:**
 1. `find_nearest_drivable_node` mapeia (lat,lon) ao nó navegável mais próximo
-2. `assign_lia_weights` prevê a razão de congestionamento para **todas** as arestas do grafo numa única chamada ao modelo (perfis por via + recência + transferência de conhecimento calibrada para vias não monitoradas)
-3. `nx.astar_path` com heurística Haversine
-4. `montar_polyline` traça a rota seguindo a geometria real das vias (não linha reta entre nós)
+2. **TomTom sob demanda** (`_consultar_tomtom`, em paralelo): Flow Segment Data nas até 8 vias monitoradas do corredor com recência > 10 min (a leitura entra no cache de recência) + Incident Details do corredor (cache 5 min) + ETA de referência, se pedido
+3. `assign_lia_weights` prevê a razão de congestionamento para **todas** as arestas do grafo numa única chamada ao modelo (perfis por via + recência + transferência de conhecimento calibrada para vias não monitoradas)
+4. `nx.astar_path` com heurística Haversine; arestas sob interdição da TomTom saem do caminho por uma função de peso (o grafo compartilhado não é alterado)
+5. `montar_polyline` traça a rota seguindo a geometria real das vias (não linha reta entre nós)
+
+Política de chaves, cotas e modo degradado: [Docs/core/architecture.md](../../Docs/core/architecture.md).
 
 ---
 
 ### `GET /search/places?q=...&limit=8`
 
-Autocomplete de endereços. Consulta primeiro `malha_completa` (~38 mil vias do DF) no Supabase; cai para o Nominatim (OSM) só quando a busca local retorna poucos resultados.
+Autocomplete de endereços, em cadeia (cada etapa só roda se a anterior trouxe < 3 resultados):
+
+1. `malha_completa` (~38 mil vias do DF) no Supabase — `source: "malha"`
+2. TomTom Search v2 (typeahead, viés para Brasília, cache 24 h) — `source: "tomtom"`
+3. Nominatim (OSM) — `source: "nominatim"`, último recurso, com cache e trava de 1 req/s (a política da OSMF proíbe autocomplete)
 
 **Response:**
 ```json
