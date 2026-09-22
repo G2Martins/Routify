@@ -191,6 +191,11 @@ def enrich_graph(G, sb, raio_m: float = RAIO_TRANSFER_M) -> dict:
 
     # --- 3. Vínculo com a via monitorada mais próxima ---
     ids_vias, coords_vias = fetch_monitored_points(sb)
+    # Coordenada de cada via, em graus: o TomTom sob demanda (tomtom.py)
+    # consulta o Flow Segment Data exatamente nos pontos do dataset de treino.
+    G.graph['vias_monitoradas'] = {
+        int(i): (math.degrees(lat), math.degrees(lon)) for i, (lat, lon) in zip(ids_vias, coords_vias)
+    }
 
     vinculadas = 0
     if len(ids_vias) > 0 and len(chaves) > 0:

@@ -2,6 +2,7 @@
 POST /route — Rota A* com pesos LIA
 Recebe origem/destino (lat/lon), retorna polyline otimizada pelo modelo LIA.
 """
+import asyncio
 import math
 import logging
 from datetime import datetime, timezone, timedelta
@@ -11,7 +12,9 @@ import networkx as nx
 import osmnx as ox
 import numpy as np
 from fastapi import APIRouter, Request, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+import tomtom
 
 # ⭐ PRIORITY 2: Imports para Knowledge Transfer
 from supabase import create_client
@@ -99,13 +102,41 @@ def find_nearby_monitored_points(
 
 
 class Coordenada(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     lat: float = Field(..., description="Latitude", ge=-90, le=90)
     lon: float = Field(..., description="Longitude", ge=-180, le=180)
 
 
 class RouteInput(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     origem: Coordenada
     destino: Coordenada
+    # ETA de referência da TomTom (Routing, trânsito ao vivo). Opcional porque
+    # gasta cota a cada rota — o app liga quando quer mostrar a comparação.
+    referencia_tomtom: bool = False
+
+
+class IncidenteRota(BaseModel):
+    tipo: str
+    descricao: Optional[str] = None
+    atraso_seg: Optional[int] = None
+    interdicao: bool = False
+    lat: float
+    lon: float
+
+
+class TomTomResumo(BaseModel):
+    """O que a TomTom acrescentou à rota. degradado=True: rota só com a LIA."""
+    ativo: bool
+    degradado: bool
+    vias_atualizadas: int = 0
+    arestas_interditadas: int = 0
+    interdicoes_na_rota: int = 0
+    incidentes: List[IncidenteRota] = []
+    referencia_tempo_seg: Optional[int] = None
+    referencia_atraso_seg: Optional[int] = None
+    referencia_sem_transito_seg: Optional[int] = None
+    referencia_distancia_km: Optional[float] = None
 
 
 class RouteOutput(BaseModel):
@@ -127,6 +158,8 @@ class RouteOutput(BaseModel):
     lia_cobertura_pct: Optional[float] = None
     hora_partida: Optional[int] = None
     dia_semana: Optional[int] = None
+
+    tomtom: Optional[TomTomResumo] = None
 
 
 def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -533,6 +566,35 @@ def _resumir_caminho(G: nx.MultiDiGraph, nos: List[int]) -> Tuple[float, float, 
     return tempo, distancia, cobertura
 
 
+async def _consultar_tomtom(tt, G, origem, destino, recencia, com_referencia: bool):
+    """Uma rodada paralela: fluxo nas vias velhas do corredor + incidentes
+    (+ ETA de referência). Nunca levanta — falha vira modo degradado."""
+    vias = G.graph.get('vias_monitoradas') or {}
+    idade = recencia.idade_min if recencia is not None else (lambda _via: None)
+    alvo = tomtom.selecionar_vias_corredor(vias, origem, destino, idade)
+
+    tarefas = [tt.fluxo(*vias[v]) for v in alvo]
+    tarefas.append(tt.incidentes(tomtom.bbox_corredor(origem, destino)))
+    if com_referencia:
+        tarefas.append(tt.rota_referencia(origem, destino))
+    resultados = await asyncio.gather(*tarefas, return_exceptions=True)
+    for r in resultados:
+        if isinstance(r, Exception):
+            logger.warning(f"TomTom: erro inesperado ({type(r).__name__})")
+    resultados = [None if isinstance(r, Exception) else r for r in resultados]
+
+    atualizadas = 0
+    if recencia is not None:
+        for via, fsd in zip(alvo, resultados):
+            razao = tomtom.razao_de_fluxo(fsd)
+            if razao is not None:
+                recencia.registrar(via, razao)
+                atualizadas += 1
+    incidentes = resultados[len(alvo)] or []
+    referencia = resultados[len(alvo) + 1] if com_referencia else None
+    return atualizadas, incidentes, referencia
+
+
 def get_edge_name(G: nx.MultiDiGraph, u: int, v: int) -> str:
     edge_data = G.get_edge_data(u, v)
     if edge_data:
@@ -588,6 +650,19 @@ async def calculate_route(body: RouteInput, request: Request):
     if orig_node == dest_node:
         raise HTTPException(status_code=422, detail="Origem e destino são o mesmo ponto no grafo.")
 
+    # TomTom sob demanda: recência ao vivo nas vias velhas do corredor +
+    # interdições. Roda antes dos pesos para a LIA já usar a leitura fresca.
+    tt = getattr(request.app.state, 'tomtom', None)
+    tt_ativo = tt is not None and tt.ativo
+    vias_atualizadas, incidentes_tt, referencia_tt = 0, [], None
+    if tt_ativo:
+        vias_atualizadas, incidentes_tt, referencia_tt = await _consultar_tomtom(
+            tt, G, (body.origem.lat, body.origem.lon), (body.destino.lat, body.destino.lon),
+            recencia_cache_obj, body.referencia_tomtom,
+        )
+
+    # Daqui até o return não há await: pesos (gravados no grafo compartilhado),
+    # A* e resumo rodam sem intercalar com outra requisição.
     stats = assign_lia_weights(
         model, encoder, profiles, G, hora, dia_semana,
         recencia_cache_obj, transfer_confidence_obj,
@@ -605,14 +680,16 @@ async def calculate_route(body: RouteInput, request: Request):
             v_data['y'], v_data['x'],
         ) / 30  # 30 m/s ≈ 108 km/h (upper bound de velocidade)
 
-    # A* com peso LIA
+    # A* com peso LIA; via interditada (TomTom) sai do caminho
+    bloqueadas = tomtom.arestas_interditadas(G, incidentes_tt) if incidentes_tt else set()
     try:
         path_nodes = nx.astar_path(
             G,
             orig_node,
             dest_node,
             heuristic=heuristic,
-            weight='travel_time_lia',
+            weight=(tomtom.peso_sem_interditadas(bloqueadas, PENALTY_NON_DRIVABLE_S)
+                    if bloqueadas else 'travel_time_lia'),
         )
     except nx.NetworkXNoPath:
         raise HTTPException(status_code=422, detail="Sem rota disponível entre origem e destino.")
@@ -660,6 +737,23 @@ async def calculate_route(body: RouteInput, request: Request):
         )
     )
 
+    ref = referencia_tt or {}
+    resumo_tt = TomTomResumo(
+        ativo=tt_ativo,
+        degradado=not tt_ativo or tt.pool.disponiveis('fluxo') == 0,
+        vias_atualizadas=vias_atualizadas,
+        arestas_interditadas=len(bloqueadas),
+        interdicoes_na_rota=sum(
+            1 for u, v in zip(path_nodes[:-1], path_nodes[1:])
+            if any((u, v, k) in bloqueadas for k in G[u][v])
+        ),
+        incidentes=[IncidenteRota(**i) for i in tomtom.incidentes_na_rota(incidentes_tt, polyline)],
+        referencia_tempo_seg=ref.get('tempo_seg'),
+        referencia_atraso_seg=ref.get('atraso_seg'),
+        referencia_sem_transito_seg=ref.get('sem_transito_seg'),
+        referencia_distancia_km=ref.get('distancia_km'),
+    )
+
     return RouteOutput(
         polyline=polyline,
         tempo_total_seg=int(tempo_total),
@@ -673,4 +767,5 @@ async def calculate_route(body: RouteInput, request: Request):
         lia_cobertura_pct=round(cobertura_pct, 2),
         hora_partida=hora,
         dia_semana=dia_semana,
+        tomtom=resumo_tt,
     )

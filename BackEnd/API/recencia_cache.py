@@ -44,6 +44,10 @@ class RecenciaCache:
         self._ultima_busca: float = 0.0
 
     def _buscar(self, sb) -> None:
+        # Marca a TENTATIVA, não o sucesso: com o Supabase fora do ar, cada
+        # requisição re-tentava a busca (e pagava o timeout). Agora o TTL vale
+        # também como backoff.
+        self._ultima_busca = time.time()
         if sb is None:
             logging.warning(
                 "RecenciaCache: sem cliente Supabase — cache permanece vazio/desatualizado"
@@ -97,9 +101,8 @@ class RecenciaCache:
             novos[via] = (razao, timestamp)
 
         if novos:
-            self._dados = novos
-            self._ultima_busca = time.time()
-            logging.info(f"RecenciaCache: {len(novos)} vias atualizadas")
+            self.mesclar(novos)
+            logging.info(f"RecenciaCache: {len(novos)} vias lidas do banco")
         else:
             logging.warning(
                 "RecenciaCache: busca não retornou nenhuma via válida; mantendo cache anterior"
@@ -110,6 +113,25 @@ class RecenciaCache:
         quando o cache ainda está fresco (só compara um timestamp)."""
         if time.time() - self._ultima_busca > TTL_SEGUNDOS:
             self._buscar(sb)
+
+    def mesclar(self, novos: Dict[int, Tuple[float, datetime]]) -> None:
+        """Merge, não substituição: a leitura ao vivo da TomTom (registrar) é
+        mais nova que o banco depois que a coleta contínua parou."""
+        for via, (razao, timestamp) in novos.items():
+            atual = self._dados.get(via)
+            if atual is None or timestamp > atual[1]:
+                self._dados[via] = (razao, timestamp)
+
+    def registrar(self, id_ponto, razao: float) -> None:
+        """Observação ao vivo (TomTom sob demanda) — vale como a mais recente."""
+        self._dados[id_ponto] = (min(max(float(razao), 0.05), 1.0), _agora_utc())
+
+    def idade_min(self, id_ponto) -> Optional[float]:
+        """Minutos desde a última observação da via, ou None se nunca vista."""
+        entrada = self._dados.get(id_ponto)
+        if entrada is None:
+            return None
+        return max((_agora_utc() - entrada[1]).total_seconds() / 60.0, 0.0)
 
     def get(self, id_ponto) -> Optional[Dict[str, float]]:
         """Devolve {'razao_lag1':.., 'delta_min_lag1':..} já no formato de

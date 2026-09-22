@@ -1,18 +1,24 @@
 """
 GET /search/places — Autocomplete de locais.
 
-Fonte primária: malha_completa (~38k vias do DF). Rápida, local, consistente.
-Fallback: Nominatim (OSM) — só se malha_completa retornou poucos resultados.
+Cadeia (cada etapa só roda se a anterior trouxe < 3 resultados):
+  1. malha_completa (~38k vias do DF) — rápida, local, consistente.
+  2. TomTom Search v2 (typeahead, cache 24 h) — tolera erro de digitação e acha POI.
+  3. Nominatim (OSM) — último recurso. A política da OSMF proíbe autocomplete e
+     exige cache e ≤ 1 req/s; por isso fica no fim, com cache e trava de 1 s.
 """
 import os
+import time
 import logging
 from typing import List, Optional
 
 import httpx
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel
 from supabase import create_client, Client
 from dotenv import load_dotenv
+
+from tomtom import CacheTTL
 
 ENV_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'Servidor', 'config', '.env')
 load_dotenv(ENV_PATH)
@@ -24,6 +30,9 @@ SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 
 _supabase: Optional[Client] = None
+
+_cache_nominatim = CacheTTL(24 * 3600, max_itens=1024)
+_ultima_nominatim = 0.0
 
 
 def get_supabase() -> Optional[Client]:
@@ -38,7 +47,7 @@ class PlaceSuggestion(BaseModel):
     sublabel: str
     lat: float
     lon: float
-    source: str  # "malha" | "nominatim"
+    source: str  # "malha" | "tomtom" | "nominatim"
     id_ponto: Optional[int] = None
 
 
@@ -58,8 +67,46 @@ def _via_sublabel(tipo_via: Optional[str]) -> str:
     return mapa.get((tipo_via or '').lower(), 'Via Brasília · DF')
 
 
+async def _nominatim(q: str, limite: int) -> List[dict]:
+    """Nominatim com cache e trava de 1 req/s (política de uso da OSMF)."""
+    global _ultima_nominatim
+    chave = (' '.join(q.lower().split()), limite)
+    em_cache = _cache_nominatim.get(chave)
+    if em_cache is not None:
+        return em_cache
+    if time.monotonic() - _ultima_nominatim < 1.0:
+        return []
+    _ultima_nominatim = time.monotonic()
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            resp = await client.get(
+                'https://nominatim.openstreetmap.org/search',
+                params={
+                    'q': f"{q}, Brasília, DF, Brasil",
+                    'format': 'json',
+                    'limit': limite,
+                    'countrycodes': 'br',
+                },
+                headers={'User-Agent': 'Routify/1.0 TCC'},
+            )
+    except Exception as e:
+        logger.warning(f"Falha Nominatim: {e}")
+        return []
+    if resp.status_code != 200:
+        return []
+    itens = []
+    for item in resp.json():
+        label = (item.get('display_name') or '').split(',')[0].strip()
+        if label:
+            itens.append({'label': label, 'sublabel': (item.get('display_name') or '')[:120],
+                          'lat': float(item['lat']), 'lon': float(item['lon'])})
+    _cache_nominatim.set(chave, itens)
+    return itens
+
+
 @router.get("/places", response_model=List[PlaceSuggestion])
 async def autocomplete(
+    request: Request,
     q: str = Query(..., min_length=2, max_length=120, description="Texto digitado"),
     limit: int = Query(8, ge=1, le=15),
 ):
@@ -100,36 +147,20 @@ async def autocomplete(
         except Exception as e:
             logger.warning(f"Falha ao consultar malha_completa: {e}")
 
-    # 2. Nominatim — só se malha trouxe pouco (<3) ou nenhum casamento exato
-    if len(sugestoes) < 3:
-        remaining = max(0, limit - len(sugestoes))
-        if remaining > 0:
-            try:
-                async with httpx.AsyncClient(timeout=4.0) as client:
-                    resp = await client.get(
-                        'https://nominatim.openstreetmap.org/search',
-                        params={
-                            'q': f"{q}, Brasília, DF, Brasil",
-                            'format': 'json',
-                            'limit': remaining,
-                            'countrycodes': 'br',
-                        },
-                        headers={'User-Agent': 'Routify/1.0 TCC'},
-                    )
-                    if resp.status_code == 200:
-                        for item in resp.json():
-                            label = (item.get('display_name') or '').split(',')[0].strip()
-                            if not label or label.lower() in nomes_vistos:
-                                continue
-                            nomes_vistos.add(label.lower())
-                            sugestoes.append(PlaceSuggestion(
-                                label=label,
-                                sublabel=(item.get('display_name') or '')[:120],
-                                lat=float(item['lat']),
-                                lon=float(item['lon']),
-                                source='nominatim',
-                            ))
-            except Exception as e:
-                logger.warning(f"Falha Nominatim: {e}")
+    # 2. TomTom Search, 3. Nominatim — cada um só se ainda houver pouco (< 3)
+    tt = getattr(request.app.state, 'tomtom', None)
+    fontes = []
+    if tt is not None and tt.ativo:
+        fontes.append(('tomtom', tt.buscar))
+    fontes.append(('nominatim', _nominatim))
+    for fonte, buscar in fontes:
+        restantes = limit - len(sugestoes)
+        if len(sugestoes) >= 3 or restantes <= 0:
+            break
+        for item in await buscar(q, restantes):
+            if item['label'].lower() in nomes_vistos:
+                continue
+            nomes_vistos.add(item['label'].lower())
+            sugestoes.append(PlaceSuggestion(**item, source=fonte))
 
     return sugestoes[:limit]

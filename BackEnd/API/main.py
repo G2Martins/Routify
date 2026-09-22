@@ -24,6 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import graph_enrichment
 import recencia_cache
+import tomtom
 from routers import predict, route, search
 
 logging.basicConfig(
@@ -270,6 +271,8 @@ async def lifespan(app: FastAPI):
         app.state.supabase = sb
         app.state.recencia_cache = recencia
         app.state.transfer_confidence = transfer_confidence
+        # TomTom sob demanda (tomtom.py): sem chave, a API segue só com a LIA.
+        app.state.tomtom = tomtom.criar_cliente()
 
         logging.info("=== Routify API pronta ===")
     except Exception as e:
@@ -277,6 +280,7 @@ async def lifespan(app: FastAPI):
         logging.error(traceback.format_exc())
         raise
     yield
+    await app.state.tomtom.fechar()
 
 
 app = FastAPI(
@@ -322,6 +326,9 @@ async def health():
         "cv_rmse_seg": _cv_metric(meta, "modelo_rmse_seg", "cv_rmse_medio_seg"),
         "dados_treino": meta.get("dados_treino"),
         "total_amostras_treino": meta.get("total_amostras"),
+        # Só contagens — nunca ids nem valores de chave num endpoint público.
+        "tomtom": app.state.tomtom.resumo(),
+        "vias_monitoradas": app.state.graph_stats.get("vias_monitoradas"),
     }
 
 

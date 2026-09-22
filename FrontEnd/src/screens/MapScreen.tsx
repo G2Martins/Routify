@@ -38,6 +38,27 @@ interface RouteResult {
   lia_cobertura_pct?: number | null;
   hora_partida?: number | null;
   dia_semana?: number | null;
+
+  // TomTom sob demanda (API ≥ fase final). degradado = rota só com a LIA.
+  tomtom?: {
+    ativo: boolean;
+    degradado: boolean;
+    vias_atualizadas: number;
+    arestas_interditadas: number;
+    interdicoes_na_rota: number;
+    incidentes: {
+      tipo: string;
+      descricao: string | null;
+      atraso_seg: number | null;
+      interdicao: boolean;
+      lat: number;
+      lon: number;
+    }[];
+    referencia_tempo_seg: number | null;
+    referencia_atraso_seg: number | null;
+    referencia_sem_transito_seg: number | null;
+    referencia_distancia_km: number | null;
+  } | null;
 }
 
 export default function MapScreen() {

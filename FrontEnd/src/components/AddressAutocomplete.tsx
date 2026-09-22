@@ -25,7 +25,7 @@ export interface PlaceSuggestion {
   sublabel: string;
   lat: number;
   lon: number;
-  source: 'malha' | 'nominatim';
+  source: 'malha' | 'tomtom' | 'nominatim';
   id_ponto?: number;
 }
 
