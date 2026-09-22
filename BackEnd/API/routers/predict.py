@@ -1,53 +1,63 @@
 """
 POST /predict — Inferência LIA por ponto
-Dado um id_ponto + contexto temporal, retorna tempo_viagem_segundos predito.
+
+LIA 2.0: o modelo prevê RAZÃO DE CONGESTIONAMENTO (velocidade_atual /
+velocidade_livre), não segundos. O tempo depende do comprimento do trecho, então
+só é devolvido quando o cliente informa `comprimento_m`.
+
+Os lags da 1.0 saíram do contrato: eles nunca existiram na inferência (o cliente
+não tem como saber a velocidade de 24h atrás daquela via) e eram preenchidos com
+valores fabricados.
 """
 from datetime import datetime, timezone, timedelta
+from typing import Optional
+
 from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel, Field
-import numpy as np
+
+import lia_inference as lia_inf
 
 router = APIRouter(prefix="/predict", tags=["LIA Predict"])
 
 BRASILIA_TZ = timezone(timedelta(hours=-3))
 
-FEATURE_ORDER = [
-    'id_ponto_enc',
-    'hora',
-    'dia_semana',
-    'is_fim_semana',
-    'is_horario_pico',
-    'velocidade_livre',
-    'lag_vel_1h',
-    'lag_vel_3h',
-    'lag_vel_24h',
-    'lag_vel_7d',
-    'rolling_mean_6h',
-    'rolling_std_6h',
-    'lag_tempo_1h',
-    'lag_tempo_24h',
-]
-
 
 class PredictInput(BaseModel):
     id_ponto: int = Field(..., description="ID do ponto de monitoramento")
-    velocidade_livre: float = Field(..., description="Velocidade livre da via em km/h")
-    # Lags opcionais — se não informados usa médias históricas (fallback)
-    lag_vel_1h: float = Field(None, description="Velocidade 1h atrás (km/h)")
-    lag_vel_3h: float = Field(None, description="Velocidade 3h atrás (km/h)")
-    lag_vel_24h: float = Field(None, description="Velocidade 24h atrás (km/h)")
-    lag_vel_7d: float = Field(None, description="Velocidade 7 dias atrás (km/h)")
-    rolling_mean_6h: float = Field(None, description="Média móvel 6h (km/h)")
-    rolling_std_6h: float = Field(None, description="Desvio padrão 6h (km/h)")
-    lag_tempo_1h: float = Field(None, description="Tempo viagem 1h atrás (seg)")
-    lag_tempo_24h: float = Field(None, description="Tempo viagem 24h atrás (seg)")
-    # Timestamp opcional — usa horário atual Brasília se não informado
-    timestamp_brasilia: str = Field(None, description="ISO datetime em UTC-3 (opcional)")
+    velocidade_livre: float = Field(
+        ..., gt=0, description="Velocidade livre da via em km/h"
+    )
+    comprimento_m: Optional[float] = Field(
+        None, gt=0,
+        description="Comprimento do trecho em metros. Se informado, o tempo de "
+                    "viagem é calculado; caso contrário só a razão é retornada."
+    )
+    timestamp_brasilia: Optional[str] = Field(
+        None, description="ISO datetime em UTC-3 (opcional; default = agora)"
+    )
+    # LIA 2.1 — override manual da recência (avançado/teste). Por padrão a API
+    # busca a última observação real da via no cache ao vivo; informar estes
+    # dois campos substitui essa busca. Os dois precisam vir juntos.
+    razao_ultima_observacao: Optional[float] = Field(
+        None, ge=0.05, le=1.0,
+        description="Override: razão da última observação real conhecida da via."
+    )
+    minutos_desde_ultima_observacao: Optional[float] = Field(
+        None, ge=0,
+        description="Override: minutos desde razao_ultima_observacao. "
+                    "Ignorado se razao_ultima_observacao não for informado."
+    )
 
 
 class PredictOutput(BaseModel):
     id_ponto: int
-    tempo_viagem_segundos: float
+    razao_congestionamento: float = Field(
+        ..., description="velocidade_prevista / velocidade_livre (0.05 a 1.0)"
+    )
+    velocidade_prevista_kmh: float
+    tempo_viagem_segundos: Optional[float] = Field(
+        None, description="Só preenchido quando comprimento_m é informado"
+    )
     modelo_versao: str
     hora: int
     dia_semana: int
@@ -57,56 +67,66 @@ class PredictOutput(BaseModel):
 async def predict(body: PredictInput, request: Request):
     model = request.app.state.model
     encoder = request.app.state.encoder
+    profiles = request.app.state.profiles
     version = request.app.state.model_version
 
-    # Encode id_ponto
     if body.id_ponto not in encoder.classes_:
         raise HTTPException(
             status_code=422,
             detail=f"id_ponto {body.id_ponto} não foi visto no treino. "
                    "Verificar tabela vias_monitoradas."
         )
-    id_ponto_enc = int(encoder.transform([body.id_ponto])[0])
 
-    # Contexto temporal
     if body.timestamp_brasilia:
-        dt = datetime.fromisoformat(body.timestamp_brasilia)
+        try:
+            dt = datetime.fromisoformat(body.timestamp_brasilia)
+        except ValueError:
+            raise HTTPException(
+                status_code=422,
+                detail="timestamp_brasilia inválido. Use ISO 8601, "
+                       "ex: 2026-08-11T17:30:00"
+            )
     else:
         dt = datetime.now(tz=BRASILIA_TZ)
 
     hora = dt.hour
     dia_semana = dt.weekday()
-    is_fim_semana = int(dia_semana >= 5)
-    is_horario_pico = int(hora in {6, 7, 8, 17, 18, 19})
 
-    # Fallback para lags não informados: usa velocidade_livre como aproximação
-    vel_fallback = body.velocidade_livre
-    tempo_fallback = (body.velocidade_livre / 3.6) if body.velocidade_livre > 0 else 60.0
+    # LIA 2.1: recência (razao_lag1/delta_min_lag1). Override explícito tem
+    # prioridade; senão busca no cache ao vivo (getattr por segurança, caso a
+    # API esteja rodando com um modelo/main.py anterior a essa feature).
+    if body.razao_ultima_observacao is not None:
+        recencia = {
+            'razao_lag1': body.razao_ultima_observacao,
+            'delta_min_lag1': lia_inf.delta_min_para_feature(
+                body.minutos_desde_ultima_observacao or 0.0
+            ),
+        }
+    else:
+        cache = getattr(request.app.state, 'recencia_cache', None)
+        if cache is not None:
+            cache.refrescar_se_necessario(getattr(request.app.state, 'supabase', None))
+            recencia = cache.get(body.id_ponto)  # None → fallback em montar_features
+        else:
+            recencia = None
 
-    features = {
-        'id_ponto_enc': id_ponto_enc,
-        'hora': hora,
-        'dia_semana': dia_semana,
-        'is_fim_semana': is_fim_semana,
-        'is_horario_pico': is_horario_pico,
-        'velocidade_livre': body.velocidade_livre,
-        'lag_vel_1h': body.lag_vel_1h if body.lag_vel_1h is not None else vel_fallback,
-        'lag_vel_3h': body.lag_vel_3h if body.lag_vel_3h is not None else vel_fallback,
-        'lag_vel_24h': body.lag_vel_24h if body.lag_vel_24h is not None else vel_fallback,
-        'lag_vel_7d': body.lag_vel_7d if body.lag_vel_7d is not None else vel_fallback,
-        'rolling_mean_6h': body.rolling_mean_6h if body.rolling_mean_6h is not None else vel_fallback,
-        'rolling_std_6h': body.rolling_std_6h if body.rolling_std_6h is not None else 5.0,
-        'lag_tempo_1h': body.lag_tempo_1h if body.lag_tempo_1h is not None else tempo_fallback,
-        'lag_tempo_24h': body.lag_tempo_24h if body.lag_tempo_24h is not None else tempo_fallback,
-    }
+    razao = lia_inf.prever_razao(
+        model, encoder, profiles,
+        body.id_ponto, hora, dia_semana, body.velocidade_livre,
+        recencia,
+    )
 
-    X = [[features[f] for f in FEATURE_ORDER]]
-    pred = float(model.predict(X)[0])
-    pred = max(1.0, pred)  # nunca prever tempo negativo
+    vel_prevista = body.velocidade_livre * razao
+    tempo = (
+        lia_inf.tempo_de_razao(body.comprimento_m, body.velocidade_livre, razao)
+        if body.comprimento_m is not None else None
+    )
 
     return PredictOutput(
         id_ponto=body.id_ponto,
-        tempo_viagem_segundos=round(pred, 1),
+        razao_congestionamento=round(razao, 4),
+        velocidade_prevista_kmh=round(vel_prevista, 1),
+        tempo_viagem_segundos=round(tempo, 1) if tempo is not None else None,
         modelo_versao=version,
         hora=hora,
         dia_semana=dia_semana,

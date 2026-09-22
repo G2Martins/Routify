@@ -44,4 +44,12 @@ export interface RouteHistoryRow {
   via_principal: string | null;
   modelo_versao: string | null;
   created_at: string;
+  // Validação da tese — BackEnd/sql/002_validacao_tese.sql
+  tempo_real_seg?: number | null;
+  feedback_em?: string | null;
+  tempo_rota_curta_seg?: number | null;
+  rotas_diferentes?: boolean | null;
+  hora_partida?: number | null;
+  dia_semana?: number | null;
+  lia_cobertura_pct?: number | null;
 }

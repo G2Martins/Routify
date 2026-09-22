@@ -24,18 +24,23 @@
 ```text
 📦 BackEnd
  ┣ 📂 Servidor          # Coleta contínua (TomTom + OSM → Supabase)
- ┃ ┣ 📂 config          # .env + tomtom_keys.json
+ ┃ ┣ 📂 config          # .env.example + tomtom_keys.example.json
+ ┃ ┣ 📂 deploy          # guia de deploy 24/7 (Oracle Cloud Free Tier)
  ┃ ┣ 📂 models          # db_manager.py
  ┃ ┣ 📂 services        # map_extractor.py + traffic_collector.py
- ┃ ┗ 📜 main.py
+ ┃ ┗ 📜 main.py         # coleta (8min) + validação Fase 3 (4x/dia)
  ┣ 📂 Treinamento_IA    # Pipeline ML
  ┃ ┣ 📜 silver.py       # Bronze→Silver (Parquet)
- ┃ ┣ 📜 features.py     # 14 features + LabelEncoder
+ ┃ ┣ 📜 features.py     # perfis históricos + recência + LabelEncoder
  ┃ ┣ 📜 train.py        # XGBoost + TimeSeriesSplit + MLflow
- ┃ ┗ 📂 models/         # lia_*.pkl, encoder, metadata, mlruns
+ ┃ ┣ 📜 otimizar_hiperparametros.py  # busca bayesiana (Optuna)
+ ┃ ┣ 📜 calibrar_transfer.py         # confiança do Knowledge Transfer
+ ┃ ┣ 📜 validar_fase3.py             # LIA vs. TomTom vs. menor distância
+ ┃ ┗ 📂 models/         # lia_*.pkl, encoder, perfis, metadata, mlruns
+ ┣ 📂 sql               # scripts para o Supabase SQL Editor
  ┗ 📂 API               # FastAPI
    ┣ 📜 main.py         # lifespan: carrega LIA + grafo OSM
-   ┗ 📂 routers         # /predict + /route (A*)
+   ┗ 📂 routers         # /predict + /route (A*) + /search (autocomplete)
 ```
 
 ## ⚡ Comandos Rápidos (TL;DR)
@@ -82,7 +87,7 @@ TomTom + OSM ─► Servidor/main.py ─► Supabase (historico_trafego)
 | Treino com `Shape X: (0, 14)` | Silver pegou poucos rows | `CHUNK_SIZE = 1000` em `silver.py`. Confirmar dados no Supabase |
 | API trava em "Baixando grafo" | Overpass lento (não erro) | Aguardar 5-10min na 1ª vez. Cache em `brasilia_graph.graphml` |
 | `KeyError: 'c'` no MLflow (Windows) | Path interpretado como URI scheme | Já corrigido com `Path(...).as_uri()` |
-| `FileNotFoundError: lia_1.0.pkl` na API | Modelo não treinado | Rodar `Treinamento_IA/python train.py` antes |
+| `FileNotFoundError: lia_2.1.pkl` na API | Modelo não treinado | Rodar `Treinamento_IA/python train.py` antes |
 | `Nominatim could not geocode... (Multi)Polygon` | `graph_from_place` falha | Já trocado para `graph_from_point` |
 | CORS bloqueado no Expo Web | — | `CORSMiddleware` já libera `*` em dev |
 

@@ -174,7 +174,9 @@ export default function DashboardScreen() {
                 styles.precisionFill,
                 {
                   backgroundColor: rmse < 120 ? c.success : c.warning,
-                  width: `${Math.max(0, Math.min(100, ((180 - rmse) / 120) * 100)).toFixed(0)}%`,
+                  // Math.round em vez de toFixed: toFixed devolve string, e o
+                  // template vira `${string}%`, que não satisfaz DimensionValue.
+                  width: `${Math.round(Math.max(0, Math.min(100, ((180 - rmse) / 120) * 100)))}%`,
                 },
               ]}
             />

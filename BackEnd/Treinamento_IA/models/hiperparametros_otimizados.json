@@ -1,0 +1,38 @@
+{
+  "metodologia": "Optuna (TPE sampler) com poda por mediana, reaproveitando evaluate_cv() de train.py sem modificações — mesma validação cruzada temporal (TimeSeriesSplit, 5 folds, perfis recalculados por fold). Só os hiperparâmetros do XGBoost variam entre trials.",
+  "metrica_otimizada": "modelo_rmse_razao",
+  "n_trials": 60,
+  "ganho_minimo_para_adocao_pct": 2.0,
+  "baseline_params": {
+    "n_estimators": 600,
+    "max_depth": 7,
+    "learning_rate": 0.05,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "min_child_weight": 10,
+    "reg_alpha": 0.1,
+    "reg_lambda": 1.0,
+    "objective": "reg:squarederror",
+    "eval_metric": "rmse",
+    "early_stopping_rounds": 40,
+    "tree_method": "hist",
+    "random_state": 42,
+    "verbosity": 0
+  },
+  "baseline_metrica": 0.04494215488515501,
+  "melhor_trial": 46,
+  "melhor_params": {
+    "n_estimators": 750,
+    "max_depth": 8,
+    "learning_rate": 0.07057877246893504,
+    "subsample": 0.520693253086917,
+    "colsample_bytree": 0.5292493388774108,
+    "min_child_weight": 16,
+    "reg_alpha": 0.2845739393512569,
+    "reg_lambda": 3.0032490404756564
+  },
+  "melhor_metrica": 0.04396885395905833,
+  "ganho_absoluto": 0.0009733009260966818,
+  "ganho_percentual": 2.165674807057763,
+  "recomendacao": "Adotar os hiperparâmetros otimizados em train.py"
+}

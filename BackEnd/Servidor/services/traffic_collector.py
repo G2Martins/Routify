@@ -7,7 +7,7 @@ import os
 import time
 import json
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import List, Tuple, Optional, Dict
 import requests
 from requests.adapters import HTTPAdapter
@@ -20,7 +20,10 @@ load_dotenv(os.path.join('config', '.env'))
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Quota TomTom reseta diariamente em UTC; cooldown padrão até o próximo reset
+# Cota esgotada = janela rolante de 24h (branch tcc2): o horário/periodicidade
+# real do reset da TomTom não está confirmado (pricing indica cota mensal por
+# API). 24h rolante garante que o reset já passou, seja qual for o horário.
+# ponytail: se confirmar cota mensal, trocar por cooldown até o reset do mês.
 SECONDS_PER_DAY = 86400
 QPS_BACKOFF_SECONDS = 1.0
 INTER_REQUEST_DELAY = 0.25
@@ -41,13 +44,6 @@ def load_keys_from_json(filepath: str) -> List[dict]:
 API_KEYS_DATA = load_keys_from_json('config/tomtom_keys.json')
 if not API_KEYS_DATA:
     raise ValueError("Nenhuma chave encontrada no arquivo JSON.")
-
-
-def _seconds_until_next_utc_midnight() -> float:
-    """Retorne quantos segundos faltam até o próximo reset diário de quota (00:00 UTC)."""
-    now = datetime.now(timezone.utc)
-    amanha = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-    return max(60.0, (amanha - now).total_seconds())
 
 
 class TrafficCollector:
@@ -87,9 +83,9 @@ class TrafficCollector:
         return time.time() >= until
 
     def _mark_exhausted(self, idx: int, cooldown_seconds: Optional[float] = None) -> None:
-        """Marque a chave como indisponível até o próximo reset diário (ou intervalo customizado)."""
+        """Marque a chave como indisponível por 24h (ou intervalo customizado)."""
         key_id = self._key_at(idx)['id']
-        cd = cooldown_seconds if cooldown_seconds is not None else _seconds_until_next_utc_midnight()
+        cd = cooldown_seconds if cooldown_seconds is not None else SECONDS_PER_DAY
         self.cooldown_until[key_id] = time.time() + cd
         proxima = datetime.fromtimestamp(self.cooldown_until[key_id], tz=timezone.utc)
         logging.warning(

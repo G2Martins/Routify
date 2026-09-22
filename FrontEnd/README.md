@@ -50,8 +50,11 @@ npm install
 
 ### 3. Configurar variáveis de ambiente
 
-Criar `.env` na raiz de `FrontEnd/`:
+```bash
+cp .env.example .env
+```
 
+Preencher com as credenciais do Supabase Dashboard → Settings → API:
 ```bash
 EXPO_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJ...
@@ -60,7 +63,25 @@ EXPO_PUBLIC_API_URL=http://localhost:8000
 
 > Em mobile físico, trocar `localhost` pelo IP da máquina (`http://192.168.x.x:8000`).
 
-### 4. Rodar
+### 4. Configurar autenticação e histórico (Supabase)
+
+O app usa Supabase Auth (email/senha) e guarda o histórico de rotas por
+usuário. Antes do primeiro login, rode no **Supabase Dashboard → SQL
+Editor**, nesta ordem:
+```
+BackEnd/sql/001_route_history.sql   ← tabelas route_history e profiles (com RLS)
+BackEnd/sql/002_validacao_tese.sql  ← colunas de instrumentação da Fase 3
+```
+
+E habilite o provedor de email: **Authentication → Providers → Email →
+Enable Email Provider**. "Confirm email" pode ficar OFF para testar
+localmente (liga o fluxo direto sem esperar confirmação por e-mail).
+
+O autocomplete de endereços (`/search/places`) depende do backend, que por
+sua vez lê `BackEnd/Servidor/config/.env` — mesmas credenciais do Supabase
+usadas acima.
+
+### 5. Rodar
 
 | Plataforma | Comando |
 |---|---|
@@ -84,8 +105,12 @@ Após `npm run web`, abrir `http://localhost:8081`.
 | `npm install` falha com peer-dep React 19 | Conflito de versão | `npm install --legacy-peer-deps` |
 | Expo Go conecta mas tela branca | Cache antigo | `npx expo start --clear` |
 | Erro 401 em chamadas Supabase | Sessão expirada | Sair → relogar (`AuthContext` recria token) |
-| Rota não traça no mapa | Backend lento na 1ª req (cold start grafo OSM) | Aguardar 30-60s. Logs do API mostram progresso |
+| Rota não traça no mapa | Backend lento na 1ª req (cold start grafo OSM) | Aguardar alguns minutos na 1ª chamada. Logs do API mostram progresso |
 | `EXPO_PUBLIC_*` undefined em runtime | `.env` não recarregou | Reiniciar Expo (`Ctrl+C` → `npm run web`) |
+| `Invalid login credentials` | Usuário ainda não existe | Registre antes de logar (tela de cadastro) |
+| Histórico de rotas vazio após calcular uma rota | SQL não aplicado ou RLS bloqueando | Rodar `BackEnd/sql/001_route_history.sql`; conferir erro `42501` no console do navegador (política RLS) |
+| Autocomplete de endereço não retorna nada | Backend sem `.env` configurado | Conferir `BackEnd/Servidor/config/.env` (`SUPABASE_URL`/`SUPABASE_KEY`) — usado pelo `/search/places` |
+| Geolocalização falha na web com IP local (`192.168.x.x`) | Navegador exige contexto seguro | Geolocalização só funciona em `https://` ou `http://localhost` |
 
 ## 🌐 Geolocalização (Web)
 

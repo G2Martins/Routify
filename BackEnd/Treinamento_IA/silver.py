@@ -129,6 +129,16 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+# NOTA: a interpolação temporal (PRIORITY 4) foi removida.
+# Ela existia para dar espaçamento regular aos lags shift(N) da LIA 1.0. A LIA
+# 2.0 usa perfis históricos agregados por (via, hora, dia_semana), que não
+# dependem de espaçamento regular — buracos na coleta apenas reduzem o nº de
+# amostras de uma faixa, o que já é sinalizado ao modelo por
+# perfil_via_hora_dow_n. A implementação anterior também estava incorreta:
+# reindexar em 8min sobre um período de 134 dias com coleta intermitente gerava
+# ~60M de pontos sintéticos e destruía 99,5% dos dados reais.
+
+
 def save_parquet(df: pd.DataFrame) -> str:
     models_dir = os.path.join(os.path.dirname(__file__), 'models')
     os.makedirs(models_dir, exist_ok=True)
@@ -143,10 +153,12 @@ def save_parquet(df: pd.DataFrame) -> str:
 
 
 def run():
+    """Pipeline Bronze → Silver."""
     logging.info("=== Pipeline Silver iniciado ===")
     client = get_client()
     df = fetch_all_historico(client)
     df = clean(df)
+
     path = save_parquet(df)
 
     # Estatísticas para validação

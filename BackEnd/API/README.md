@@ -4,11 +4,10 @@
 
 **FastAPI servindo a LIA + algoritmo A\* sobre OSMnx**
 
-![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat-square&logo=fastapi&logoColor=white)
-![Uvicorn](https://img.shields.io/badge/Uvicorn-0.32-499848?style=flat-square)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.136-009688?style=flat-square&logo=fastapi&logoColor=white)
+![XGBoost](https://img.shields.io/badge/XGBoost-3.2-FF6F00?style=flat-square)
 ![OSMnx](https://img.shields.io/badge/OSMnx-1.9-7B68EE?style=flat-square)
-![NetworkX](https://img.shields.io/badge/NetworkX-3.4-FF6F00?style=flat-square)
-![Docker](https://img.shields.io/badge/Docker-ready-2496ED?style=flat-square&logo=docker&logoColor=white)
+![NetworkX](https://img.shields.io/badge/NetworkX-3.6-FF6F00?style=flat-square)
 
 </div>
 
@@ -16,9 +15,9 @@
 
 ## 🎯 Função
 
-Servir a **LIA** (modelo treinado em `../Treinamento_IA`) através de uma API REST, alimentando o algoritmo **A\*** com pesos de aresta dinâmicos para retornar rotas otimizadas.
+Servir a **LIA** (modelo treinado em `../Treinamento_IA`) através de uma API REST, alimentando o algoritmo **A\*** com pesos de aresta dinâmicos para retornar rotas otimizadas, e oferecer autocomplete de endereços para o app.
 
-A API é stateless do ponto de vista do cliente — modelo e grafo OSM são carregados **uma vez** no startup via `lifespan` e mantidos em `app.state`.
+A API é stateless do ponto de vista do cliente — modelo, encoder, perfis e grafo OSM são carregados **uma vez** no startup via `lifespan` e mantidos em `app.state`.
 
 ---
 
@@ -27,13 +26,17 @@ A API é stateless do ponto de vista do cliente — modelo e grafo OSM são carr
 ```
 BackEnd/API/
 ├── main.py             ← FastAPI app + lifespan (carrega modelo + grafo)
+├── lia_inference.py     ← montagem de features, cascata de perfis, clamp da razão
+├── graph_enrichment.py  ← liga o grafo OSM às vias monitoradas (BallTree)
+├── recencia_cache.py    ← cache TTL da última observação real por via
 ├── routers/
-│   ├── __init__.py
 │   ├── predict.py      ← POST /predict (inferência por segmento)
-│   └── route.py        ← POST /route (A* com pesos LIA)
-├── Dockerfile          ← imagem para Railway/Render
+│   ├── route.py        ← POST /route (A* com pesos LIA)
+│   └── search.py       ← GET /search/places (autocomplete de endereços)
 └── requirements.txt
 ```
+
+As versões em `requirements.txt` são as **mesmas que treinaram o modelo** (ver comentário no topo do arquivo) — os artefatos em `models/` são pickles sensíveis à versão de xgboost/scikit-learn/pandas que os serializou. Não atualizar sem retreinar.
 
 ---
 
@@ -47,95 +50,59 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 **Pré-requisito:** modelo treinado existir em `../Treinamento_IA/models/`:
-- `lia_1.0.pkl`
-- `lia_1.0_encoder.pkl`
-- `lia_1.0_metadata.json`
+`lia_2.1.pkl`, `lia_2.1_encoder.pkl`, `lia_2.1_profiles.pkl`, `lia_2.1_metadata.json`.
 
 Se não existirem, rode primeiro `cd ../Treinamento_IA && python train.py`.
+
+Também depende de `../Servidor/config/.env` (`SUPABASE_URL`/`SUPABASE_KEY`) — usado pelo enriquecimento do grafo, pelo cache de recência e pelo autocomplete.
 
 ---
 
 ## 🌍 Grafo OSM
 
-**Primeira execução** baixa o grafo de Brasília via OSMnx (Overpass API). Pode levar **2-10 minutos** dependendo da rede e do load do Overpass.
+**Primeira execução** baixa o grafo de Brasília via OSMnx (Overpass API). Pode levar alguns minutos dependendo do load do servidor Overpass compartilhado.
 
-Centro: **(-15.793, -47.882)** (Plano Piloto). Raio configurável via env:
+Centro: Plano Piloto. Raio configurável via env `GRAPH_RADIUS_KM` (o grafo atual em uso cobre ~38km, incluindo cidades-satélite e corredores historicamente congestionados como EPTG/EPNB — um raio menor reduz tempo de download e uso de RAM, mas perde essa cobertura).
 
-```bash
-# Default 15km — cobre Plano Piloto + Lago + Sudoeste + Cruzeiro
-uvicorn main:app
-
-# 30km — cobre também Taguatinga e Águas Claras (mais lento)
-GRAPH_RADIUS_KM=30 uvicorn main:app
-```
-
-Após download, é cacheado em `../Treinamento_IA/models/brasilia_graph.graphml`. Próximas execuções carregam em ~5s.
+Após o download, o grafo fica cacheado em `.graphml` em `Treinamento_IA/models/` — próximas execuções carregam em segundos. **Atenção:** o grafo de 38km ocupa ~1,4GB de RAM quando carregado; em máquinas/VMs com pouca memória, considere um raio menor.
 
 ---
 
 ## 🔌 Endpoints
 
 ### `GET /health`
-
-Status básico — usado por health checks de Railway/Render.
-
-```json
-{
-  "status": "ok",
-  "modelo_ativo": "lia_1.0",
-  "cv_rmse_seg": 72.6,
-  "dados_treino": "Março-Abril 2026",
-  "total_amostras_treino": 645000
-}
-```
-
----
+Status básico da API e do modelo carregado.
 
 ### `GET /metrics`
-
-Métricas reais para o `DashboardScreen` do app.
-
-```json
-{
-  "modelo_ativo": "lia_1.0",
-  "cv_rmse_seg": 72.6,
-  "cv_mae_seg": 51.2,
-  "n_pontos_monitorados": 602,
-  "periodo_dados": "2026-03-01 → 2026-04-27",
-  "total_amostras_treino": 645000,
-  "feature_importance": {
-    "id_ponto_enc": 0.31,
-    "lag_vel_24h": 0.18,
-    "...": "..."
-  }
-}
-```
+Métricas reais do modelo (usadas pelo `DashboardScreen` do app): RMSE de validação cruzada, número de vias monitoradas, importância de features.
 
 ---
 
 ### `POST /predict`
 
-Inferência LIA para **um único segmento** (debug / dashboards).
+Inferência LIA para **um único segmento** (debug / dashboards). O modelo prevê a **razão de congestionamento** (`velocidade_atual / velocidade_livre`), não segundos diretamente — o tempo de viagem só é calculado se `comprimento_m` for informado.
 
 **Request:**
 ```json
 {
   "id_ponto": 42,
-  "hora": 18,
-  "dia_semana": 2,
   "velocidade_livre": 60.0,
-  "lag_vel_1h": 45.0,
-  "lag_vel_24h": 50.0
+  "comprimento_m": 350.0
 }
 ```
 
-Campos `lag_*` e `rolling_*` são **opcionais** — fallbacks usam `velocidade_livre` quando ausentes.
+Campos opcionais avançados (`razao_ultima_observacao` + `minutos_desde_ultima_observacao`) permitem sobrescrever a busca automática de recência — uso principalmente de teste/debug.
 
 **Response:**
 ```json
 {
-  "tempo_viagem_segundos": 423.7,
-  "modelo_versao": "lia_1.0"
+  "id_ponto": 42,
+  "razao_congestionamento": 0.78,
+  "velocidade_prevista_kmh": 46.8,
+  "tempo_viagem_segundos": 26.9,
+  "modelo_versao": "lia_2.1",
+  "hora": 18,
+  "dia_semana": 2
 }
 ```
 
@@ -143,7 +110,7 @@ Campos `lag_*` e `rolling_*` são **opcionais** — fallbacks usam `velocidade_l
 
 ### `POST /route`
 
-**Endpoint principal.** Roteamento A\* com pesos da LIA aplicados a cada aresta do grafo.
+**Endpoint principal.** Roteamento A\* com pesos da LIA aplicados a cada aresta do grafo, numa única predição vetorizada (não aresta-por-aresta).
 
 **Request:**
 ```json
@@ -156,20 +123,44 @@ Campos `lag_*` e `rolling_*` são **opcionais** — fallbacks usam `velocidade_l
 **Response:**
 ```json
 {
-  "polyline": [[-15.79, -47.88], [-15.80, -47.89], "..."],
+  "polyline": [[-15.79, -47.88], [-15.795, -47.885], "..."],
   "tempo_total_seg": 1247,
   "distancia_km": 8.3,
   "via_principal": "Eixo Monumental",
-  "modelo_utilizado": "lia_1.0",
-  "nos_visitados": 312
+  "modelo_utilizado": "lia_2.1",
+  "nos_visitados": 312,
+
+  "tempo_rota_curta_seg": 1180,
+  "distancia_rota_curta_km": 7.9,
+  "rotas_diferentes": true,
+  "lia_cobertura_pct": 74.5,
+  "hora_partida": 18,
+  "dia_semana": 2
 }
 ```
 
+Os últimos campos são instrumentação da Fase 3 (validação da tese): a rota de
+menor distância é calculada na mesma requisição, sob as mesmas condições,
+para permitir comparação direta.
+
 **Pipeline interno:**
-1. `ox.nearest_nodes(G, lons, lats)` → mapeia (lat,lon) ao nó OSM mais próximo
-2. Para cada aresta `(u,v)`, calcula `travel_time_lia` via predição LIA
+1. `find_nearest_drivable_node` mapeia (lat,lon) ao nó navegável mais próximo
+2. `assign_lia_weights` prevê a razão de congestionamento para **todas** as arestas do grafo numa única chamada ao modelo (perfis por via + recência + transferência de conhecimento calibrada para vias não monitoradas)
 3. `nx.astar_path` com heurística Haversine
-4. Reconstrói polyline a partir das coordenadas dos nós
+4. `montar_polyline` traça a rota seguindo a geometria real das vias (não linha reta entre nós)
+
+---
+
+### `GET /search/places?q=...&limit=8`
+
+Autocomplete de endereços. Consulta primeiro `malha_completa` (~38 mil vias do DF) no Supabase; cai para o Nominatim (OSM) só quando a busca local retorna poucos resultados.
+
+**Response:**
+```json
+[
+  { "label": "EPTG", "sublabel": "Via arterial", "lat": -15.83, "lon": -48.05, "source": "malha", "id_ponto": 123 }
+]
+```
 
 ---
 
@@ -182,51 +173,16 @@ docker build -f API/Dockerfile -t routify-api .
 
 # Run
 docker run -p 8000:8000 \
-  -e LIA_VERSION=lia_1.0 \
-  -e GRAPH_RADIUS_KM=15 \
+  -e LIA_VERSION=lia_2.1 \
+  -e GRAPH_RADIUS_KM=38 \
   routify-api
 ```
 
-**Importante:** o `Dockerfile` copia `../Treinamento_IA/models/lia_*.pkl` para dentro da imagem. Modelo viaja embutido — sem dependência externa.
-
----
-
-## 🚀 Deploy
-
-### Railway (recomendado)
-1. `railway init` na pasta `BackEnd/API`
-2. Adicionar `routify-api` como service
-3. Variáveis: `LIA_VERSION`, `GRAPH_RADIUS_KM`
-4. `railway up`
-
-### Render
-1. New Web Service → Docker
-2. Root directory: `BackEnd/API`
-3. Health check: `/health`
-4. Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-
-> **Atenção:** o grafo OSM (~50-150MB) precisa estar acessível no container. Opções:
-> - **A** (atual): grafo é baixado no primeiro startup e cacheado em volume persistente
-> - **B**: copiar `brasilia_graph.graphml` no Dockerfile (build mais lento, startup instantâneo)
+O `Dockerfile` copia `../Treinamento_IA/models/lia_*.pkl` para dentro da imagem — o modelo viaja embutido, sem dependência externa em runtime (além do Supabase, para enriquecimento do grafo e recência).
 
 ---
 
 ## 🔍 Logs e Debug
-
-Startup verboso já habilitado:
-```
-=== Startup: carregando artefatos LIA ===
-Modelo lia_1.0 carregado — RMSE CV: 72.6s
-Artefatos carregados em 0.4s
-
-=== Startup: preparando grafo OSM ===
-Baixando grafo OSM (centro (-15.793, -47.882), raio 15km)...
-[OSMnx] request to overpass-api.de/api/interpreter
-Download concluído em 87.3s. Salvando cache...
-Grafo carregado: 4823 nós, 12041 arestas
-
-=== Routify API pronta ===
-```
 
 **Swagger UI:** http://localhost:8000/docs
 **ReDoc:** http://localhost:8000/redoc
@@ -239,6 +195,8 @@ Grafo carregado: 4823 nós, 12041 arestas
 |---|---|---|
 | `ModuleNotFoundError: No module named 'src'` | Comando errado | Use `uvicorn main:app`, não `src.main:app` |
 | `Nominatim could not geocode... to (Multi)Polygon` | `graph_from_place` falha | Já trocado para `graph_from_point` |
-| `FileNotFoundError: lia_1.0.pkl` | Modelo não treinado | Rode `../Treinamento_IA/python train.py` antes |
-| Startup trava em "Baixando grafo" | Overpass lento, não erro | Aguarde 5-10min na 1ª vez. Cache evita repetir |
+| `FileNotFoundError: lia_2.1.pkl` | Modelo não treinado | Rode `cd ../Treinamento_IA && python train.py` antes |
+| Startup demora minutos em "Baixando grafo" | Overpass compartilhado sob carga (cortesia de rate-limit do OSMnx, não erro) | Aguarde — cache evita repetir nas próximas execuções |
+| `422` em `/predict` — "id_ponto não foi visto no treino" | Ponto não existe no encoder | Conferir `vias_monitoradas` no Supabase, ou retreinar |
 | CORS bloqueado no Expo Web | — | `CORSMiddleware` já libera `*` em dev |
+| RAM alta ao subir com grafo de 38km | Esperado — pico de ~1,4GB durante o carregamento do grafo | Reduzir `GRAPH_RADIUS_KM` em ambientes com pouca memória |

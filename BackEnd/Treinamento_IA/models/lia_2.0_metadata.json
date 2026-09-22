@@ -1,0 +1,31 @@
+{
+  "versao": "LIA 2.0",
+  "alvo": "razao_congestionamento",
+  "alvo_descricao": "velocidade_atual / velocidade_livre (adimensional, 0.05–1.0)",
+  "features": [
+    "id_ponto_enc",
+    "hora",
+    "dia_semana",
+    "hora_sin",
+    "hora_cos",
+    "is_fim_semana",
+    "is_horario_pico",
+    "velocidade_livre",
+    "perfil_via_hora_dow",
+    "perfil_via_hora",
+    "perfil_via",
+    "perfil_hora_dow",
+    "perfil_via_hora_dow_std",
+    "perfil_via_hora_dow_n",
+    "razao_lag1",
+    "delta_min_lag1"
+  ],
+  "features_recencia": [
+    "razao_lag1",
+    "delta_min_lag1"
+  ],
+  "total_amostras": 1513194,
+  "registros_silver": 1513824,
+  "aproveitamento_pct": 100.0,
+  "pct_congestionado": 17.1
+}

@@ -129,3 +129,17 @@ Docs/build/
 
 # ---- Claude / IA assistants ----
 .claude/
+.claude.json
+.claude.json.backup
+.mcp.json
+.clauderc
+
+# ---- Markdown interno (notas soltas de execução/auditoria ficam fora) —
+# mantém READMEs, a spec viva (CLAUDE.md), as docs vivas (Docs/) e o
+# planejamento GSD (.planning/) ----
+*.md
+!README.md
+!**/README.md
+!CLAUDE.md
+!Docs/**/*.md
+!.planning/**/*.md

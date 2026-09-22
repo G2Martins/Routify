@@ -1,0 +1,227 @@
+{
+  "metodologia": {
+    "alvo": "razao_congestionamento",
+    "n_folds": 5,
+    "split": "TimeSeriesSplit progressivo sobre timestamp global (mesmos cortes para os dois modelos)",
+    "xgboost_features": [
+      "id_ponto_enc",
+      "hora",
+      "dia_semana",
+      "hora_sin",
+      "hora_cos",
+      "is_fim_semana",
+      "is_horario_pico",
+      "velocidade_livre",
+      "perfil_via_hora_dow",
+      "perfil_via_hora",
+      "perfil_via",
+      "perfil_hora_dow",
+      "perfil_via_hora_dow_std",
+      "perfil_via_hora_dow_n"
+    ],
+    "lstm_window_size": 6,
+    "lstm_features_por_passo": [
+      "razao",
+      "hora_sin",
+      "hora_cos",
+      "is_fim_semana",
+      "is_horario_pico",
+      "delta_min_log"
+    ],
+    "lstm_hidden_size": 32,
+    "lstm_embedding_via": 8,
+    "dispositivo": "cuda",
+    "gpu_nome": "NVIDIA GeForce RTX 5070",
+    "torch_versao": "2.9.0+cu128",
+    "nota_gpu": "RTX 5070 é Blackwell (sm_120). A build de PyTorch usada até 11/08/2026 (2.7.0.dev+cu124) tinha cuda.is_available()=True mas falhava em qualquer operação real (sem kernel compilado para sm_120). Atualizado para torch==2.9.0+cu128 para viabilizar GPU neste benchmark."
+  },
+  "xgboost": {
+    "rmse_razao_media": 0.052271937595801884,
+    "mae_razao_media": 0.021374574706276572,
+    "rmse_seg_media": 51.38146190941618,
+    "mae_seg_media": 18.635167097148997,
+    "tempo_treino_s_media": 4.0364409446716305,
+    "rmse_razao_std": 0.003996834184934408,
+    "mae_razao_std": 0.002909889402336411,
+    "rmse_seg_std": 6.773767818549799,
+    "mae_seg_std": 2.6070917956872566,
+    "tempo_treino_s_std": 2.6557535320982466,
+    "folds": [
+      {
+        "rmse_razao": 0.0583544309795429,
+        "mae_razao": 0.02267073535798071,
+        "rmse_seg": 60.32759264109058,
+        "mae_seg": 20.16065475077278,
+        "tempo_treino_s": 3.2481276988983154,
+        "n_treino": 252304,
+        "n_val": 252304
+      },
+      {
+        "rmse_razao": 0.05317587982443106,
+        "mae_razao": 0.025240266665630652,
+        "rmse_seg": 55.990984605461904,
+        "mae_seg": 21.994453772038813,
+        "tempo_treino_s": 0.9910688400268555,
+        "n_treino": 504608,
+        "n_val": 252304
+      },
+      {
+        "rmse_razao": 0.053330988705963124,
+        "mae_razao": 0.0204020987523991,
+        "rmse_seg": 53.451160965017785,
+        "mae_seg": 18.882388100804018,
+        "tempo_treino_s": 8.332432508468628,
+        "n_treino": 756912,
+        "n_val": 252304
+      },
+      {
+        "rmse_razao": 0.05031958823546941,
+        "mae_razao": 0.022107652902770322,
+        "rmse_seg": 44.51197797310765,
+        "mae_seg": 17.9589990981114,
+        "tempo_treino_s": 1.960430383682251,
+        "n_treino": 1009216,
+        "n_val": 252304
+      },
+      {
+        "rmse_razao": 0.04617880023360293,
+        "mae_razao": 0.01645211985260209,
+        "rmse_seg": 42.62559336240295,
+        "mae_seg": 14.179339764017982,
+        "tempo_treino_s": 5.6501452922821045,
+        "n_treino": 1261520,
+        "n_val": 252304
+      }
+    ]
+  },
+  "xgboost_com_recencia": {
+    "rmse_razao_media": 0.04523434056701646,
+    "mae_razao_media": 0.016985037030960746,
+    "rmse_seg_media": 41.038444614029245,
+    "mae_seg_media": 14.586417249723798,
+    "tempo_treino_s_media": 2.7674150466918945,
+    "rmse_razao_std": 0.004415090803630608,
+    "mae_razao_std": 0.0014056759005237041,
+    "rmse_seg_std": 5.599651738426445,
+    "mae_seg_std": 1.5351387980638893,
+    "tempo_treino_s_std": 0.6107999251413628,
+    "folds": [
+      {
+        "rmse_razao": 0.052935894508192055,
+        "mae_razao": 0.019144077372936632,
+        "rmse_seg": 51.16955170234136,
+        "mae_seg": 17.02689286615419,
+        "tempo_treino_s": 1.8272364139556885,
+        "n_treino": 252199,
+        "n_val": 252199
+      },
+      {
+        "rmse_razao": 0.04505960642697233,
+        "mae_razao": 0.01678482929417334,
+        "rmse_seg": 40.907628659042935,
+        "mae_seg": 14.50780687191952,
+        "tempo_treino_s": 2.9898834228515625,
+        "n_treino": 504398,
+        "n_val": 252199
+      },
+      {
+        "rmse_razao": 0.04526433264110846,
+        "mae_razao": 0.017147302779010797,
+        "rmse_seg": 40.93454383385443,
+        "mae_seg": 15.079573747292772,
+        "tempo_treino_s": 3.6933107376098633,
+        "n_treino": 756597,
+        "n_val": 252199
+      },
+      {
+        "rmse_razao": 0.04364306362762549,
+        "mae_razao": 0.017129109385232183,
+        "rmse_seg": 37.69399317108044,
+        "mae_seg": 14.025617675122438,
+        "tempo_treino_s": 2.5005321502685547,
+        "n_treino": 1008796,
+        "n_val": 252199
+      },
+      {
+        "rmse_razao": 0.03926880563118399,
+        "mae_razao": 0.014719866323450782,
+        "rmse_seg": 34.48650570382706,
+        "mae_seg": 12.292195088130065,
+        "tempo_treino_s": 2.8261125087738037,
+        "n_treino": 1260995,
+        "n_val": 252199
+      }
+    ]
+  },
+  "lstm": {
+    "rmse_razao_media": 0.04621557967728045,
+    "mae_razao_media": 0.02074871025979519,
+    "rmse_seg_media": 41.49624140832644,
+    "mae_seg_media": 17.14839744567871,
+    "tempo_treino_s_media": 9.361866903305053,
+    "rmse_razao_std": 0.004790102818687184,
+    "mae_razao_std": 0.0039372254609353315,
+    "rmse_seg_std": 6.7094565637115,
+    "mae_seg_std": 3.562783520123333,
+    "tempo_treino_s_std": 4.507883173988825,
+    "folds": [
+      {
+        "rmse_razao": 0.05378774439790313,
+        "mae_razao": 0.025967251509428024,
+        "rmse_seg": 52.71366723052595,
+        "mae_seg": 22.310731887817383,
+        "tempo_treino_s": 3.2478318214416504,
+        "n_treino": 228251,
+        "n_val": 252797,
+        "epocas": 15
+      },
+      {
+        "rmse_razao": 0.04766087587762342,
+        "mae_razao": 0.024726884439587593,
+        "rmse_seg": 44.16950935476446,
+        "mae_seg": 20.114349365234375,
+        "tempo_treino_s": 5.523824453353882,
+        "n_treino": 460244,
+        "n_val": 253277,
+        "epocas": 15
+      },
+      {
+        "rmse_razao": 0.04527698751014395,
+        "mae_razao": 0.01951555907726288,
+        "rmse_seg": 39.67284731971131,
+        "mae_seg": 16.23326301574707,
+        "tempo_treino_s": 9.803682088851929,
+        "n_treino": 692679,
+        "n_val": 252746,
+        "epocas": 15
+      },
+      {
+        "rmse_razao": 0.045476436952477606,
+        "mae_razao": 0.01754790171980858,
+        "rmse_seg": 38.28857869899407,
+        "mae_seg": 14.306122779846191,
+        "tempo_treino_s": 12.689532995223999,
+        "n_treino": 924626,
+        "n_val": 252833,
+        "epocas": 15
+      },
+      {
+        "rmse_razao": 0.0388758536482541,
+        "mae_razao": 0.01598595455288887,
+        "rmse_seg": 32.63660443763643,
+        "mae_seg": 12.777520179748535,
+        "tempo_treino_s": 15.544463157653809,
+        "n_treino": 1156653,
+        "n_val": 252812,
+        "epocas": 15
+      }
+    ]
+  },
+  "tamanho_disco_kb": {
+    "xgboost": 1350.3740234375,
+    "lstm": 46.2470703125
+  },
+  "n_parametros_lstm": 10833,
+  "conclusao": "A vantagem do LSTM sobre o XGBoost original vem majoritariamente do acesso à última observação real da via, não de captar sazonalidade longa. Uma feature de recência trivial (razao_lag1, delta_min_lag1) no XGBoost recupera quase todo o ganho, sem GPU e com fração do tempo de treino.",
+  "tempo_total_benchmark_s": 118.90868639945984
+}

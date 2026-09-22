@@ -17,9 +17,10 @@ Os dados são armazenados em um banco PostgreSQL hospedado no Supabase, preparan
 
 ## ✨ Principais Funcionalidades
 * **Extração de Malha Viária:** Conexão com a Overpass API para baixar coordenadas e tipologias de vias urbanas com sistema de rotação de servidores para evitar bloqueios.
-* **Monitoramento em Tempo Real:** Coleta do tráfego atual e de fluxo livre a cada 10 minutos.
-* **Gestão Inteligente de Quotas (TomTom):** Rotação automática de um pool de chaves API (JSON) para contornar limites de *Rate Limit* (QPS) e cota diária.
+* **Monitoramento em Tempo Real:** Coleta do tráfego atual e de fluxo livre a cada 8 minutos.
+* **Gestão Inteligente de Quotas (TomTom):** Rotação automática de um pool de chaves API (JSON) para contornar limites de *Rate Limit* (QPS) e cota diária — cada chave esgotada fica marcada por 24h e libera sozinha, sem precisar reiniciar o processo.
 * **Inserções em Lote (Batch):** Otimização de I/O com o banco de dados Supabase para garantir inserção rápida de grandes volumes de dados de telemetria.
+* **Validação experimental (Fase 3):** o mesmo processo roda `Treinamento_IA/validar_fase3.py` 4x/dia (7h, 12h, 18h, 22h), comparando a rota da LIA contra a TomTom Routing API e a rota de menor distância — ver `deploy/README.md` para rodar isso 24/7.
 
 ## 🏗️ Arquitetura do Diretório
 ```text
@@ -27,16 +28,16 @@ Os dados são armazenados em um banco PostgreSQL hospedado no Supabase, preparan
  ┣ ...
  ┗ 📂 Servidor
    ┣ 📂 config
-   ┃ ┣ 📜 .env                 # Variáveis de ambiente (Supabase URL/Key)
-   ┃ ┗ 📜 tomtom_keys.json     # Pool de chaves da API TomTom
+   ┃ ┣ 📜 .env.example                 # copie para .env e preencha
+   ┃ ┗ 📜 tomtom_keys.example.json     # copie para tomtom_keys.json e preencha
+   ┣ 📂 deploy                 # guia de deploy 24/7 (Oracle Cloud Free Tier) + unit systemd
    ┣ 📂 models
    ┃ ┗ 📜 db_manager.py        # Conexão e queries em lote para o Supabase
    ┣ 📂 services
    ┃ ┣ 📜 map_extractor.py     # Lógica de extração OpenStreetMap (Overpass)
    ┃ ┗ 📜 traffic_collector.py # Lógica de consumo da API TomTom
-   ┣ 📜 main.py                # Ponto de entrada e orquestrador (Scheduler)
-   ┣ 📜 requirements.txt       # Dependências do projeto
-   ┗ 📜 .gitignore
+   ┣ 📜 main.py                # Orquestrador: coleta (8min) + Fase 3 (4x/dia)
+   ┗ 📜 requirements.txt       # Dependências do projeto
 ```
 
 ## 🚀 Como Iniciar o Servidor
@@ -48,7 +49,7 @@ Os dados são armazenados em um banco PostgreSQL hospedado no Supabase, preparan
 ### 2. Instalação e Configuração
 #### **Passo 1:** Clone o repositório e acesse a pasta do Back-End.
 ```bash
-git clone [https://github.com/G2Martins/Routify.git](https://github.com/G2Martins/Routify.git)
+git clone <url-do-repositorio>
 cd Routify/BackEnd/Servidor
 ```
 
@@ -58,14 +59,21 @@ pip install -r requirements.txt
 ```
 
 #### **Passo 3:** Configure as variáveis de ambiente.
-*Crie um arquivo `.env` dentro da pasta `config/` contendo suas credenciais do banco:*
+```bash
+cd config
+cp .env.example .env
+```
+Preencha `.env` com as credenciais do Supabase (Dashboard → Settings → API):
 ```bash
 SUPABASE_URL=sua_url_do_supabase
 SUPABASE_KEY=sua_anon_key_do_supabase
 ```
 
 #### **Passo 4:** Adicione suas chaves da TomTom.
-#### Crie um arquivo `tomtom_keys.json` dentro da pasta `config/`:
+```bash
+cp tomtom_keys.example.json tomtom_keys.json
+```
+Preencha `tomtom_keys.json` com uma ou mais chaves reais:
 ```json
 {
   "tomtom_keys": [

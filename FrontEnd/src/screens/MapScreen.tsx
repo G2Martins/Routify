@@ -29,6 +29,15 @@ interface RouteResult {
   distancia_km: number;
   via_principal: string;
   modelo_utilizado: string;
+
+  // Instrumentação para validação da tese (TCC 2). Opcionais para o app
+  // continuar funcionando contra uma API anterior à Fase 2.
+  tempo_rota_curta_seg?: number | null;
+  distancia_rota_curta_km?: number | null;
+  rotas_diferentes?: boolean | null;
+  lia_cobertura_pct?: number | null;
+  hora_partida?: number | null;
+  dia_semana?: number | null;
 }
 
 export default function MapScreen() {
@@ -123,6 +132,14 @@ export default function MapScreen() {
             distancia_km: data.distancia_km,
             via_principal: data.via_principal,
             modelo_versao: data.modelo_utilizado,
+            // Instrumentação para validação da tese (TCC 2). São nullable no
+            // banco, então uma API antiga que não os envie continua funcionando.
+            tempo_rota_curta_seg: data.tempo_rota_curta_seg ?? null,
+            distancia_rota_curta_km: data.distancia_rota_curta_km ?? null,
+            rotas_diferentes: data.rotas_diferentes ?? null,
+            lia_cobertura_pct: data.lia_cobertura_pct ?? null,
+            hora_partida: data.hora_partida ?? null,
+            dia_semana: data.dia_semana ?? null,
           })
           .then((r: { error: { message: string } | null }) => {
             if (r.error) console.warn('[Routify] Falha ao salvar histórico:', r.error.message);
