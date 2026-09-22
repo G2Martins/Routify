@@ -49,9 +49,18 @@ O Pedro tem o parquet silver completo (1,5 mi linhas): **preservar como backup**
   - `referencia_tomtom` é opcional por gastar cota.
 - Repo é público: nada de ref, domínio ou token de outra org.
 
+## Escopo novo do Admin (pedido de 2026-09-22)
+
+- Página **LIA — desempenho e benchmarks** (acompanhamento contínuo das fig. 1–4, histórico de treinos, erro real em produção, LIA × TomTom).
+- **Arquitetura viva** (diagrama interativo dos fluxos API/LIA/Supabase/TomTom, com status por nó).
+- **Captura de uso** feita pelo servidor, com LGPD.
+
+Detalhe e ordem: [research/2026-09-22-nomenclatura-e-admin.md](research/2026-09-22-nomenclatura-e-admin.md).
+
 ## Decisões abertas
 
-1. Host da API: Cloud Run (1º) × Oracle Free × Azure for Students × HF Spaces (testar Docker free). Medir o RSS antes.
+0. **Renomeação do monorepo** (`apps/api`, `apps/mobile`, `apps/admin`, `services/collector`, `ml/`, `supabase/migrations/`, `docs/`) — proposta no doc acima, aguardando OK.
+1. Host da API: **AWS com créditos Free Tier** (opção levantada pelo dono; regras de 2025+ em verificação) × Cloud Run × Oracle Free × Azure for Students. Medir o RSS antes.
 2. Domínio do Routify / Resend (conta nova).
 3. Plano do Supabase (free com keep-alive × Pro).
 4. Números finais da tese: re-rodar o CV da LIA 2.0/2.1 (pós-Optuna) — decisão do grupo (Pedro).
