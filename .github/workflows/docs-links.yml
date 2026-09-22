@@ -1,0 +1,26 @@
+name: Links da documentação
+
+# Adaptado do link checker do tpotce-TCC (lychee): aqui cobre as docs vivas.
+on:
+  schedule:
+    - cron: '0 11 * * 1'  # segunda, 08h de Brasília
+  pull_request:
+    paths: ['**.md']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: lycheeverse/lychee-action@v2
+        with:
+          # 403/429: sites de documentação costumam barrar robô; não é link quebrado.
+          args: >-
+            --no-progress --max-retries 3 --retry-wait-time 10
+            --exclude-loopback --accept '200..=299,403,429'
+            README.md CLAUDE.md 'BackEnd/**/README.md' 'FrontEnd/README.md'
+            'Docs/**/*.md' '.planning/**/*.md'

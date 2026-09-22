@@ -4,47 +4,74 @@
 
 ## Onde estamos
 
-Fase final do TCC 2 — **F0 Fundação**.
+Fase final do TCC 2.
 
-- `tcc2` do Pedro integrada ao `main` (`0e066fb`). Python compila; `tsc --noEmit` do FrontEnd verde; a API importa. API e app **ainda não executados** end-to-end (faltam localmente os artefatos da LIA 2.1 — `lia_2.1*.pkl`, `transfer_confidence_isotonic.pkl`, grafo de 38 km — que estão com o Pedro).
-- CLAUDE.md (spec viva), `.mcp.json` corrigido (projeto Supabase certo, read-only), `.mcp.json.example`.
-- Análise completa: [research/2026-09-22-analise-plataforma.md](research/2026-09-22-analise-plataforma.md).
+- **F0 Fundação:** feita, exceto o banco (bloqueio abaixo).
+- **F0.5 Banca:** entregue em rascunho.
+- **F2 TomTom sob demanda:** implementada na branch `feat/tomtom-sob-demanda`.
 
-## ⚠️ Bloqueio: Supabase fora do ar
+Já no `main` (e no remoto):
+- `tcc2` do Pedro integrada (`0e066fb`);
+- CLAUDE.md, `.planning/`, `.mcp.json.example`.
 
-`vwbnragsacjxxulxenvg.supabase.co` não resolve no DNS (NXDOMAIN, 2026-09-22). O último dado é de **2026-07-19** (a coleta parou), e o projeto free provavelmente foi pausado por inatividade. **Restaurar pelo dashboard o quanto antes** (projeto free pausado tem prazo para restauração pelo painel). Enquanto isso: a API sobe em modo degradado (sem vínculo às vias → heurística) e o MCP não conecta.
+Na branch `feat/tomtom-sob-demanda` (local, aguardando OK pra push/merge):
+- `BackEnd/API/tomtom.py` + integração no `/route` e no `/search/places`, com 24 testes pytest. Teste real com o pool de 39 chaves passou: fluxo, incidentes, busca e rota de referência.
+- `figuras_tcc.py` → 4 figuras em `Docs/figuras/` (MAE/RMSE por versão, calibração isotônica, benchmark, congestionamento).
+- `Docs/core/architecture.md` (diagramas pedidos pelo orientador) e `Docs/tcc/resultados-e-limitacoes.md` (rascunho do texto).
+- CI: `ci.yml` (pytest, tsc, gitleaks), `docs-links.yml` (lychee, do tpotce), `supabase-keepalive.yml`.
 
-Backup de segurança do dataset: o Pedro tem o parquet silver completo (1,5 mi linhas, usado na LIA 2.1) — **preservar**.
+**Não executado end-to-end:** o `/route` completo precisa dos artefatos da LIA 2.1 (com o Pedro) e do Supabase de volta.
+
+## ⚠️ Bloqueio: Supabase pausado
+
+`vwbnragsacjxxulxenvg.supabase.co` → NXDOMAIN. O último dado é de 2026-07-19; é o comportamento conhecido de projeto free pausado por inatividade.
+
+**Ação do dono da conta:** Dashboard → projeto → Resume. A janela de restauração do free é de 1 ano.
+
+Depois de restaurar:
+- exportar backup (o free não tem backup automático);
+- configurar os secrets `SUPABASE_URL` + `SUPABASE_PUBLISHABLE_KEY` no GitHub (keep-alive).
+
+O Pedro tem o parquet silver completo (1,5 mi linhas): **preservar como backup**.
 
 ## Decisões tomadas (2026-09-22)
 
 - Banco: só Supabase, sem MongoDB.
-- MCP Supabase em `read_only=true` por padrão (dataset do TCC é sagrado).
-- `tcc2` integrada; coletor = implementação do main + cota com janela rolante de 24 h (do Pedro).
-- `.gitignore`: mantém "*.md só README" do Pedro, com exceções pra `CLAUDE.md`, `Docs/`, `.planning/`.
-- Admin = app **Next.js separado** (`apps/admin`) com o design Valerium.
-- Estrutura: **manter `BackEnd/` e `FrontEnd/`** + adicionar `apps/admin`.
-- Hospedagem **dividida**: Hostinger (front web + admin) + host grátis pra API Python.
-- Repo é **público**: nada de ref, domínio ou token de outra org nos docs.
+- MCP Supabase em `read_only=true` por padrão.
+- `tcc2` integrada; coletor = implementação do main + cota com janela rolante de 24 h.
+- `.gitignore`: "*.md só README", com exceções pra `CLAUDE.md`, `Docs/`, `.planning/`.
+- Admin = Next.js separado (`apps/admin`), design Valerium. Estrutura: manter `BackEnd/`/`FrontEnd/` + `apps/admin`.
+- Hospedagem dividida: Hostinger (front web + admin) + host grátis pra API Python.
+- **Convex descartado pra API** (sem Python, 512 MiB).
+- TomTom sob demanda:
+  - cooldown por (chave, serviço), porque a cota é mensal e por API;
+  - só interdição bloqueia aresta (lentidão é papel da LIA + recência);
+  - `referencia_tomtom` é opcional por gastar cota.
+- Repo é público: nada de ref, domínio ou token de outra org.
 
 ## Decisões abertas
 
-1. Host exato da API (medir o RSS antes).
+1. Host da API: Cloud Run (1º) × Oracle Free × Azure for Students × HF Spaces (testar Docker free). Medir o RSS antes.
 2. Domínio do Routify / Resend (conta nova).
-3. Plano do Supabase (free 500 MB × Pro) — relevante agora que o free pausou.
-4. Cota free TomTom: diária ou mensal? (verificar no my.tomtom.com)
+3. Plano do Supabase (free com keep-alive × Pro).
+4. Números finais da tese: re-rodar o CV da LIA 2.0/2.1 (pós-Optuna) — decisão do grupo (Pedro).
+5. Pool de 39 chaves × ToS §14.2: manter só no protótipo e declarar na tese?
 
 ## Próximos passos
 
-- [ ] **Restaurar o projeto Supabase** (dashboard) → depois autenticar o MCP.
-- [ ] Via MCP (read-only): RLS das tabelas de tráfego, `pg_database_size`, contagem de `historico_trafego`.
-- [ ] Exportar um snapshot de `vias_monitoradas` (630 linhas) pro repo, como fallback da API quando o Supabase cair.
-- [ ] Rodar a API e o app com os artefatos da LIA 2.1 (smoke: `/health`, `/route`, login, histórico).
+- [ ] Restaurar o Supabase → autenticar o MCP (OAuth em sessão interativa, `/mcp`).
+- [ ] Via MCP (read-only): RLS das tabelas de tráfego, `pg_database_size`.
+- [ ] Snapshot de `vias_monitoradas` no repo (fallback da API sem banco).
+- [ ] Rodar a API com os artefatos da LIA 2.1 e validar o `/route` com a TomTom ao vivo.
+- [ ] UI: mostrar incidentes/interdições e ETA TomTom no `NavigationPanel` (tipos já no `MapScreen`).
+- [ ] F1 API segura (JWT Supabase, CORS allowlist, rate-limit, `route_history` pela API).
+- [ ] F3 Observabilidade → F4 Auth + Resend → F5 Admin → F6 Deploy.
 
 ## Checklist do orientador (texto final)
 
-- [ ] Gráfico MAE/RMSE LIA 1.0 → 2.0 → 2.1 × baseline
-- [ ] Curva isotônica confiança × distância
-- [ ] Limitações: semáforos não modelados; subestima congestionamento extremo → trabalhos futuros
-- [ ] Diagrama de arquitetura (cache de recência, rotação de chaves, fallback da busca)
-- [ ] Corrigir no texto: "Erro médio" = RMSE; acrescentar a coluna MAE
+- [x] Gráfico MAE/RMSE LIA 1.0 → 2.0 → 2.1 × baseline (`fig1`; números finais dependem do re-run)
+- [x] Curva isotônica confiança × distância (`fig2`) + ressalva do recorte
+- [x] Limitações e trabalhos futuros (rascunho, §6–7) + `fig4` do congestionamento
+- [x] Diagrama de arquitetura (`Docs/core/architecture.md`)
+- [x] "Erro médio" = RMSE; coluna MAE na Tabela 1
+- [ ] Equipe revisar/reescrever o rascunho e declarar o uso de IA

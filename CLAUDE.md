@@ -15,14 +15,21 @@ TCC 2026 — **roteamento preditivo para Brasília/DF**. Um coletor puxou TomTom
 
 ## 2. Stack + Comandos
 
-Python (API/Coletor/Treino) · FastAPI 0.136 · XGBoost 3.2 · OSMnx 1.9.3 · supabase-py 2.13 · Expo SDK 54 / RN 0.81 / React 19.1 / react-native-web · Supabase (Postgres + Auth + RLS). Ainda **sem** monorepo JS (npm no FrontEnd), **sem** testes e **sem** lint.
+Python (API/Coletor/Treino) · FastAPI 0.136 · XGBoost 3.2 · OSMnx 1.9.3 · supabase-py 2.13 · httpx · Expo SDK 54 / RN 0.81 / React 19.1 / react-native-web · Supabase (Postgres + Auth + RLS) · TomTom (sob demanda). Ainda **sem** monorepo JS (npm no FrontEnd) e **sem** lint.
 
 ```bash
 cd BackEnd/API && uvicorn main:app --reload --host 0.0.0.0 --port 8000   # API (carrega modelo + grafo no startup)
+cd BackEnd/API && pytest -q                                               # testes da API (HTTP da TomTom simulado)
 cd BackEnd/Servidor && python main.py                                     # coletor TomTom (8 min) — será pausado
 cd BackEnd/Treinamento_IA && python train.py --version lia_2.1 --skip-silver   # treino (sem --skip-silver puxa do Supabase)
+cd BackEnd/Treinamento_IA && python figuras_tcc.py                        # figuras do texto → Docs/figuras/
 cd FrontEnd && npm run web                                                # ou android | ios
 ```
+
+CI (`.github/workflows/`):
+- `ci.yml` — pytest + compileall + `tsc --noEmit` + gitleaks;
+- `docs-links.yml` — lychee, adaptado do tpotce;
+- `supabase-keepalive.yml` — leitura diária pro plano free não pausar. Precisa dos secrets `SUPABASE_URL` e `SUPABASE_PUBLISHABLE_KEY`.
 
 ## 3. Mapa de módulos
 
@@ -30,7 +37,7 @@ cd FrontEnd && npm run web                                                # ou a
 
 | Módulo | O quê | Doc |
 |---|---|---|
-| [BackEnd/API/](BackEnd/API/) | `GET /health`, `GET /metrics`, `POST /predict`, `POST /route` (A* por `travel_time_lia` + baseline de menor distância), `GET /search/places` (autocomplete: `malha_completa` ILIKE → Nominatim se < 3 resultados). (tcc2) `recencia_cache.py` (TTL 300 s, últimas 2000 linhas de `historico_trafego`), `graph_enrichment.py` (BallTree, transfer ≤ 500 m), `lia_inference.py`; confiança calibrada em runtime = `transfer_confidence_isotonic.pkl` | [README](BackEnd/API/README.md) |
+| [BackEnd/API/](BackEnd/API/) | `GET /health`, `GET /metrics`, `POST /predict`, `POST /route` (A* por `travel_time_lia` + baseline de menor distância + bloco `tomtom`), `GET /search/places` (malha local → TomTom Search → Nominatim). `tomtom.py` (TomTom sob demanda: pool de chaves, recência ao vivo no corredor, interdições, ETA de referência). (tcc2) `recencia_cache.py` (TTL 300 s, merge com a leitura ao vivo), `graph_enrichment.py` (BallTree, transfer ≤ 500 m), `lia_inference.py`; confiança calibrada em runtime = `transfer_confidence_isotonic.pkl` | [README](BackEnd/API/README.md), [architecture](Docs/core/architecture.md) |
 | [BackEnd/Servidor/](BackEnd/Servidor/) | Coletor TomTom Flow Segment Data v4 → `historico_trafego`; bootstrap de `malha_completa`/`vias_monitoradas`; rotação de chaves. (tcc2) job Fase 3 4×/dia + `deploy/` (systemd) | [README](BackEnd/Servidor/README.md) |
 | [BackEnd/Treinamento_IA/](BackEnd/Treinamento_IA/) | `silver.py` (Supabase → parquet, **único** acesso ao banco) → `features.py` → `train.py` (TimeSeriesSplit, 5 folds). (tcc2) `otimizar_hiperparametros.py` (Optuna), `calibrar_transfer.py`, `benchmark_lstm_xgboost.py`, `validar_fase3.py`. Artefatos em `models/` (`.pkl` gitignored, `.json` versionado) | [README](BackEnd/Treinamento_IA/README.md) |
 | [BackEnd/sql/](BackEnd/sql/) | Única DDL versionada: `001_route_history.sql` (`route_history`, `profiles`, trigger `handle_new_user`), (tcc2) `002_validacao_tese.sql` | — |
@@ -65,7 +72,7 @@ cd FrontEnd && npm run web                                                # ou a
 
 ## 5. Segurança — estado atual (dívida conhecida; resolver antes de deploy público)
 
-- A API **não tem auth**, e o CORS usa `allow_origins=["*"]` + `allow_credentials=True` (combinação inválida pela spec) em [BackEnd/API/main.py](BackEnd/API/main.py). Não há rate-limit.
+- A API **não tem auth**, e o CORS usa `allow_origins=["*"]` + `allow_credentials=True` (combinação inválida pela spec) em [BackEnd/API/main.py](BackEnd/API/main.py). Não há rate-limit por cliente. A única barreira contra queimar a cota da TomTom é o teto global `TOMTOM_MAX_CHAMADAS_MIN` (120/min).
 - `route_history` é 100% escrito pelo cliente, então os dados de validação da tese são corrompíveis. Alvo: a API persiste (service role) e o cliente só lê e dá feedback.
 - O RLS das 3 tabelas de tráfego não está versionado, e o app usa anon key pública. Se o RLS estiver desligado, qualquer um lê/apaga o dataset via PostgREST. **Verificar primeiro** quando o MCP conectar.
 - O papel ADM nunca pode ficar em coluna que o próprio usuário edita (`profiles` tem update pelo dono). Usar `app_metadata.role` (só o service role grava; já vem no JWT) + checagem na API e nas policies.
@@ -78,19 +85,37 @@ cd FrontEnd && npm run web                                                # ou a
 - **`.gitignore` do tcc2 ignora `*.md` exceto README** (notas internas ficam fora do repo). Exceções mantidas: `CLAUDE.md`, `Docs/**/*.md`, `.planning/**/*.md`. Doc viva nova em outra pasta precisa de exceção.
 - **`FrontEnd/src/lib/` sumia do git.** O `.gitignore` antigo tinha `lib/` (template Python) e engolia `api.ts`/`supabase.ts`/`responsive.ts`. Corrigido em `75c92d8` (`BackEnd/**/lib/`). O snapshot tcc2 não tem a pasta, então não builda sozinho; o tipo `RouteHistoryRow` do main não tem as colunas novas de validação.
 - **Rotação de chaves TomTom (coletor):** o mesmo bug foi corrigido 2× em paralelo (main `d0fb247` × tcc2). No merge ficou a implementação do main: cooldown graduado (QPS 300 s, 403 desconhecido 600 s), `requests.Session` com retry e guard anti-sobreposição `coleta_protegida`. A cota esgotada usa a **janela rolante de 24 h** do Pedro (`SECONDS_PER_DAY`), porque o reset não está confirmado. Ao reaproveitar na API: extrair um módulo compartilhado, não copiar.
-- **Cota free da TomTom: diária ou mensal? NÃO verificado.** A página de pricing indica cota mensal por API; fontes antigas dizem 2.500/dia. Isso muda o cooldown em ~30×. Confirmar no dashboard my.tomtom.com antes de dimensionar.
-- **ToS TomTom §14.2** — criar contas extras pra obter requisições grátis adicionais autoriza suspensão. O pool de chaves é um risco; documentar como limitação na tese.
-- **Flow Segment Data só existe na API Genesis v1** (`/traffic/services/4/flowSegmentData`). O traffic flow do Orbis v2 é só tiles. Incidents, Routing e Search já têm versão Orbis.
+- **Cota free da TomTom é MENSAL e POR API** (pricing conferido em 2026-09-22): Flow 20 mil, Incidents 2,5 mil, Search 2,5 mil e Routing 20 mil por chave.
+  - Por isso o cooldown em `tomtom.py` é por (chave, serviço).
+  - A TomTom devolve **429 tanto pra QPS quanto pra cota**; 3 respostas 429 seguidas na mesma chave viram cota. Não dá pra confiar em frases de erro antigas ("Developer Over Qps").
+  - O Incident Details não aceita `pt-BR`; usar `pt-PT`.
+  - A confirmar no painel my.tomtom.com: se a conta nova não tem cota diária adicional.
+- **Pool de 39 chaves × ToS TomTom §14.2** — os termos permitem suspender contas criadas pra obter requisições grátis adicionais. Declarar na tese como risco/limitação de protótipo acadêmico.
+- **Flow Segment Data só existe na API Genesis v4** (`/traffic/services/4/flowSegmentData`). O traffic flow do Orbis v2 é só tiles. Incidents, Routing e Search já têm versão Orbis, mas o código usa as versões Genesis estáveis.
+- **Nominatim: a política da OSMF proíbe autocomplete** e exige ≤ 1 req/s + cache. Por isso ele é o último elo da busca, com trava. Não mover pra frente da cadeia.
+- **Supabase free pausa após ~7 dias sem requisição, e o domínio passa a dar NXDOMAIN** (aconteceu: a coleta parou em 19/07/2026 e em 2026-09-22 o host não resolvia).
+  - Restaurar em Dashboard → projeto → Resume. A janela de restauração do free hoje é de 1 ano.
+  - O free não tem backup automático: exportar (`supabase db dump`/parquet) depois de restaurar.
+  - O keep-alive em `.github/workflows/supabase-keepalive.yml` evita a próxima pausa.
+- **Convex não serve pra hospedar a API**: só roda JS/TS e o runtime Node limita memória a 512 MiB. Foi avaliado em 2026-09-22 (GrovOps usa Convex como backend próprio, não pra Python).
 - **O `Dockerfile` da API usa `LIA_VERSION=lia_1.0` como default** (o default do `main.py` é `lia_2.1`), então um deploy sobe o modelo velho em silêncio. Corrigir antes de deployar.
 - **Métricas pros gráficos da banca:**
   - A LIA 2.0 não tem CV persistido (proxy: `benchmark_lstm_vs_xgboost.json` → `xgboost.*`).
   - O `cv` da LIA 2.1 é anterior aos hiperparâmetros Optuna adotados, então re-rodar `train.py` antes dos números finais.
   - O "Erro médio" do resumo técnico (74,7 / 51,3 / 40,7 s) é **RMSE**, não MAE (MAE = 50,8 / 18,6 / 14,6).
 - **Em runtime, a confiança do transfer vem de `transfer_confidence_isotonic.pkl`**, não do `.json` (que é só a saída legível). Sem o pkl, cai no fallback em degrau 1,0/0,8/0,6 (`route.py`).
+  - A isotônica foi ajustada sobre a confiança **por par já recortada em [0, 1]**, e fica acima da confiança do erro médio das faixas (≈0,36 × 0 além de 600 m; ≈0,6–0,7 × 0,53 entre 100 e 500 m).
+  - Está documentado como limitação em [Docs/tcc/resultados-e-limitacoes.md](Docs/tcc/resultados-e-limitacoes.md) §4. Não "corrigir" sem re-calibrar e re-treinar.
 - **O job Fase 3** (`validar_fase3.py`, 07/12/18/22 h) usa o horário do processo, então o host precisa de `TZ=America/Sao_Paulo`. Pico de ~1,4 GB de RAM por execução.
 - **Hospedagem (decidido 2026-09-22: dividir).** O plano Hostinger Business roda Node.js via Passenger, **sem Python**.
   - **Hostinger:** front web estático (Expo export) + admin Next.js.
-  - **API FastAPI:** em host grátis com RAM suficiente. O grafo de 38 km + o modelo chegam a ~1,4 GB de pico, e o **Render grátis tem só 512 MB**: só serve com o grafo enxugado. O Hugging Face Spaces (16 GB) é o candidato. Medir o RSS real da API antes de escolher.
+  - **API FastAPI:** em host grátis com RAM suficiente. O grafo de 38 km + o modelo chegam a ~1,4 GB de pico. Render e Koyeb grátis têm só 512 MB, então só servem com o grafo enxugado. Candidatos (pesquisa de 2026-09-22):
+    1. **Google Cloud Run** — memória configurável, escala a zero, cota grátis cobre uma demo; exige conta de faturamento. Cold start = carga do grafo, então pré-serializar o grafo em pickle.
+    2. **Oracle Always Free** (ARM, 12 GB) — sem cold start, mas a própria Oracle admite falta de capacidade.
+    3. **Azure for Students** — US$ 100 sem cartão.
+    4. **Hugging Face Spaces** — 16 GB grátis, mas Docker no plano free está ambíguo na documentação: testar criando um Space.
+
+    Medir o RSS real da API antes de escolher.
   - O deploy do Valerium é feito como 2 apps Node separados (API + dashboard), não 1 processo.
 
 ## 7. Antes de fechar qualquer fase
@@ -106,6 +131,8 @@ cd FrontEnd && npm run web                                                # ou a
 
 - **Estado / decisões / próximos passos** → [.planning/STATE.md](.planning/STATE.md)
 - **Análise da plataforma + roadmap** → [.planning/research/2026-09-22-analise-plataforma.md](.planning/research/2026-09-22-analise-plataforma.md)
+- **Arquitetura (diagramas, rotação de chaves, busca)** → [Docs/core/architecture.md](Docs/core/architecture.md)
+- **Texto do TCC — resultados, calibração, limitações (rascunho)** → [Docs/tcc/resultados-e-limitacoes.md](Docs/tcc/resultados-e-limitacoes.md) · figuras em [Docs/figuras/](Docs/figuras/)
 - **READMEs** → [README.md](README.md) · [BackEnd/README.md](BackEnd/README.md) · [API](BackEnd/API/README.md) · [Servidor](BackEnd/Servidor/README.md) · [Treinamento_IA](BackEnd/Treinamento_IA/README.md) · [FrontEnd](FrontEnd/README.md)
 - **Plano de trabalho do TCC** → [Docs/](Docs/) (PDFs)
 - **Referências de padrão** (outra org, só leitura): `Valerium-Portal` (design/auth/deploy), `GrovOps` (observabilidade), `tpotce-TCC` (painel admin / data quality)
