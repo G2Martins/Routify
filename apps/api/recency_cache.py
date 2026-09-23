@@ -126,6 +126,11 @@ class RecenciaCache:
         """Observação ao vivo (TomTom sob demanda) — vale como a mais recente."""
         self._dados[id_ponto] = (min(max(float(razao), 0.05), 1.0), _agora_utc())
 
+    def resumo(self) -> Dict[str, object]:
+        """Contagem e observação mais recente — para o /health e o painel ADM."""
+        mais_recente = max((ts for _, ts in self._dados.values()), default=None)
+        return {'vias': len(self._dados), 'mais_recente': mais_recente.isoformat() if mais_recente else None}
+
     def idade_min(self, id_ponto) -> Optional[float]:
         """Minutos desde a última observação da via, ou None se nunca vista."""
         entrada = self._dados.get(id_ponto)

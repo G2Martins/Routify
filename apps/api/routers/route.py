@@ -5,6 +5,7 @@ Recebe origem/destino (lat/lon), retorna polyline otimizada pelo modelo LIA.
 import asyncio
 import math
 import logging
+import time
 from datetime import datetime, timezone, timedelta
 from typing import List, Tuple, Optional
 
@@ -15,6 +16,7 @@ from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
 import tomtom
+import usage
 
 # ⭐ PRIORITY 2: Imports para Knowledge Transfer
 from supabase import create_client
@@ -609,6 +611,13 @@ def get_edge_name(G: nx.MultiDiGraph, u: int, v: int) -> str:
 
 @router.post("", response_model=RouteOutput)
 async def calculate_route(body: RouteInput, request: Request):
+    inicio_req = time.perf_counter()
+    # Usuário é opcional (rota anônima segue funcionando); com token válido, o
+    # uso fica associado à conta para o painel ADM.
+    sb = getattr(request.app.state, 'supabase', None)
+    user_id = await usage.usuario_do_token_async(sb, request.headers.get('authorization'))
+    request.state.user_id = user_id
+
     model = request.app.state.model
     encoder = request.app.state.encoder
     profiles = request.app.state.profiles
@@ -753,6 +762,32 @@ async def calculate_route(body: RouteInput, request: Request):
         referencia_sem_transito_seg=ref.get('sem_transito_seg'),
         referencia_distancia_km=ref.get('distancia_km'),
     )
+
+    # Captura de uso (escrita pelo servidor; coordenadas arredondadas — LGPD).
+    request.state.degradado = resumo_tt.degradado
+    usage.registrar(sb, 'rotas_calculadas', {
+        'user_id': user_id,
+        'origem_lat': usage.arredondar(body.origem.lat),
+        'origem_lon': usage.arredondar(body.origem.lon),
+        'destino_lat': usage.arredondar(body.destino.lat),
+        'destino_lon': usage.arredondar(body.destino.lon),
+        'distancia_km': round(distancia_total / 1000, 2),
+        'tempo_lia_seg': int(tempo_total),
+        'tempo_rota_curta_seg': int(tempo_curta) if tempo_curta is not None else None,
+        'rotas_diferentes': rotas_diferentes,
+        'lia_cobertura_pct': round(cobertura_pct, 2),
+        'modelo_versao': version,
+        'hora_partida': hora,
+        'dia_semana': dia_semana,
+        'tomtom_ativo': resumo_tt.ativo,
+        'tomtom_degradado': resumo_tt.degradado,
+        'vias_atualizadas': resumo_tt.vias_atualizadas,
+        'incidentes_na_rota': len(resumo_tt.incidentes),
+        'interdicoes_na_rota': resumo_tt.interdicoes_na_rota,
+        'referencia_tomtom_seg': resumo_tt.referencia_tempo_seg,
+        'referencia_atraso_seg': resumo_tt.referencia_atraso_seg,
+        'latencia_ms': int((time.perf_counter() - inicio_req) * 1000),
+    })
 
     return RouteOutput(
         polyline=polyline,

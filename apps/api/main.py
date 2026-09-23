@@ -19,13 +19,14 @@ import osmnx as ox
 import networkx as nx
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 import graph_enrichment
 import recency_cache
 import tomtom
-from routers import predict, route, search
+import usage
+from routers import eventos, predict, route, search
 
 logging.basicConfig(
     level=logging.INFO,
@@ -290,17 +291,55 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Origens explícitas e sem credenciais: o app manda o JWT no header
+# Authorization, não em cookie. Em deploy, CORS_ORIGINS (vírgula) sobrescreve.
+CORS_ORIGINS = [o.strip() for o in os.getenv(
+    'CORS_ORIGINS', 'http://localhost:8081,http://localhost:19006,http://localhost:3000'
+).split(',') if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Em produção, restringir ao domínio do app
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Authorization", "Content-Type"],
 )
+
+# Sem log: health checks (o painel ADM consulta a cada poucos segundos) e docs.
+ROTAS_SEM_LOG = {'/health', '/docs', '/redoc', '/openapi.json'}
+
+
+@app.middleware("http")
+async def registrar_requisicao(request: Request, call_next):
+    """Toda requisição vira uma linha em api_requisicoes (sem query string: o
+    texto buscado no autocomplete não é guardado)."""
+    inicio = time.perf_counter()
+    status, erro = 500, None
+    try:
+        resposta = await call_next(request)
+        status = resposta.status_code
+        return resposta
+    except Exception as e:
+        erro = type(e).__name__
+        raise
+    finally:
+        if request.method != 'OPTIONS' and request.url.path not in ROTAS_SEM_LOG:
+            usage.registrar(getattr(request.app.state, 'supabase', None), 'api_requisicoes', {
+                'metodo': request.method,
+                'rota': request.url.path[:120],
+                'status': status,
+                'latencia_ms': int((time.perf_counter() - inicio) * 1000),
+                'user_id': getattr(request.state, 'user_id', None),
+                'modelo_versao': getattr(request.app.state, 'model_version', None),
+                'degradado': getattr(request.state, 'degradado', None),
+                'erro': erro,
+            })
+
 
 app.include_router(predict.router)
 app.include_router(route.router)
 app.include_router(search.router)
+app.include_router(eventos.router)
 
 
 def _cv_metric(meta: dict, nome_2_0: str, nome_1_0: str | None = None):
@@ -329,6 +368,8 @@ async def health():
         # Só contagens — nunca ids nem valores de chave num endpoint público.
         "tomtom": app.state.tomtom.resumo(),
         "vias_monitoradas": app.state.graph_stats.get("vias_monitoradas"),
+        "supabase_configurado": app.state.supabase is not None,
+        "recencia": app.state.recencia_cache.resumo(),
     }
 
 

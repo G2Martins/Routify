@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
+import usage
 from tomtom import CacheTTL
 
 ENV_PATH = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'services', 'collector', 'config', '.env')
@@ -110,6 +111,9 @@ async def autocomplete(
     q: str = Query(..., min_length=2, max_length=120, description="Texto digitado"),
     limit: int = Query(8, ge=1, le=15),
 ):
+    # Só associa a requisição à conta (api_requisicoes); o texto digitado não é gravado.
+    request.state.user_id = await usage.usuario_do_token_async(
+        getattr(request.app.state, 'supabase', None), request.headers.get('authorization'))
     sugestoes: List[PlaceSuggestion] = []
     nomes_vistos: set = set()
 

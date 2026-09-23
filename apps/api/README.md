@@ -30,11 +30,13 @@ apps/api/
 ├── graph_enrichment.py  ← liga o grafo OSM às vias monitoradas (BallTree)
 ├── recency_cache.py    ← cache TTL da última observação real por via
 ├── tomtom.py            ← TomTom sob demanda: pool de chaves, clientes, geometria
+├── usage.py             ← captura de uso: JWT opcional → user_id, gravação fire-and-forget
 ├── tests/               ← pytest (rodar `pytest -q` nesta pasta)
 ├── routers/
 │   ├── predict.py      ← POST /predict (inferência por segmento)
 │   ├── route.py        ← POST /route (A* com pesos LIA)
-│   └── search.py       ← GET /search/places (autocomplete de endereços)
+│   ├── search.py       ← GET /search/places (autocomplete de endereços)
+│   └── eventos.py      ← POST /eventos (eventos do app, JWT obrigatório)
 └── requirements.txt
 ```
 
@@ -67,7 +69,23 @@ Também depende de `../services/collector/config/.env` (`SUPABASE_URL`/`SUPABASE
 | `TOMTOM_MAX_CHAMADAS_MIN` | `120` | teto global de chamadas por minuto (proteção de cota) |
 | `TOMTOM_ATIVO` | `1` | `0` desliga a integração |
 
+| Variável | Padrão | Uso |
+|---|---|---|
+| `CORS_ORIGINS` | `http://localhost:8081,http://localhost:19006,http://localhost:3000` | origens liberadas (app web + painel ADM), separadas por vírgula. Sem credenciais: o JWT vai no header `Authorization` |
+
 Testes: `pytest -q` (o HTTP da TomTom é simulado; nenhuma chamada real).
+
+### Captura de uso (LGPD)
+
+A API grava o uso com a service_role (o cliente nunca escreve nessas tabelas). A gravação é fire-and-forget: falha no banco não derruba a requisição.
+
+| Tabela | O quê | Quando |
+|---|---|---|
+| `api_requisicoes` | rota, método, status, latência, `user_id`, modo degradado | toda requisição (menos `/health`, `/docs`, `OPTIONS`) |
+| `rotas_calculadas` | origem/destino **arredondados em 3 casas (~110 m)**, tempos LIA × menor distância, cobertura, flags TomTom | cada `/route` |
+| `eventos_app` | `busca`, `rota_solicitada`, `navegacao_*`, `feedback` (sem coordenadas, sem texto de busca) | `POST /eventos` |
+
+O `user_id` vem do JWT Supabase (`Authorization: Bearer`), validado em `sb.auth.get_user` com cache de 5 min. Token inválido ou ausente = anônimo em `/route` e `/search`; em `/eventos` = 401. Retenção: 90 dias (`pg_cron` diário).
 
 ---
 
@@ -84,7 +102,21 @@ Após o download, o grafo fica cacheado em `.graphml` em `ml/artifacts/` — pr�
 ## 🔌 Endpoints
 
 ### `GET /health`
-Status básico da API e do modelo carregado, mais `tomtom` (chaves configuradas e disponíveis por serviço — só contagens) e `vias_monitoradas` (0 = Supabase indisponível na subida, rota em heurística).
+Status básico da API e do modelo carregado, mais:
+- `tomtom` — chaves configuradas e disponíveis por serviço (só contagens);
+- `vias_monitoradas` — 0 significa Supabase indisponível na subida, rota em heurística;
+- `supabase_configurado`;
+- `recencia` — vias em cache e idade da última busca.
+
+O painel ADM usa esse endpoint para o status ao vivo.
+
+### `POST /eventos`
+Eventos do app para a análise de uso. Exige JWT e aceita no máximo 60 por minuto por usuário (429 acima disso). O corpo é estrito (`extra="forbid"`):
+- `tipo` ∈ `busca | rota_solicitada | navegacao_iniciada | navegacao_concluida | feedback`;
+- `plataforma` ∈ `web | ios | android`;
+- `dados` = dicionário plano, com até 12 chaves escalares. Chaves de coordenada são recusadas.
+
+Responde `202`.
 
 ### `GET /metrics`
 Métricas reais do modelo (usadas pelo `DashboardScreen` do app): RMSE de validação cruzada, número de vias monitoradas, importância de features.
@@ -231,5 +263,6 @@ O `Dockerfile` copia `../ml/artifacts/lia_*.pkl` para dentro da imagem — o mod
 | `FileNotFoundError: lia_2.1.pkl` | Modelo não treinado | Rode `cd ../../ml && python train.py` antes |
 | Startup demora minutos em "Baixando grafo" | Overpass compartilhado sob carga (cortesia de rate-limit do OSMnx, não erro) | Aguarde — cache evita repetir nas próximas execuções |
 | `422` em `/predict` — "id_ponto não foi visto no treino" | Ponto não existe no encoder | Conferir `vias_monitoradas` no Supabase, ou retreinar |
-| CORS bloqueado no Expo Web | — | `CORSMiddleware` já libera `*` em dev |
+| CORS bloqueado no Expo Web / painel | origem fora da allowlist | incluir a origem em `CORS_ORIGINS` |
+| Log `Uso: falha ao gravar em …` | migration `20260923010000_usage_tracking_admin.sql` não aplicada | aplicar (ver [rodar-local](../../docs/core/rodar-local.md)); a rota funciona mesmo assim |
 | RAM alta ao subir com grafo de 38km | Esperado — pico de ~1,4GB durante o carregamento do grafo | Reduzir `GRAPH_RADIUS_KM` em ambientes com pouca memória |
