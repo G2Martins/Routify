@@ -1,23 +1,32 @@
 /**
- * Autocomplete de endereços que combina:
- *  - vias_monitoradas do Supabase (rotuladas como "LIA monitora")
- *  - Nominatim (OSM) para endereços genéricos
+ * Autocomplete de lugares. A API faz a fusão (GET /search/places: malha local →
+ * TomTom → Nominatim); aqui só consome.
  *
- * Backend faz a fusão. Frontend só consome /search/places.
+ * - Foco com o campo vazio: destinos recentes do usuário (route_history, RLS por dono).
+ * - Digitando (≥ 2): debounce de 250 ms, requisição anterior cancelada, skeleton,
+ *   trecho digitado destacado (segmentos de <Text>, nunca HTML).
+ * - Teclado na web: ↑/↓ movem, Enter escolhe, Esc fecha.
+ * - Analytics (LGPD): só fonte, posição e contagens. Nunca o texto nem coordenadas.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
+  Animated,
+  NativeSyntheticEvent,
   Platform,
   Pressable,
-  ScrollView,
+  StyleProp,
   StyleSheet,
   Text,
+  TextInput,
+  TextInputKeyPressEventData,
   View,
+  ViewStyle,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
+import { supabase, RouteHistoryRow } from '../lib/supabase';
 import { API_URL, apiHeaders, enviarEvento } from '../lib/api';
-import Input from './Input';
+import { Selo, Skeleton, useMenosMovimento } from './ui';
 import Icon from './Icon';
 
 export interface PlaceSuggestion {
@@ -25,166 +34,407 @@ export interface PlaceSuggestion {
   sublabel: string;
   lat: number;
   lon: number;
-  source: 'malha' | 'tomtom' | 'nominatim';
+  source: 'malha' | 'tomtom' | 'nominatim' | 'recente';
   id_ponto?: number;
 }
 
-// Backend já dedupe por nome_via. Aqui mantém pass-through.
-function dedupeByProximity(list: PlaceSuggestion[]): PlaceSuggestion[] {
-  return list;
+const MIN_CHARS = 2; // mesmo min_length da API
+const DEBOUNCE_MS = 250;
+const BLUR_MS = 180; // dá tempo do clique numa linha registrar antes de fechar
+const LIMITE = 6; // cabe na lista sem rolagem (sem scrollIntoView no teclado)
+const MAX_RECENTES = 5;
+const NATIVO = Platform.OS !== 'web';
+
+// Estilos que só existem no DOM (RN-web): transição de 160 ms e sem outline do navegador.
+const TRANSICAO_WEB = Platform.OS === 'web'
+  ? ({ transitionProperty: 'background-color, border-color, box-shadow', transitionDuration: '160ms' } as ViewStyle)
+  : null;
+const SEM_OUTLINE_WEB = Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : null;
+
+const FONTE: Record<PlaceSuggestion['source'], { icone: string; tag?: string }> = {
+  malha: { icone: 'mdi:road-variant', tag: 'Brasília' },
+  tomtom: { icone: 'ion:location-outline', tag: 'TomTom' },
+  nominatim: { icone: 'ion:map-outline', tag: 'OSM' },
+  recente: { icone: 'ion:time-outline' },
+};
+
+const semAcento = (s: string) =>
+  (typeof s.normalize === 'function' ? s.normalize('NFD') : s).replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+/** Minúsculas e sem acento, guardando de qual índice do original veio cada caractere. */
+function dobrar(s: string): { txt: string; idx: number[] } {
+  let txt = '';
+  const idx: number[] = [];
+  for (let i = 0; i < s.length; i++) {
+    const d = semAcento(s[i]);
+    txt += d;
+    for (let j = 0; j < d.length; j++) idx.push(i);
+  }
+  return { txt, idx };
+}
+
+/** Parte `label` em trechos, marcando a 1ª ocorrência de `busca` (ignora acento e caixa). */
+export function trechosDestacados(label: string, busca: string): { t: string; destaque: boolean }[] {
+  const q = dobrar(busca.trim()).txt;
+  const { txt, idx } = dobrar(label);
+  const p = q ? txt.indexOf(q) : -1;
+  if (p < 0) return [{ t: label, destaque: false }];
+  const ini = idx[p];
+  const fim = idx[p + q.length - 1] + 1;
+  return [
+    { t: label.slice(0, ini), destaque: false },
+    { t: label.slice(ini, fim), destaque: true },
+    { t: label.slice(fim), destaque: false },
+  ].filter((x) => x.t);
+}
+
+function quando(iso: string): string {
+  const d = new Date(iso);
+  const dias = Math.round((new Date(new Date().toDateString()).getTime() - new Date(d.toDateString()).getTime()) / 86_400_000);
+  if (dias <= 0) return 'hoje';
+  if (dias === 1) return 'ontem';
+  if (dias < 30) return `há ${dias} dias`;
+  return d.toLocaleDateString('pt-BR');
+}
+
+/** Linha da lista aparece rápido (≤ 160 ms); com menos movimento, direto. */
+function Aparecer({ children, duracao }: { children: React.ReactNode; duracao: number }) {
+  const { theme } = useTheme();
+  const v = useRef(new Animated.Value(duracao ? 0 : 1)).current;
+  useEffect(() => {
+    const anim = Animated.timing(v, { toValue: 1, duration: duracao, easing: theme.motion.easeOutExpo, useNativeDriver: NATIVO });
+    anim.start();
+    return () => anim.stop();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return <Animated.View style={{ opacity: v }}>{children}</Animated.View>;
 }
 
 interface Props {
   placeholder: string;
-  iconLeft: string;
   value: string;
   onChangeText: (v: string) => void;
   onSelect: (p: PlaceSuggestion) => void;
   zIndex?: number;
+  /** Ajuste da lista suspensa (ex.: alargar além do campo). */
+  listaStyle?: StyleProp<ViewStyle>;
 }
 
-export default function AddressAutocomplete({
-  placeholder,
-  iconLeft,
-  value,
-  onChangeText,
-  onSelect,
-  zIndex = 50,
-}: Props) {
+type Linha = Pick<RouteHistoryRow, 'destino_label' | 'destino_lat' | 'destino_lon' | 'created_at'>;
+
+export default function AddressAutocomplete({ placeholder, value, onChangeText, onSelect, zIndex = 50, listaStyle }: Props) {
   const { theme } = useTheme();
   const c = theme.colors;
-  const [items, setItems] = useState<PlaceSuggestion[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [open, setOpen] = useState(false);
-  const debounceRef = useRef<any>(null);
-  const justPickedRef = useRef(false);
+  const { user } = useAuth();
+  const reduzir = useMenosMovimento();
 
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    // Pula próximo fetch — value mudou porque acabou de selecionar (programático).
-    if (justPickedRef.current) {
-      justPickedRef.current = false;
+  const [focado, setFocado] = useState(false);
+  const [aberto, setAberto] = useState(false);
+  const [itens, setItens] = useState<PlaceSuggestion[]>([]);
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState(false);
+  const [semResultado, setSemResultado] = useState(false);
+  const [recentes, setRecentes] = useState<PlaceSuggestion[] | null>(null);
+  const [ativo, setAtivo] = useState(-1);
+
+  const inputRef = useRef<TextInput>(null);
+  const timerBusca = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const timerBlur = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const abortRef = useRef<AbortController | null>(null);
+  const ultimoSemResultado = useRef<string | null>(null); // fica só na memória, nunca é enviado
+
+  useEffect(
+    () => () => {
+      clearTimeout(timerBusca.current);
+      clearTimeout(timerBlur.current);
+      abortRef.current?.abort();
+    },
+    []
+  );
+
+  const curto = value.trim().length < MIN_CHARS;
+  const lista = curto ? recentes ?? [] : itens;
+  const carregandoRecentes = curto && recentes === null && !!user;
+  const mostrar =
+    focado &&
+    aberto &&
+    (curto ? carregandoRecentes || lista.length > 0 : carregando || erro || semResultado || itens.length > 0);
+
+  const carregarRecentes = async () => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from('route_history')
+      .select('destino_label,destino_lat,destino_lon,created_at')
+      // RLS já restringe ao dono; o filtro evita vazar destinos de outros se surgir policy mais ampla (ex.: admin).
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(30);
+    if (error || !data) {
+      setRecentes((r) => r ?? []);
       return;
     }
-    if (!value || value.trim().length < 3) {
-      setItems([]);
+    const vistos = new Set<string>();
+    const out: PlaceSuggestion[] = [];
+    for (const r of data as Linha[]) {
+      const chave = r.destino_label?.trim().toLowerCase();
+      if (!chave || vistos.has(chave) || typeof r.destino_lat !== 'number' || typeof r.destino_lon !== 'number') continue;
+      vistos.add(chave);
+      out.push({
+        label: r.destino_label,
+        sublabel: `Destino recente · ${quando(r.created_at)}`,
+        lat: r.destino_lat,
+        lon: r.destino_lon,
+        source: 'recente',
+      });
+      if (out.length === MAX_RECENTES) break;
+    }
+    setRecentes(out);
+  };
+
+  const buscar = (texto: string) => {
+    clearTimeout(timerBusca.current);
+    abortRef.current?.abort();
+    setAtivo(-1);
+    setErro(false);
+    setSemResultado(false);
+    const q = texto.trim();
+    if (q.length < MIN_CHARS) {
+      setItens([]);
+      setCarregando(false);
       return;
     }
-    debounceRef.current = setTimeout(async () => {
-      setLoading(true);
+    setCarregando(true); // mantém os itens anteriores na tela até a nova resposta
+    timerBusca.current = setTimeout(async () => {
+      const ctrl = new AbortController();
+      abortRef.current = ctrl;
       try {
-        const res = await fetch(
-          `${API_URL}/search/places?q=${encodeURIComponent(value)}&limit=8`,
-          { headers: await apiHeaders(false) }
-        );
-        if (res.ok) {
-          const data: PlaceSuggestion[] = await res.json();
-          setItems(dedupeByProximity(data));
-          setOpen(true);
+        const res = await fetch(`${API_URL}/search/places?q=${encodeURIComponent(q)}&limit=${LIMITE}`, {
+          headers: await apiHeaders(false),
+          signal: ctrl.signal,
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data: PlaceSuggestion[] = await res.json();
+        if (ctrl.signal.aborted) return;
+        const validos = Array.isArray(data) ? data.filter((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lon)) : [];
+        setItens(validos);
+        setSemResultado(validos.length === 0);
+        if (validos.length === 0 && ultimoSemResultado.current !== q) {
+          ultimoSemResultado.current = q;
+          enviarEvento('busca', { sem_resultado: true, n_caracteres: q.length });
         }
       } catch {
-        // ignora erro de rede no autocomplete
+        if (ctrl.signal.aborted) return;
+        setItens([]);
+        setErro(true);
       } finally {
-        setLoading(false);
+        if (!ctrl.signal.aborted) setCarregando(false);
       }
-    }, 280);
+    }, DEBOUNCE_MS);
+  };
 
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [value]);
-
-  const handlePick = (item: PlaceSuggestion) => {
-    // Só onSelect — parent atualiza texto + place no mesmo tick.
-    // justPickedRef evita re-fetch quando parent muda value programático.
-    justPickedRef.current = true;
-    enviarEvento('busca', { fonte: item.source });
+  const escolher = (item: PlaceSuggestion, posicao: number) => {
+    enviarEvento('busca', {
+      fonte: item.source,
+      posicao,
+      n_resultados: lista.length,
+      recente: item.source === 'recente',
+    });
+    clearTimeout(timerBusca.current);
+    abortRef.current?.abort();
+    setItens([]);
+    setCarregando(false);
+    setSemResultado(false);
+    setAberto(false);
+    setAtivo(-1);
     onSelect(item);
-    setOpen(false);
-    setItems([]);
+  };
+
+  const onKeyPress = (e: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
+    const k = e.nativeEvent.key;
+    if (k === 'Escape') {
+      setAberto(false);
+      return;
+    }
+    if (k === 'ArrowDown' && !aberto) {
+      setAberto(true);
+      return;
+    }
+    if (!mostrar || lista.length === 0) return;
+    if (k === 'ArrowDown' || k === 'ArrowUp') {
+      e.preventDefault(); // não move o cursor do input
+      setAtivo((a) => (k === 'ArrowDown' ? (a + 1) % lista.length : a <= 0 ? lista.length - 1 : a - 1));
+    } else if (k === 'Enter') {
+      e.preventDefault(); // no RN-web, evita o blur do submit
+      const i = ativo >= 0 && ativo < lista.length ? ativo : 0;
+      escolher(lista[i], i);
+    }
+  };
+
+  const conteudo = () => {
+    if (carregandoRecentes || (carregando && itens.length === 0 && !curto)) {
+      return [0, 1, 2].map((i) => (
+        <View key={i} style={styles.linha}>
+          <Skeleton altura={32} largura={32} raio={8} />
+          <View style={{ flex: 1, gap: 6 }}>
+            <Skeleton altura={12} largura="62%" raio={4} />
+            <Skeleton altura={10} largura="38%" raio={4} />
+          </View>
+        </View>
+      ));
+    }
+    if (!curto && erro) {
+      return (
+        <View style={styles.estado} accessibilityRole="alert">
+          <Icon name="ion:alert-circle-outline" size={18} color={c.warning} />
+          <View style={{ flex: 1 }}>
+            <Text style={[theme.typography.captionMd, { color: c.text }]}>Não deu para buscar agora.</Text>
+            <Text style={[theme.typography.caption, { color: c.textMuted }]}>Verifique a conexão e tente de novo.</Text>
+          </View>
+        </View>
+      );
+    }
+    if (!curto && semResultado) {
+      return (
+        <View style={styles.estado}>
+          <Icon name="ion:map-outline" size={18} color={c.textSubtle} />
+          <View style={{ flex: 1 }}>
+            <Text style={[theme.typography.captionMd, { color: c.text }]}>Nenhum lugar encontrado</Text>
+            <Text style={[theme.typography.caption, { color: c.textMuted }]}>
+              Tente o nome de uma via, quadra ou lugar (ex.: EPTG, SQS 308, Rodoviária).
+            </Text>
+          </View>
+        </View>
+      );
+    }
+    return (
+      <>
+        {curto ? (
+          <Text style={[theme.typography.micro, styles.cabecalho, { color: c.textSubtle }]}>RECENTES</Text>
+        ) : null}
+        {lista.map((item, i) => {
+          const meta = FONTE[item.source] ?? FONTE.nominatim;
+          const selecionado = i === ativo;
+          const marca = item.source === 'malha';
+          return (
+            <Aparecer key={`${item.source}:${item.lat},${item.lon}:${i}`} duracao={reduzir ? 0 : theme.motion.rapido}>
+              <Pressable
+                onPress={() => escolher(item, i)}
+                onHoverIn={() => setAtivo(i)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: selecionado }}
+                accessibilityLabel={[item.label, item.sublabel, meta.tag].filter(Boolean).join(', ')}
+                style={({ pressed }) => [
+                  styles.linha,
+                  { backgroundColor: pressed ? c.surfaceMuted : selecionado ? c.surfaceAlt : 'transparent' },
+                ]}
+              >
+                <View style={[styles.iconeCaixa, { backgroundColor: marca ? c.accentSoft : c.surfaceAlt }]}>
+                  <Icon name={meta.icone} size={16} color={marca ? c.accent : c.textMuted} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[theme.typography.bodyMd, { color: c.text, fontSize: 14, lineHeight: 20 }]} numberOfLines={1}>
+                    {item.label
+                      ? trechosDestacados(item.label, curto ? '' : value).map((s, k) => (
+                          <Text key={k} style={s.destaque ? { color: c.accent, fontFamily: theme.fonts.sansBold } : null}>
+                            {s.t}
+                          </Text>
+                        ))
+                      : 'Sem nome'}
+                  </Text>
+                  {item.sublabel ? (
+                    <Text style={[theme.typography.caption, { color: c.textMuted, fontSize: 12 }]} numberOfLines={1}>
+                      {item.sublabel}
+                    </Text>
+                  ) : null}
+                </View>
+                {meta.tag ? (
+                  <View>
+                    <Selo tom={marca ? 'marca' : 'neutro'}>{meta.tag}</Selo>
+                  </View>
+                ) : null}
+              </Pressable>
+            </Aparecer>
+          );
+        })}
+      </>
+    );
   };
 
   return (
     <View style={{ position: 'relative', zIndex }}>
-      <Input
-        placeholder={placeholder}
-        iconLeft={iconLeft}
-        value={value}
-        onChangeText={(v: string) => {
-          onChangeText(v);
-          if (!open) setOpen(true);
-        }}
-        onFocus={() => items.length > 0 && setOpen(true)}
-        autoCapitalize="words"
-        autoCorrect={false}
-      />
+      <View
+        style={[
+          styles.campo,
+          {
+            backgroundColor: focado ? c.surface : c.surfaceAlt,
+            borderColor: focado ? c.accent : c.surfaceAlt,
+          },
+          focado && { boxShadow: `0 0 0 3px ${c.ring}` },
+          TRANSICAO_WEB,
+        ]}
+      >
+        <TextInput
+          ref={inputRef}
+          value={value}
+          placeholder={placeholder}
+          placeholderTextColor={c.textSubtle}
+          accessibilityLabel={placeholder}
+          autoCapitalize="words"
+          autoCorrect={false}
+          returnKeyType="search"
+          onChangeText={(v) => {
+            onChangeText(v);
+            setAberto(true);
+            buscar(v);
+            if (v.trim().length < MIN_CHARS && recentes === null) void carregarRecentes();
+          }}
+          onFocus={() => {
+            clearTimeout(timerBlur.current);
+            setFocado(true);
+            setAberto(true);
+            if (curto) void carregarRecentes();
+          }}
+          onBlur={() => {
+            timerBlur.current = setTimeout(() => {
+              setFocado(false);
+              setAtivo(-1);
+            }, BLUR_MS);
+          }}
+          onKeyPress={onKeyPress}
+          style={[theme.typography.body, styles.input, { color: c.text }, SEM_OUTLINE_WEB]}
+        />
+        {value && focado ? (
+          <Pressable
+            onPress={() => {
+              onChangeText('');
+              buscar('');
+              setAberto(true);
+              if (recentes === null) void carregarRecentes();
+              inputRef.current?.focus();
+            }}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Limpar campo"
+            style={styles.limpar}
+          >
+            <Icon name="ion:close" size={16} color={c.textSubtle} />
+          </Pressable>
+        ) : null}
+      </View>
 
-      {open && (loading || items.length > 0) ? (
+      {mostrar ? (
         <View
+          accessibilityRole="list"
           style={[
-            styles.dropdown,
+            styles.lista,
             {
               backgroundColor: c.surface,
               borderColor: c.border,
-              shadowColor: '#000',
+              boxShadow: `0 12px 32px ${c.shadowMedium}, 0 0 0 1px ${c.shadowLight}`,
             },
+            listaStyle,
           ]}
         >
-          {loading ? (
-            <View style={{ padding: 16, alignItems: 'center' }}>
-              <ActivityIndicator color={c.text} />
-            </View>
-          ) : (
-            <ScrollView
-              keyboardShouldPersistTaps="handled"
-              style={{ maxHeight: 320 }}
-            >
-              {items.map((item: PlaceSuggestion, i: number) => (
-                <Pressable
-                  key={`${item.lat}_${item.lon}_${i}`}
-                  onPress={() => handlePick(item)}
-                  style={({ pressed }: { pressed: boolean }) => [
-                    styles.row,
-                    {
-                      backgroundColor: pressed ? c.surfaceMuted : 'transparent',
-                      borderBottomColor: c.surfaceMuted,
-                    },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.iconBox,
-                      {
-                        backgroundColor:
-                          item.source === 'malha' ? c.success + '22' : c.surfaceMuted,
-                      },
-                    ]}
-                  >
-                    <Icon
-                      name={
-                        item.source === 'malha'
-                          ? 'ion:flash-outline'
-                          : 'ion:location-outline'
-                      }
-                      size={16}
-                      color={item.source === 'malha' ? c.success : c.textMuted}
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={{ color: c.text, fontSize: 15, fontWeight: '500' }}
-                      numberOfLines={1}
-                    >
-                      {item.label || 'Sem nome'}
-                    </Text>
-                    <Text style={{ color: c.textSubtle, fontSize: 12 }} numberOfLines={1}>
-                      {item.sublabel}
-                    </Text>
-                  </View>
-                </Pressable>
-              ))}
-            </ScrollView>
-          )}
+          {conteudo()}
         </View>
       ) : null}
     </View>
@@ -192,39 +442,37 @@ export default function AddressAutocomplete({
 }
 
 const styles = StyleSheet.create({
-  dropdown: {
-    position: 'absolute',
-    top: 78,
-    left: 0,
-    right: 0,
-    borderWidth: 1,
-    borderRadius: 12,
-    maxHeight: 320,
-    overflow: 'hidden',
-    ...Platform.select({
-      web: { boxShadow: '0 4px 16px rgba(0,0,0,0.16)' as any },
-      default: {
-        shadowOpacity: 0.16,
-        shadowRadius: 16,
-        shadowOffset: { width: 0, height: 4 },
-        elevation: 6,
-      },
-    }),
-    zIndex: 100,
-  },
-  row: {
+  campo: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderBottomWidth: 1,
+    height: 44,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingLeft: 12,
+    paddingRight: 8,
   },
-  iconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  input: { flex: 1, height: '100%', fontSize: 15 },
+  limpar: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  lista: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    marginTop: 6,
+    padding: 4,
+    borderWidth: 1,
+    borderRadius: 12,
+    zIndex: 100,
+  },
+  cabecalho: { paddingHorizontal: 10, paddingTop: 8, paddingBottom: 4 },
+  linha: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
+    gap: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
   },
+  iconeCaixa: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  estado: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12 },
 });

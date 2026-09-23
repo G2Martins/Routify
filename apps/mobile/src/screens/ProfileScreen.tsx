@@ -1,28 +1,47 @@
 import React, { useCallback } from 'react';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { MAP_STYLES, MapStyle } from '../constants/Theme';
+import { useDesktopLayout } from '../lib/responsive';
 import Icon from '../components/Icon';
 import Button from '../components/Button';
+import { Cartao, Container, RotuloSecao, Segmentado, Surgir, TituloPagina } from '../components/ui';
 
-const STYLE_LABEL: Record<MapStyle, string> = {
-  dark: 'Escuro',
-  street: 'Padrão',
-  satellite: 'Satélite',
+const ESTILO_MAPA: Record<MapStyle, { rotulo: string; icone: string }> = {
+  dark: { rotulo: 'Escuro', icone: 'ion:moon-outline' },
+  street: { rotulo: 'Padrão', icone: 'ion:map-outline' },
+  satellite: { rotulo: 'Satélite', icone: 'ion:layers-outline' },
 };
+
+/** Avatar com anel no gradiente da marca e a inicial do nome. Também usado no EditProfile. */
+export function AvatarAnel({ letra, tamanho = 72 }: { letra: string; tamanho?: number }) {
+  const { theme } = useTheme();
+  const c = theme.colors;
+  const externo = tamanho + 8;
+  return (
+    <LinearGradient
+      colors={c.gradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={{ width: externo, height: externo, borderRadius: externo / 2, padding: 2 }}
+    >
+      <View style={[styles.avatarVao, { borderRadius: externo / 2, backgroundColor: c.surface }]}>
+        <View style={[styles.avatarDisco, { borderRadius: tamanho / 2, backgroundColor: c.accentSoft }]}>
+          <Text style={{ fontFamily: theme.fonts.sansBold, fontSize: tamanho * 0.4, color: c.accent }}>{letra}</Text>
+        </View>
+      </View>
+    </LinearGradient>
+  );
+}
 
 export default function ProfileScreen({ navigation }: any) {
   const { theme, mode, preference, setPreference, mapStyle, setMapStyle } = useTheme();
   const c = theme.colors;
   const { user, profile, signOut, refreshProfile } = useAuth();
+  const desktop = useDesktopLayout();
 
   // Refresh profile ao focar tab Perfil.
   useFocusEffect(
@@ -31,163 +50,167 @@ export default function ProfileScreen({ navigation }: any) {
     }, [refreshProfile])
   );
 
-  const nome =
-    profile?.nome ||
-    (user?.email ? user.email.split('@')[0] : 'Usuário');
+  const nome = profile?.nome || (user?.email ? user.email.split('@')[0] : 'Usuário');
   const initial = nome[0]?.toUpperCase() || 'U';
 
   return (
     <ScrollView
-      style={[styles.container, { backgroundColor: c.background }]}
-      contentContainerStyle={{ padding: 20, paddingTop: 60, paddingBottom: 80 }}
+      style={{ flex: 1, backgroundColor: c.background }}
+      contentContainerStyle={{ paddingTop: desktop ? 40 : 56, paddingBottom: 80 }}
     >
-      <View style={styles.identity}>
-        <View style={[styles.avatar, { backgroundColor: c.inverse }]}>
-          <Text style={{ color: c.onInverse, fontSize: 30, fontWeight: '700' }}>{initial}</Text>
-        </View>
-        <Text style={[styles.name, { color: c.text }]}>{nome}</Text>
-        <Text style={[styles.email, { color: c.textMuted }]}>{user?.email}</Text>
-      </View>
+      <Container>
+        <Surgir>
+          <TituloPagina titulo="Perfil" sub="Sua conta e as preferências do app." />
+        </Surgir>
 
-      <Text style={[styles.sectionTitle, { color: c.textMuted }]}>APARÊNCIA</Text>
-      <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.surfaceMuted }]}>
-        <View style={styles.row}>
-          <Icon
-            name={mode === 'dark' ? 'ion:moon-outline' : 'ion:sunny-outline'}
-            size={20}
-            color={c.text}
-          />
-          <Text style={[styles.rowLabel, { color: c.text }]}>Tema</Text>
-        </View>
-        <View style={styles.segmented}>
-          {(['light', 'dark', 'auto'] as const).map((p) => (
-            <Pressable
-              key={p}
-              onPress={() => setPreference(p)}
-              style={[
-                styles.segItem,
-                {
-                  backgroundColor: preference === p ? c.inverse : c.surfaceAlt,
-                },
-              ]}
+        <Surgir ordem={1} style={{ marginTop: 24 }}>
+          <Cartao>
+            <View style={styles.identidade}>
+              <AvatarAnel letra={initial} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[theme.typography.h3, { color: c.text }]} numberOfLines={1}>
+                  {nome}
+                </Text>
+                <Text style={[theme.typography.caption, { color: c.textMuted, marginTop: 2 }]} numberOfLines={1}>
+                  {user?.email}
+                </Text>
+              </View>
+            </View>
+          </Cartao>
+        </Surgir>
+
+        <Surgir ordem={2}>
+          <RotuloSecao>Aparência</RotuloSecao>
+          <Cartao>
+            <Preferencia
+              icone={mode === 'dark' ? 'ion:moon-outline' : 'ion:sunny-outline'}
+              titulo="Tema"
+              sub="Claro, escuro ou igual ao sistema."
             >
-              <Text
-                style={{
-                  color: preference === p ? c.onInverse : c.text,
-                  fontSize: 13,
-                  fontWeight: '600',
-                }}
-              >
-                {p === 'light' ? 'Claro' : p === 'dark' ? 'Escuro' : 'Auto'}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      </View>
+              <Segmentado
+                valor={preference}
+                onChange={setPreference}
+                opcoes={[
+                  { valor: 'light', rotulo: 'Claro', icone: 'ion:sunny-outline' },
+                  { valor: 'dark', rotulo: 'Escuro', icone: 'ion:moon-outline' },
+                  { valor: 'auto', rotulo: 'Auto', icone: 'ion:contrast-outline' },
+                ]}
+              />
+            </Preferencia>
+          </Cartao>
+        </Surgir>
 
-      <Text style={[styles.sectionTitle, { color: c.textMuted }]}>MAPA</Text>
-      <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.surfaceMuted }]}>
-        <View style={styles.row}>
-          <Icon name="ion:layers-outline" size={20} color={c.text} />
-          <Text style={[styles.rowLabel, { color: c.text }]}>Estilo de visualização</Text>
-        </View>
-        <View style={styles.segmented}>
-          {MAP_STYLES.map((s) => (
-            <Pressable
-              key={s}
-              onPress={() => setMapStyle(s)}
-              style={[
-                styles.segItem,
-                {
-                  backgroundColor: mapStyle === s ? c.inverse : c.surfaceAlt,
-                },
-              ]}
-            >
-              <Text
-                style={{
-                  color: mapStyle === s ? c.onInverse : c.text,
-                  fontSize: 13,
-                  fontWeight: '600',
-                }}
-              >
-                {STYLE_LABEL[s]}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      </View>
+        <Surgir ordem={3}>
+          <RotuloSecao>Mapa</RotuloSecao>
+          <Cartao>
+            <Preferencia icone="ion:layers-outline" titulo="Estilo do mapa" sub="Fundo usado na aba Mapa.">
+              <Segmentado
+                valor={mapStyle}
+                onChange={setMapStyle}
+                opcoes={MAP_STYLES.map((s) => ({ valor: s, ...ESTILO_MAPA[s] }))}
+              />
+            </Preferencia>
+          </Cartao>
+        </Surgir>
 
-      <Text style={[styles.sectionTitle, { color: c.textMuted }]}>CONTA</Text>
-      <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.surfaceMuted }]}>
-        <Pressable
-          style={styles.menuItem}
-          onPress={() => navigation?.navigate('EditProfile')}
-        >
-          <Icon name="ion:person-outline" size={20} color={c.text} />
-          <Text style={[styles.menuText, { color: c.text }]}>Editar perfil</Text>
-          <Icon name="ion:chevron-forward" size={18} color={c.textSubtle} />
-        </Pressable>
-        <View style={[styles.divider, { backgroundColor: c.surfaceMuted }]} />
-        <Pressable
-          style={styles.menuItem}
-          onPress={() => navigation?.navigate('Privacy')}
-        >
-          <Icon name="ion:lock-closed-outline" size={20} color={c.text} />
-          <Text style={[styles.menuText, { color: c.text }]}>Privacidade</Text>
-          <Icon name="ion:chevron-forward" size={18} color={c.textSubtle} />
-        </Pressable>
-      </View>
+        <Surgir ordem={4}>
+          <RotuloSecao>Conta</RotuloSecao>
+          <Cartao padding={0} style={{ overflow: 'hidden' }}>
+            <LinhaConta
+              icone="ion:person-outline"
+              titulo="Editar perfil"
+              sub="Nome de exibição e avatar"
+              onPress={() => navigation?.navigate('EditProfile')}
+            />
+            <View style={[styles.divisor, { backgroundColor: c.border }]} />
+            <LinhaConta
+              icone="ion:lock-closed-outline"
+              titulo="Privacidade"
+              sub="O que coletamos e seus direitos (LGPD)"
+              onPress={() => navigation?.navigate('Privacy')}
+            />
+          </Cartao>
+        </Surgir>
 
-      <Button
-        label="Sair da conta"
-        variant="secondary"
-        fullWidth
-        onPress={signOut}
-        style={{ marginTop: 24 }}
-      />
+        <Surgir ordem={5} style={{ marginTop: 32 }}>
+          <Button label="Sair da conta" variant="danger" fullWidth={!desktop} onPress={signOut} />
+        </Surgir>
 
-      <Text style={{ color: c.textSubtle, fontSize: 11, textAlign: 'center', marginTop: 28 }}>
-        Routify · TCC · LIA powered
-      </Text>
+        <Text style={[theme.typography.micro, styles.rodape, { color: c.textSubtle }]}>
+          Routify · TCC 2026 · motor LIA
+        </Text>
+      </Container>
     </ScrollView>
   );
 }
 
+/** Linha de preferência: rótulo à esquerda, controle à direita (empilha no celular). */
+function Preferencia({
+  icone,
+  titulo,
+  sub,
+  children,
+}: {
+  icone: string;
+  titulo: string;
+  sub: string;
+  children: React.ReactNode;
+}) {
+  const { theme } = useTheme();
+  const c = theme.colors;
+  return (
+    <View style={styles.pref}>
+      <View style={styles.prefTexto}>
+        <View style={[styles.iconeCirculo, { backgroundColor: c.surfaceAlt }]}>
+          <Icon name={icone} size={18} color={c.textMuted} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[theme.typography.h4, { color: c.text }]}>{titulo}</Text>
+          <Text style={[theme.typography.caption, { color: c.textMuted }]}>{sub}</Text>
+        </View>
+      </View>
+      <View style={styles.prefControle}>{children}</View>
+    </View>
+  );
+}
+
+/** Linha navegável da lista "Conta": hover/press com fundo surfaceAlt. */
+function LinhaConta({ icone, titulo, sub, onPress }: { icone: string; titulo: string; sub: string; onPress: () => void }) {
+  const { theme } = useTheme();
+  const c = theme.colors;
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={titulo}
+      style={(estado) => {
+        const { hovered, pressed } = estado as { hovered?: boolean; pressed: boolean };
+        return [styles.linha, (hovered || pressed) && { backgroundColor: c.surfaceAlt }];
+      }}
+    >
+      <View style={[styles.iconeCirculo, { backgroundColor: c.accentSoft }]}>
+        <Icon name={icone} size={18} color={c.accent} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={[theme.typography.bodyMd, { color: c.text }]}>{titulo}</Text>
+        <Text style={[theme.typography.caption, { color: c.textMuted }]} numberOfLines={1}>
+          {sub}
+        </Text>
+      </View>
+      <Icon name="ion:chevron-forward" size={18} color={c.textSubtle} />
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  identity: { alignItems: 'center', marginBottom: 32 },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-  },
-  name: { fontSize: 22, fontWeight: '700' },
-  email: { fontSize: 13, marginTop: 4 },
-  sectionTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1,
-    marginBottom: 8,
-    marginTop: 16,
-  },
-  card: { borderRadius: 14, padding: 16, borderWidth: 1 },
-  row: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  rowLabel: { fontSize: 15, fontWeight: '500', marginLeft: 12 },
-  segmented: { flexDirection: 'row', gap: 8 },
-  segItem: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 999,
-    alignItems: 'center',
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  menuText: { flex: 1, marginLeft: 12, fontSize: 15, fontWeight: '500' },
-  divider: { height: 1 },
+  avatarVao: { flex: 1, padding: 2 },
+  avatarDisco: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  identidade: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  pref: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 16 },
+  prefTexto: { flexDirection: 'row', alignItems: 'center', gap: 12, flexGrow: 1, flexShrink: 1, flexBasis: 240 },
+  prefControle: { flexGrow: 1, flexShrink: 1, flexBasis: 280, maxWidth: 380 },
+  iconeCirculo: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  linha: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingVertical: 14 },
+  divisor: { height: 1, marginLeft: 68 },
+  rodape: { textAlign: 'center', textTransform: 'uppercase', marginTop: 40 },
 });

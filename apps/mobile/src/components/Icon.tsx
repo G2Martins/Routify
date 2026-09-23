@@ -64,7 +64,8 @@ const NATIVE_FALLBACK: Record<string, { lib: any; name: string }> = {
   'ion:arrow-back': { lib: Ionicons, name: 'arrow-back' },
   'ion:flash-outline': { lib: Ionicons, name: 'flash-outline' },
   'ion:checkmark-circle': { lib: Ionicons, name: 'checkmark-circle' },
-  // Specials
+  // Specials (fora dos sets "ion"/"mdi", que resolvem pelo prefixo — ver abaixo)
+  'material-symbols:home': { lib: Ionicons, name: 'home' },
   'material-symbols:directions-car-rounded': { lib: MaterialCommunityIcons, name: 'car' },
   'mdi:car': { lib: MaterialCommunityIcons, name: 'car' },
   'mdi:car-sports': { lib: MaterialCommunityIcons, name: 'car-sports' },
@@ -87,6 +88,15 @@ export default function Icon({ name, size = 24, color = '#000', style }: IconPro
   if (fallback) {
     const Lib = fallback.lib;
     return <Lib name={fallback.name} size={size} color={color} style={style} />;
+  }
+
+  // ponytail: os sets "ion" e "mdi" do Iconify usam os mesmos nomes do Ionicons 7 e do
+  // MaterialCommunityIcons, então qualquer "ion:x"/"mdi:x" resolve sem entrada no mapa.
+  const [prefixo, nome] = name.split(':');
+  const lib = prefixo === 'ion' ? Ionicons : prefixo === 'mdi' ? MaterialCommunityIcons : null;
+  if (lib && nome && nome in lib.glyphMap) {
+    const Lib = lib as any;
+    return <Lib name={nome} size={size} color={color} style={style} />;
   }
 
   // Default genérico (caso receba ícone desconhecido em native)

@@ -1,22 +1,18 @@
 /**
- * Button — Uber-style pill (radius 999) com 3 variantes:
- *  - primary: bg inverse, text onInverse  (CTA principal)
- *  - secondary: bg surface, border, text  (CTA leve)
- *  - chip: bg surfaceAlt (hover/filter)
+ * Button — linguagem Valerium com a paleta da logo.
+ *  - primary: azul sólido (CTA). Glow colorido só no tema claro.
+ *  - secondary: contorno azul que preenche no hover.
+ *  - chip: fundo neutro (filtros, ações leves).
+ *  - ghost: sem fundo.
+ *  - danger: contorno vermelho (ações destrutivas).
+ * Raio 8, escala 0,98 ao pressionar.
  */
 import React from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-  ViewStyle,
-} from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import Icon from './Icon';
 
-type Variant = 'primary' | 'secondary' | 'chip' | 'ghost';
+type Variant = 'primary' | 'secondary' | 'chip' | 'ghost' | 'danger';
 
 interface Props {
   label?: string;
@@ -43,73 +39,72 @@ export default function Button({
   size = 'md',
   style,
 }: Props) {
-  const { theme } = useTheme();
+  const { theme, mode } = useTheme();
   const c = theme.colors;
 
-  const heightMap = { sm: 36, md: 44, lg: 52 };
-  const padHMap = { sm: 14, md: 18, lg: 24 };
-  const fontMap = { sm: 14, md: 16, lg: 16 };
+  const altura = { sm: 34, md: 42, lg: 50 }[size];
+  const padH = { sm: 12, md: 16, lg: 22 }[size];
+  const fonte = { sm: 13, md: 14, lg: 15 }[size];
 
-  const palette = {
-    primary: { bg: c.inverse, fg: c.onInverse, border: 'transparent' },
-    secondary: { bg: c.surface, fg: c.text, border: c.text },
-    chip: { bg: c.surfaceAlt, fg: c.text, border: 'transparent' },
-    ghost: { bg: 'transparent', fg: c.text, border: 'transparent' },
+  const paleta = {
+    primary: { bg: c.accent, bgHover: c.accent, fg: c.onAccent, fgHover: c.onAccent, borda: c.accent },
+    secondary: { bg: 'transparent', bgHover: c.accent, fg: c.accent, fgHover: c.onAccent, borda: c.accent },
+    chip: { bg: c.surfaceAlt, bgHover: c.surfaceMuted, fg: c.text, fgHover: c.text, borda: c.border },
+    ghost: { bg: 'transparent', bgHover: c.surfaceAlt, fg: c.text, fgHover: c.text, borda: 'transparent' },
+    danger: { bg: 'transparent', bgHover: c.danger, fg: c.danger, fgHover: c.onAccent, borda: c.danger },
   }[variant];
+
+  const glow = variant === 'primary' && mode === 'light';
 
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled || loading}
-      style={({ pressed }: { pressed: boolean }) => [
-        styles.base,
-        {
-          height: heightMap[size],
-          paddingHorizontal: padHMap[size],
-          backgroundColor: palette.bg,
-          borderColor: palette.border,
-          borderWidth: variant === 'secondary' ? 1 : 0,
-          opacity: disabled ? 0.4 : pressed ? 0.85 : 1,
-          alignSelf: fullWidth ? 'stretch' : 'flex-start',
-        },
-        style,
-      ]}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !!(disabled || loading), busy: !!loading }}
+      style={(estado) => {
+        const { hovered, pressed } = estado as { hovered?: boolean; pressed: boolean };
+        const ativo = hovered && !disabled;
+        return [
+          styles.base,
+          {
+            height: altura,
+            paddingHorizontal: padH,
+            backgroundColor: ativo ? paleta.bgHover : paleta.bg,
+            borderColor: paleta.borda,
+            alignSelf: fullWidth ? 'stretch' : 'flex-start',
+            opacity: disabled ? 0.45 : 1,
+            transform: [{ scale: pressed ? theme.motion.pressScale : 1 }],
+          },
+          glow && { boxShadow: ativo ? '0 6px 20px rgba(2,107,248,0.30)' : '0 4px 14px rgba(2,107,248,0.25)' },
+          style,
+        ];
+      }}
     >
-      {loading ? (
-        <ActivityIndicator color={palette.fg} />
-      ) : (
-        <View style={styles.row}>
-          {icon ? (
-            <View style={{ marginRight: label ? 8 : 0 }}>
-              <Icon name={icon} size={fontMap[size] + 4} color={palette.fg} />
-            </View>
-          ) : null}
-          {label ? (
-            <Text
-              style={{
-                color: palette.fg,
-                fontSize: fontMap[size],
-                fontWeight: '500',
-              }}
-              numberOfLines={1}
-            >
-              {label}
-            </Text>
-          ) : null}
-          {iconRight ? (
-            <View style={{ marginLeft: label ? 8 : 0 }}>
-              <Icon name={iconRight} size={fontMap[size] + 4} color={palette.fg} />
-            </View>
-          ) : null}
-        </View>
-      )}
+      {(estado) => {
+        const { hovered } = estado as { hovered?: boolean };
+        const fg = hovered && !disabled ? paleta.fgHover : paleta.fg;
+        if (loading) return <ActivityIndicator color={fg} />;
+        return (
+          <View style={styles.row}>
+            {icon ? <Icon name={icon} size={fonte + 3} color={fg} /> : null}
+            {label ? (
+              <Text style={[theme.typography.bodyMd, { color: fg, fontSize: fonte }]} numberOfLines={1}>
+                {label}
+              </Text>
+            ) : null}
+            {iconRight ? <Icon name={iconRight} size={fonte + 3} color={fg} /> : null}
+          </View>
+        );
+      }}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: 999,
+    borderRadius: 8,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -117,5 +112,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
   },
 });

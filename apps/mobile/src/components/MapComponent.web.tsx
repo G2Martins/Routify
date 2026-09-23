@@ -41,12 +41,39 @@ function criarTiles(map: any, style: keyof typeof MAP_TILE_URLS) {
   return camada;
 }
 
+type Cores = ReturnType<typeof useTheme>['theme']['colors'];
+
+// Marcadores em HTML de divIcon montado só com tokens do tema (nenhum dado do usuário entra aqui).
+function iconePonto(cor: string, c: Cores, halo?: string) {
+  const sombra = `0 1px 4px ${c.shadowMedium}` + (halo ? `, 0 0 0 6px ${halo}` : '');
+  return L.divIcon({
+    html: `<div style="box-sizing:border-box;width:18px;height:18px;border-radius:50%;background:${cor};border:3px solid ${c.surface};box-shadow:${sombra};"></div>`,
+    iconSize: [18, 18],
+    iconAnchor: [9, 9],
+    className: '',
+  });
+}
+
+function iconePino(c: Cores) {
+  // Gota girada 45°: a ponta fica ~18 px abaixo do centro do quadrado de 26 px.
+  return L.divIcon({
+    html: `<div style="box-sizing:border-box;width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:${c.accent};border:3px solid ${c.surface};box-shadow:0 2px 6px ${c.shadowMedium};display:flex;align-items:center;justify-content:center;"><div style="width:7px;height:7px;border-radius:50%;background:${c.surface};"></div></div>`,
+    iconSize: [26, 26],
+    iconAnchor: [13, 31],
+    popupAnchor: [0, -28],
+    className: '',
+  });
+}
+
 const MapComponent = forwardRef((_props, ref) => {
   const { mapStyle, theme } = useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const tileLayerRef = useRef<any>(null);
   const polylineRef = useRef<any>(null);
+  const contornoRef = useRef<any>(null);
+  const alternativaRef = useRef<any>(null);
+  const conectoresRef = useRef<any[]>([]);
   const markerUserRef = useRef<any>(null);
   const markerOrigemRef = useRef<any>(null);
   const markerDestinoRef = useRef<any>(null);
@@ -122,12 +149,7 @@ const MapComponent = forwardRef((_props, ref) => {
         if (markerUserRef.current) {
           markerUserRef.current.setLatLng([lat, lon]);
         } else {
-          const icon = L.divIcon({
-            html: `<div style="width:14px;height:14px;border-radius:50%;background:#026BF8;border:3px solid white;box-shadow:0 0 0 6px rgba(2,107,248,0.25);"></div>`,
-            iconSize: [14, 14],
-            iconAnchor: [7, 7],
-            className: '',
-          });
+          const icon = iconePonto(theme.colors.accent, theme.colors, theme.colors.ring);
           markerUserRef.current = L.marker([lat, lon], { icon }).addTo(mapInstanceRef.current);
         }
       };
@@ -261,57 +283,74 @@ const MapComponent = forwardRef((_props, ref) => {
     showRoute(
       polyline: [number, number][],
       origemCoord?: [number, number],
-      destinoCoord?: [number, number]
+      destinoCoord?: [number, number],
+      alternativa?: [number, number][] | null
     ) {
       if (!mapInstanceRef.current || !L) return;
 
-      if (polylineRef.current) polylineRef.current.remove();
+      [polylineRef, contornoRef, alternativaRef].forEach((r) => {
+        if (r.current) r.current.remove();
+        r.current = null;
+      });
+      conectoresRef.current.forEach((l) => l.remove());
+      conectoresRef.current = [];
       if (!polyline || polyline.length < 2) return;
 
-      // Backend faz snap origem/destino para o nó mais próximo do grafo OSM,
-      // então prepende/anexa as coords reais para a linha tocar os marcadores.
+      // A linha sólida é só a via. O trecho entre o ponto escolhido e a via
+      // (snap no grafo) vai tracejado e fino — "a pé até a rua" — em vez de uma
+      // reta sólida atravessando quadra.
       const fullLine: [number, number][] = [...(polyline as [number, number][])];
-      if (origemCoord) {
-        const [a, b] = fullLine[0];
-        if (a !== origemCoord[0] || b !== origemCoord[1]) fullLine.unshift(origemCoord);
-      }
-      if (destinoCoord) {
-        const last = fullLine[fullLine.length - 1];
-        if (last[0] !== destinoCoord[0] || last[1] !== destinoCoord[1]) {
-          fullLine.push(destinoCoord);
-        }
+      const conector = (de: [number, number], ate: [number, number]) => {
+        if (L.latLng(de).distanceTo(L.latLng(ate)) < 5) return;
+        conectoresRef.current.push(
+          L.polyline([de, ate], { color: theme.colors.textMuted, weight: 3, opacity: 0.9, dashArray: '2 6', lineCap: 'round' })
+            .addTo(mapInstanceRef.current)
+        );
+      };
+      if (origemCoord) conector(origemCoord, fullLine[0]);
+      if (destinoCoord) conector(fullLine[fullLine.length - 1], destinoCoord);
+
+      // Alternativa (a candidata não escolhida pela fusão LIA × TomTom): tracejada, por baixo.
+      if (alternativa && alternativa.length > 1) {
+        alternativaRef.current = L.polyline(alternativa, {
+          color: theme.colors.textMuted, weight: 4, opacity: 0.75, dashArray: '8 8', lineCap: 'round',
+        }).addTo(mapInstanceRef.current);
       }
 
+      // Contorno largo na cor da superfície por baixo: a rota lê em qualquer estilo de tile.
+      const traco = { lineCap: 'round', lineJoin: 'round' };
+      contornoRef.current = L.polyline(fullLine, {
+        ...traco,
+        color: theme.colors.surface,
+        weight: 9,
+        opacity: 0.95,
+      }).addTo(mapInstanceRef.current);
       polylineRef.current = L.polyline(fullLine, {
+        ...traco,
         color: theme.colors.accent,
         weight: 5,
-        opacity: 0.9,
+        opacity: 1,
       }).addTo(mapInstanceRef.current);
 
-      mapInstanceRef.current.fitBounds(polylineRef.current.getBounds(), {
-        padding: [60, 60],
-      });
+      // Folga para os painéis flutuantes (mesmo breakpoint de useDesktopLayout: 900 px).
+      const largo = typeof window !== 'undefined' && window.innerWidth >= 900;
+      mapInstanceRef.current.fitBounds(
+        polylineRef.current.getBounds(),
+        largo
+          ? { paddingTopLeft: [448, 48], paddingBottomRight: [72, 48] }
+          : { paddingTopLeft: [32, 240], paddingBottomRight: [72, 260] }
+      );
 
       if (origemCoord) {
         if (markerOrigemRef.current) markerOrigemRef.current.remove();
-        const origemIcon = L.divIcon({
-          html: `<div style="width:14px;height:14px;border-radius:50%;background:#06C167;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);"></div>`,
-          iconSize: [14, 14],
-          iconAnchor: [7, 7],
-          className: '',
-        });
+        const origemIcon = iconePonto(theme.colors.teal, theme.colors);
         markerOrigemRef.current = L.marker(origemCoord, { icon: origemIcon })
           .bindPopup('Origem')
           .addTo(mapInstanceRef.current);
       }
       if (destinoCoord) {
         if (markerDestinoRef.current) markerDestinoRef.current.remove();
-        const destinoIcon = L.divIcon({
-          html: `<div style="width:14px;height:14px;border-radius:50%;background:#E11900;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);"></div>`,
-          iconSize: [14, 14],
-          iconAnchor: [7, 7],
-          className: '',
-        });
+        const destinoIcon = iconePino(theme.colors);
         markerDestinoRef.current = L.marker(destinoCoord, { icon: destinoIcon })
           .bindPopup('Destino')
           .addTo(mapInstanceRef.current);
@@ -319,10 +358,12 @@ const MapComponent = forwardRef((_props, ref) => {
     },
 
     clearRoute() {
-      if (polylineRef.current) {
-        polylineRef.current.remove();
-        polylineRef.current = null;
-      }
+      [polylineRef, contornoRef, alternativaRef].forEach((r) => {
+        if (r.current) r.current.remove();
+        r.current = null;
+      });
+      conectoresRef.current.forEach((l) => l.remove());
+      conectoresRef.current = [];
       if (markerOrigemRef.current) {
         markerOrigemRef.current.remove();
         markerOrigemRef.current = null;
@@ -358,12 +399,7 @@ const MapComponent = forwardRef((_props, ref) => {
           if (markerUserRef.current) {
             markerUserRef.current.setLatLng([lat, lon]);
           } else if (L) {
-            const icon = L.divIcon({
-              html: `<div style="width:14px;height:14px;border-radius:50%;background:#026BF8;border:3px solid white;box-shadow:0 0 0 6px rgba(2,107,248,0.25);"></div>`,
-              iconSize: [14, 14],
-              iconAnchor: [7, 7],
-              className: '',
-            });
+            const icon = iconePonto(theme.colors.accent, theme.colors, theme.colors.ring);
             markerUserRef.current = L.marker([lat, lon], { icon }).addTo(mapInstanceRef.current);
           }
           onLocation?.(lat, lon);

@@ -28,6 +28,7 @@ const MapComponent = forwardRef((_props, ref) => {
   const [routeCoords, setRouteCoords] = useState<LatLon[]>([]);
   const [origemCoord, setOrigemCoord] = useState<LatLon | null>(null);
   const [destinoCoord, setDestinoCoord] = useState<LatLon | null>(null);
+  const [altCoords, setAltCoords] = useState<LatLon[]>([]);
 
   useImperativeHandle(ref, () => ({
     async centerOnUser(onError?: (msg: string) => void) {
@@ -57,31 +58,21 @@ const MapComponent = forwardRef((_props, ref) => {
     showRoute(
       polyline: [number, number][],
       origemLatLon?: [number, number],
-      destinoLatLon?: [number, number]
+      destinoLatLon?: [number, number],
+      alternativa?: [number, number][] | null
     ) {
       if (!polyline || polyline.length < 2) return;
+      // A linha sólida é só a via; o trecho até o ponto real (snap no grafo)
+      // é desenhado tracejado pelos conectores abaixo, não emendado na rota.
       const coords = polyline.map(([lat, lon]) => ({ latitude: lat, longitude: lon }));
-      // Backend snap-a origem/destino para o nó mais próximo do grafo;
-      // estende a linha até as coords reais para tocar os marcadores.
-      if (origemLatLon) {
-        const head = coords[0];
-        if (head.latitude !== origemLatLon[0] || head.longitude !== origemLatLon[1]) {
-          coords.unshift({ latitude: origemLatLon[0], longitude: origemLatLon[1] });
-        }
-      }
-      if (destinoLatLon) {
-        const tail = coords[coords.length - 1];
-        if (tail.latitude !== destinoLatLon[0] || tail.longitude !== destinoLatLon[1]) {
-          coords.push({ latitude: destinoLatLon[0], longitude: destinoLatLon[1] });
-        }
-      }
       setRouteCoords(coords);
+      setAltCoords((alternativa ?? []).map(([lat, lon]) => ({ latitude: lat, longitude: lon })));
       if (origemLatLon) setOrigemCoord({ latitude: origemLatLon[0], longitude: origemLatLon[1] });
       if (destinoLatLon)
         setDestinoCoord({ latitude: destinoLatLon[0], longitude: destinoLatLon[1] });
       if (coords.length > 0 && mapRef.current) {
         mapRef.current.fitToCoordinates(coords, {
-          edgePadding: { top: 100, right: 60, bottom: 220, left: 60 },
+          edgePadding: { top: 260, right: 72, bottom: 260, left: 40 }, // painéis flutuantes
           animated: true,
         });
       }
@@ -89,6 +80,7 @@ const MapComponent = forwardRef((_props, ref) => {
 
     clearRoute() {
       setRouteCoords([]);
+      setAltCoords([]);
       setOrigemCoord(null);
       setDestinoCoord(null);
     },
@@ -155,18 +147,39 @@ const MapComponent = forwardRef((_props, ref) => {
       showsUserLocation
       showsMyLocationButton={false}
     >
+      {altCoords.length > 1 ? (
+        <Polyline coordinates={altCoords} strokeColor={theme.colors.textMuted} strokeWidth={4} lineDashPattern={[8, 8]} />
+      ) : null}
+      {routeCoords.length > 1 && origemCoord ? (
+        <Polyline coordinates={[origemCoord, routeCoords[0]]} strokeColor={theme.colors.textMuted} strokeWidth={3} lineDashPattern={[2, 6]} />
+      ) : null}
+      {routeCoords.length > 1 && destinoCoord ? (
+        <Polyline coordinates={[routeCoords[routeCoords.length - 1], destinoCoord]} strokeColor={theme.colors.textMuted} strokeWidth={3} lineDashPattern={[2, 6]} />
+      ) : null}
+      {/* Contorno largo na cor da superfície por baixo: a rota lê em qualquer estilo. */}
+      {routeCoords.length > 1 ? (
+        <Polyline
+          coordinates={routeCoords}
+          strokeColor={theme.colors.surface}
+          strokeWidth={9}
+          lineCap="round"
+          lineJoin="round"
+        />
+      ) : null}
       {routeCoords.length > 1 ? (
         <Polyline
           coordinates={routeCoords}
           strokeColor={theme.colors.accent}
           strokeWidth={5}
+          lineCap="round"
+          lineJoin="round"
         />
       ) : null}
       {origemCoord ? (
-        <Marker coordinate={origemCoord} title="Origem" pinColor="#06C167" />
+        <Marker coordinate={origemCoord} title="Origem" pinColor={theme.colors.teal} />
       ) : null}
       {destinoCoord ? (
-        <Marker coordinate={destinoCoord} title="Destino" pinColor="#E11900" />
+        <Marker coordinate={destinoCoord} title="Destino" pinColor={theme.colors.accent} />
       ) : null}
     </MapView>
   );

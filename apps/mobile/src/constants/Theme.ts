@@ -1,24 +1,25 @@
 /**
- * Theme tokens — Uber-inspired (confident minimalism) + paleta brand Routify
+ * Tokens do Routify — espelho de docs/core/design-system.md.
  *
- * Brand:
- *   #09C6A4  teal (saúde/eco)
- *   #026BF8  azul vivo (ação/CTA)
- *   #0F1F44  navy (autoridade/header)
- *   #059BC2  cyan (info/tráfego)
+ * Paleta = logo (azul → ciano → teal, wordmark navy). Forma, tipografia e
+ * motion = linguagem Valerium: Geist para UI e números, Kalam só em títulos,
+ * raio 8/12, sombras de cartão tingidas de navy, entradas ease-out-expo.
+ * Componentes consomem daqui — nunca hex solto em tela.
  */
+import { Easing } from 'react-native';
+
 export const brand = {
-  teal: '#09C6A4',
   blue: '#026BF8',
-  navy: '#0F1F44',
   cyan: '#059BC2',
+  teal: '#09C6A4',
+  navy: '#0F1F44',
 };
 
 export const radius = {
   none: 0,
-  sm: 8,
-  md: 12,
-  lg: 16,
+  sm: 8, // botões, inputs
+  md: 12, // cartões
+  lg: 16, // painéis flutuantes
   pill: 999,
 };
 
@@ -30,87 +31,141 @@ export const spacing = {
   lg: 20,
   xl: 24,
   xxl: 32,
+  xxxl: 48,
   section: 64,
 };
 
+/** Largura máxima do conteúdo em telas largas (web). */
+export const CONTEUDO_MAX = 1040;
+
+export const fonts = {
+  sans: 'Geist_400Regular',
+  sansMedium: 'Geist_500Medium',
+  sansSemi: 'Geist_600SemiBold',
+  sansBold: 'Geist_700Bold',
+  mono: 'GeistMono_500Medium',
+  monoBold: 'GeistMono_700Bold',
+  display: 'Kalam_700Bold',
+};
+
+// Com fonte custom, o peso vem da família (fontWeight junto quebra no Android).
 export const typography = {
-  display: { fontSize: 52, fontWeight: '700' as const, lineHeight: 64 },
-  h1: { fontSize: 36, fontWeight: '700' as const, lineHeight: 44 },
-  h2: { fontSize: 32, fontWeight: '700' as const, lineHeight: 40 },
-  h3: { fontSize: 24, fontWeight: '700' as const, lineHeight: 32 },
-  h4: { fontSize: 20, fontWeight: '700' as const, lineHeight: 28 },
-  navLg: { fontSize: 18, fontWeight: '500' as const, lineHeight: 24 },
-  body: { fontSize: 16, fontWeight: '400' as const, lineHeight: 24 },
-  bodyMd: { fontSize: 16, fontWeight: '500' as const, lineHeight: 24 },
-  caption: { fontSize: 14, fontWeight: '400' as const, lineHeight: 20 },
-  captionMd: { fontSize: 14, fontWeight: '500' as const, lineHeight: 20 },
-  micro: { fontSize: 12, fontWeight: '400' as const, lineHeight: 18 },
+  display: { fontFamily: fonts.sansBold, fontSize: 40, lineHeight: 46, letterSpacing: -1 },
+  h1: { fontFamily: fonts.display, fontSize: 32, lineHeight: 40 },
+  h2: { fontFamily: fonts.display, fontSize: 26, lineHeight: 34 },
+  h3: { fontFamily: fonts.display, fontSize: 21, lineHeight: 28 },
+  h4: { fontFamily: fonts.sansSemi, fontSize: 16, lineHeight: 22, letterSpacing: -0.2 },
+  navLg: { fontFamily: fonts.sansMedium, fontSize: 15, lineHeight: 20 },
+  body: { fontFamily: fonts.sans, fontSize: 15, lineHeight: 22 },
+  bodyMd: { fontFamily: fonts.sansMedium, fontSize: 15, lineHeight: 22 },
+  caption: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 18 },
+  captionMd: { fontFamily: fonts.sansMedium, fontSize: 13, lineHeight: 18 },
+  micro: { fontFamily: fonts.sansMedium, fontSize: 11, lineHeight: 14, letterSpacing: 0.6 },
+  num: { fontFamily: fonts.monoBold, fontSize: 28, lineHeight: 32, letterSpacing: -0.5 },
+};
+
+export const motion = {
+  rapido: 160, // hover, press
+  medio: 240, // troca de estado
+  entrada: 760, // revelação de tela/cartão
+  passo: 60, // atraso entre itens de uma lista escalonada
+  easeOutExpo: Easing.bezier(0.16, 1, 0.3, 1),
+  pressScale: 0.98,
 };
 
 export interface ThemeColors {
-  // Surfaces
+  // Superfícies
   background: string;
-  surface: string;
-  surfaceAlt: string;     // chip / hover bg
-  surfaceMuted: string;   // dividers, light fills
-  // Text
+  surface: string; // cartão
+  surfaceAlt: string; // chip / hover
+  surfaceMuted: string; // preenchimentos leves, trilhos
+  // Texto
   text: string;
   textMuted: string;
   textSubtle: string;
-  // Inverse
-  inverse: string;        // ink que destaca em surface (bg do botão primário)
-  onInverse: string;      // texto sobre inverse
-  // Accents
-  accent: string;         // azul Routify (manter identidade — link blue Uber é #0000ee)
+  // Inverso (fundo escuro de destaque)
+  inverse: string;
+  onInverse: string;
+  // Marca
+  accent: string; // azul primário (CTA, rota, foco)
+  accentSoft: string; // fundo translúcido do primário
+  onAccent: string;
+  teal: string; // preenchimento/ícone da marca (eco, LIA vencendo)
+  cyan: string; // info / tráfego
+  gradient: [string, string, string]; // assinatura da logo
+  // Semânticas (seguras para texto sobre surface)
   success: string;
   danger: string;
   warning: string;
-  // Borders
+  // Bordas e foco
   border: string;
   borderStrong: string;
-  // Shadows
+  ring: string;
+  // Sombras (tingidas de navy)
   shadowLight: string;
   shadowMedium: string;
+  // Rail lateral
+  rail: string;
+  railText: string;
+  railActive: string;
 }
 
 export const lightColors: ThemeColors = {
-  background: '#ffffff',
-  surface: '#ffffff',
-  surfaceAlt: '#efefef',
-  surfaceMuted: '#f3f3f3',
-  text: '#000000',
-  textMuted: '#4b4b4b',
-  textSubtle: '#afafaf',
+  background: '#F6F8FB',
+  surface: '#FFFFFF',
+  surfaceAlt: '#EEF2F7',
+  surfaceMuted: '#E6EBF2',
+  text: brand.navy,
+  textMuted: '#4A5872',
+  textSubtle: '#8A96AB',
   inverse: brand.navy,
-  onInverse: '#ffffff',
-  accent: brand.blue,      // CTA — azul brand
-  success: brand.teal,     // teal brand (eco/economia)
-  danger: '#E11900',
-  warning: '#FFC043',
-  border: brand.navy,
-  borderStrong: brand.navy,
-  shadowLight: 'rgba(0,0,0,0.12)',
-  shadowMedium: 'rgba(0,0,0,0.16)',
+  onInverse: '#FFFFFF',
+  accent: brand.blue,
+  accentSoft: 'rgba(2,107,248,0.10)',
+  onAccent: '#FFFFFF',
+  teal: brand.teal,
+  cyan: brand.cyan,
+  gradient: [brand.blue, brand.cyan, brand.teal],
+  success: '#078A73',
+  danger: '#D92D20',
+  warning: '#B86E00',
+  border: '#DCE3EC',
+  borderStrong: '#C5CFDC',
+  ring: 'rgba(2,107,248,0.35)',
+  shadowLight: 'rgba(15,31,68,0.08)',
+  shadowMedium: 'rgba(15,31,68,0.16)',
+  rail: brand.navy,
+  railText: '#C9D3E6',
+  railActive: brand.blue,
 };
 
 export const darkColors: ThemeColors = {
-  background: '#000000',
-  surface: '#0d0d0d',
-  surfaceAlt: '#1a1a1a',
-  surfaceMuted: '#272727',
-  text: '#ffffff',
-  textMuted: '#c2c2c2',
-  textSubtle: '#7a7a7a',
-  inverse: '#ffffff',
+  background: '#0A0F1D',
+  surface: '#111829',
+  surfaceAlt: '#182238',
+  surfaceMuted: '#1F2A42',
+  text: '#F1F5FB',
+  textMuted: '#A7B2C6',
+  textSubtle: '#6B7890',
+  inverse: '#F1F5FB',
   onInverse: brand.navy,
-  accent: brand.cyan,      // cyan brand (legível em fundo escuro)
-  success: brand.teal,
-  danger: '#FF5043',
-  warning: '#FFC043',
-  border: '#272727',
-  borderStrong: '#3a3a3a',
-  shadowLight: 'rgba(0,0,0,0.5)',
-  shadowMedium: 'rgba(0,0,0,0.65)',
+  accent: '#3D8BFF',
+  accentSoft: 'rgba(61,139,255,0.14)',
+  onAccent: '#FFFFFF',
+  teal: '#1FD3B1',
+  cyan: '#1FB5DB',
+  gradient: ['#3D8BFF', '#1FB5DB', '#1FD3B1'],
+  success: '#2BD4B4',
+  danger: '#FF6B5E',
+  warning: '#F5B544',
+  border: '#222E47',
+  borderStrong: '#2F3D5C',
+  ring: 'rgba(61,139,255,0.45)',
+  shadowLight: 'rgba(0,0,0,0.40)',
+  shadowMedium: 'rgba(0,0,0,0.60)',
+  rail: '#070B16',
+  railText: '#A7B2C6',
+  railActive: '#3D8BFF',
 };
 
 export type ThemeMode = 'light' | 'dark';
@@ -121,6 +176,8 @@ export const buildTheme = (mode: ThemeMode) => ({
   radius,
   spacing,
   typography,
+  fonts,
+  motion,
 });
 
 export type Theme = ReturnType<typeof buildTheme>;

@@ -7,6 +7,8 @@ interface AuthContextValue {
   user: User | null;
   profile: ProfileRow | null;
   loading: boolean;
+  /** Só para mostrar/esconder UI. Quem garante o acesso é o banco (RLS/RPC) e a API. */
+  isAdmin: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string, nome: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
@@ -77,6 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user: session?.user ?? null,
     profile,
     loading,
+    isAdmin: session?.user?.app_metadata?.role === 'admin',
     signIn,
     signUp,
     signOut,

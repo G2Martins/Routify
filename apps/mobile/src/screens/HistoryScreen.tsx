@@ -1,61 +1,87 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Modal,
-  Platform,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Alert, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useDesktopLayout } from '../lib/responsive';
 import { supabase, RouteHistoryRow } from '../lib/supabase';
 import { enviarEvento } from '../lib/api';
 import Icon from '../components/Icon';
+import Button from '../components/Button';
+import Input from '../components/Input';
+import { Cartao, Container, GradeKpi, Kpi, RotuloSecao, Selo, Skeleton, Surgir, TituloPagina } from '../components/ui';
 
-function formatDate(iso: string): string {
+const DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+const hora = (iso: string) => {
   const d = new Date(iso);
-  const dias = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-  const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-  return `${dias[d.getDay()]}, ${d.getDate()} ${meses[d.getMonth()]} · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+const min = (seg: number) => Math.round(seg / 60);
+const km = (v: number) => Number(v).toFixed(1).replace('.', ',');
+
+/** "Hoje", "Ontem" ou "Segunda, 21 de set". */
+function rotuloDia(iso: string): string {
+  const d = new Date(iso);
+  const hoje = new Date();
+  const ontem = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - 1);
+  if (d.toDateString() === hoje.toDateString()) return 'Hoje';
+  if (d.toDateString() === ontem.toDateString()) return 'Ontem';
+  const ano = d.getFullYear() !== hoje.getFullYear() ? ` de ${d.getFullYear()}` : '';
+  return `${DIAS[d.getDay()]}, ${d.getDate()} de ${MESES[d.getMonth()]}${ano}`;
 }
 
-export default function HistoryScreen() {
+/** Agrupa por dia mantendo a ordem (a lista já vem do mais novo ao mais antigo). */
+function agruparPorDia(items: RouteHistoryRow[]): { dia: string; rotas: RouteHistoryRow[] }[] {
+  const grupos: { dia: string; rotas: RouteHistoryRow[] }[] = [];
+  for (const r of items) {
+    const dia = rotuloDia(r.created_at);
+    if (grupos[grupos.length - 1]?.dia === dia) grupos[grupos.length - 1].rotas.push(r);
+    else grupos.push({ dia, rotas: [r] });
+  }
+  return grupos;
+}
+
+export default function HistoryScreen({ navigation }: any) {
   const { theme } = useTheme();
   const c = theme.colors;
   const { user } = useAuth();
   const desktop = useDesktopLayout();
+  const insets = useSafeAreaInsets();
   const [items, setItems] = useState<RouteHistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const carregou = useRef(false);
 
   // Coleta do tempo real da viagem — é a verdade terrestre que permite
   // comparar a predição da LIA com o que de fato aconteceu. Sem isso o TCC 2
   // não consegue validar a tese (ver supabase/migrations/20260907000000_thesis_validation.sql).
   const [rotaEmFeedback, setRotaEmFeedback] = useState<RouteHistoryRow | null>(null);
   const [minutosReais, setMinutosReais] = useState('');
+  const [erroFeedback, setErroFeedback] = useState<string | null>(null);
   const [salvandoFeedback, setSalvandoFeedback] = useState(false);
 
   const abrirFeedback = (rota: RouteHistoryRow) => {
     setRotaEmFeedback(rota);
+    setErroFeedback(null);
     // Pré-preenche com o previsto: o usuário costuma ajustar, não digitar do zero.
-    setMinutosReais(String(Math.round(rota.tempo_total_seg / 60)));
+    setMinutosReais(String(min(rota.tempo_total_seg)));
+  };
+
+  const fecharFeedback = () => {
+    setRotaEmFeedback(null);
+    setMinutosReais('');
+    setErroFeedback(null);
   };
 
   const salvarTempoReal = async () => {
-    if (!rotaEmFeedback) return;
+    if (!rotaEmFeedback || salvandoFeedback) return;
 
     const minutos = Number(String(minutosReais).replace(',', '.'));
     if (!Number.isFinite(minutos) || minutos <= 0 || minutos > 600) {
-      const msg = 'Informe um tempo entre 1 e 600 minutos.';
-      Platform.OS === 'web' ? window.alert(msg) : Alert.alert('Valor inválido', msg);
+      setErroFeedback('Informe um tempo entre 1 e 600 minutos.');
       return;
     }
 
@@ -70,8 +96,7 @@ export default function HistoryScreen() {
     setSalvandoFeedback(false);
 
     if (error) {
-      const msg = `Não foi possível salvar: ${error.message}`;
-      Platform.OS === 'web' ? window.alert(msg) : Alert.alert('Erro', msg);
+      setErroFeedback('Não foi possível salvar. Tente de novo.');
       return;
     }
     enviarEvento('feedback', { minutos_reais: Math.round(minutos) });
@@ -83,8 +108,7 @@ export default function HistoryScreen() {
           : r
       )
     );
-    setRotaEmFeedback(null);
-    setMinutosReais('');
+    fecharFeedback();
   };
 
   const fetchHistory = useCallback(async () => {
@@ -98,11 +122,14 @@ export default function HistoryScreen() {
     if (!error) setItems((data || []) as RouteHistoryRow[]);
   }, [user?.id]);
 
-  // Refresh ao focar tab Histórico (clique no tab → re-fetch).
+  // Refresh ao focar a aba. Skeleton só na primeira carga (sem piscar a lista ao voltar).
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
-      fetchHistory().finally(() => setLoading(false));
+      if (!carregou.current) setLoading(true);
+      fetchHistory().finally(() => {
+        carregou.current = true;
+        setLoading(false);
+      });
     }, [fetchHistory])
   );
 
@@ -131,290 +158,221 @@ export default function HistoryScreen() {
     }
   };
 
-  if (loading) {
+  // ------------------------------------------------------------ resumo
+  const total = items.length;
+  const tempoMedio = total ? min(items.reduce((s, r) => s + r.tempo_total_seg, 0) / total) : 0;
+  const comComparacao = items.filter((r) => typeof r.rotas_diferentes === 'boolean');
+  const pctDiferente = comComparacao.length
+    ? Math.round((comComparacao.filter((r) => r.rotas_diferentes).length / comComparacao.length) * 100)
+    : null;
+
+  const celula = { width: desktop ? ('50%' as const) : ('100%' as const), padding: 6 };
+
+  const renderCartao = (item: RouteHistoryRow, ordem: number) => {
+    const deltaSeg = item.tempo_rota_curta_seg != null ? item.tempo_rota_curta_seg - item.tempo_total_seg : null;
+    const emFeedback = rotaEmFeedback?.id === item.id;
     return (
-      <View style={[styles.center, { backgroundColor: c.background }]}>
-        <ActivityIndicator color={c.text} />
-      </View>
-    );
-  }
-
-  return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: c.background,
-          maxWidth: desktop ? 1100 : undefined,
-          width: '100%',
-          alignSelf: 'center',
-        },
-      ]}
-    >
-      <View style={[styles.header, desktop ? { paddingTop: 32 } : null]}>
-        <Text style={[styles.title, { color: c.text }]}>Histórico</Text>
-        <Text style={[styles.subtitle, { color: c.textMuted }]}>
-          {items.length} {items.length === 1 ? 'rota otimizada' : 'rotas otimizadas'}
-        </Text>
-      </View>
-
-      <FlatList<RouteHistoryRow>
-        data={items}
-        key={desktop ? 'grid-2' : 'list-1'}
-        numColumns={desktop ? 2 : 1}
-        columnWrapperStyle={desktop ? { gap: 12 } : undefined}
-        keyExtractor={(item: RouteHistoryRow) => item.id}
-        contentContainerStyle={{ padding: desktop ? 32 : 20, paddingTop: 0, paddingBottom: 100 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.text} />}
-        ListEmptyComponent={
-          <View style={[styles.empty, { borderColor: c.surfaceMuted }]}>
-            <Icon name="ion:time-outline" size={48} color={c.textSubtle} />
-            <Text style={{ color: c.textMuted, marginTop: 12, fontSize: 15, fontWeight: '500' }}>
-              Nenhuma rota ainda
-            </Text>
-            <Text style={{ color: c.textSubtle, marginTop: 4, fontSize: 13, textAlign: 'center' }}>
-              Suas rotas otimizadas pela LIA aparecerão aqui.
-            </Text>
+      <Surgir key={item.id} ordem={Math.min(ordem, 8)} style={celula}>
+        <Cartao padding={16} style={{ flex: 1 }}>
+          <View style={styles.topo}>
+            <Text style={[theme.typography.caption, { color: c.textSubtle, fontFamily: theme.fonts.mono }]}>{hora(item.created_at)}</Text>
+            {item.rotas_diferentes ? <Selo tom="marca" ponto>LIA escolheu outra rota</Selo> : null}
+            <View style={{ flex: 1 }} />
+            <Pressable
+              onPress={() => handleDelete(item.id)}
+              accessibilityRole="button"
+              accessibilityLabel="Excluir rota do histórico"
+              hitSlop={6}
+              style={({ pressed }) => [styles.excluir, { borderRadius: theme.radius.sm, opacity: pressed ? 0.6 : 1 }]}
+            >
+              <Icon name="ion:trash-outline" size={16} color={c.textSubtle} />
+            </Pressable>
           </View>
-        }
-        renderItem={({ item }: { item: RouteHistoryRow }) => (
-          <View
-            style={[
-              styles.card,
-              { backgroundColor: c.surface, borderColor: c.surfaceMuted },
-              desktop ? { flex: 1 } : null,
-            ]}
-          >
-            <View style={styles.cardHeader}>
-              <View style={[styles.dot, { backgroundColor: c.success }]} />
-              <Text style={[styles.cardLabel, { color: c.text }]} numberOfLines={1}>
+
+          {/* origem (anel) → destino (pin) */}
+          <View style={styles.trajeto}>
+            <View style={styles.trilho}>
+              <View style={[styles.origem, { borderColor: c.accent, backgroundColor: c.surface }]} />
+              <View style={[styles.linha, { backgroundColor: c.border }]} />
+              <Icon name="ion:location" size={16} color={c.accent} />
+            </View>
+            <View style={styles.enderecos}>
+              <Text style={[theme.typography.bodyMd, { color: c.text }]} numberOfLines={1}>
                 {item.origem_label}
               </Text>
-            </View>
-            <View style={[styles.dashLine, { backgroundColor: c.surfaceMuted }]} />
-            <View style={styles.cardHeader}>
-              <View style={[styles.dot, { backgroundColor: c.danger }]} />
-              <Text style={[styles.cardLabel, { color: c.text }]} numberOfLines={1}>
+              <Text style={[theme.typography.bodyMd, { color: c.text }]} numberOfLines={1}>
                 {item.destino_label}
               </Text>
             </View>
+          </View>
 
-            <View style={[styles.metricsRow, { borderTopColor: c.surfaceMuted }]}>
-              <View style={styles.metric}>
-                <Icon name="ion:time-outline" size={14} color={c.textMuted} />
-                <Text style={[styles.metricText, { color: c.text }]}>
-                  {Math.round(item.tempo_total_seg / 60)} min
-                </Text>
-              </View>
-              <View style={styles.metric}>
-                <Icon name="ion:navigate-outline" size={14} color={c.textMuted} />
-                <Text style={[styles.metricText, { color: c.text }]}>
-                  {Number(item.distancia_km).toFixed(1)} km
-                </Text>
-              </View>
-              <View style={styles.metric}>
-                <Icon name="ion:flash-outline" size={14} color={c.accent} />
-                <Text style={[styles.metricText, { color: c.accent }]}>
-                  {(item.modelo_versao || 'lia').toUpperCase()}
-                </Text>
-              </View>
+          <View style={[styles.metricas, { borderTopColor: c.border }]}>
+            <View style={styles.metrica}>
+              <Icon name="ion:time-outline" size={14} color={c.textMuted} />
+              <Text style={[styles.num, { color: c.text, fontFamily: theme.fonts.monoBold }]}>{min(item.tempo_total_seg)} min</Text>
             </View>
+            <View style={styles.metrica}>
+              <Icon name="ion:navigate-outline" size={14} color={c.textMuted} />
+              <Text style={[styles.num, { color: c.text, fontFamily: theme.fonts.mono }]}>{km(item.distancia_km)} km</Text>
+            </View>
+            {deltaSeg != null && min(deltaSeg) >= 1 ? (
+              <View style={styles.metrica}>
+                <Icon name="ion:flash-outline" size={14} color={c.success} />
+                <Text style={[styles.num, { color: c.success, fontFamily: theme.fonts.mono }]}>−{min(deltaSeg)} min</Text>
+                <Text style={[theme.typography.caption, { color: c.textMuted }]}>vs. mais curta</Text>
+              </View>
+            ) : null}
+            <View style={{ flex: 1 }} />
+            <Text style={[theme.typography.micro, { color: c.textSubtle, fontFamily: theme.fonts.mono }]}>
+              {(item.modelo_versao || 'lia').toUpperCase()}
+            </Text>
+          </View>
 
-            {/* Comparação predição × realidade. Enquanto o tempo real não é
-                informado, oferece o botão que o coleta. */}
-            {item.tempo_real_seg == null ? (
-              <Pressable
-                onPress={() => abrirFeedback(item)}
-                style={[styles.feedbackBtn, { borderColor: c.accent }]}
-              >
-                <Icon name="ion:time-outline" size={14} color={c.accent} />
-                <Text style={{ color: c.accent, fontSize: 13, fontWeight: '600' }}>
-                  Quanto demorou de verdade?
-                </Text>
-              </Pressable>
-            ) : (
-              (() => {
-                const erroSeg = item.tempo_real_seg - item.tempo_total_seg;
-                const acertou = Math.abs(erroSeg) <= 120; // dentro de 2 min
-                return (
-                  <View style={[styles.feedbackResumo, { backgroundColor: c.surfaceMuted }]}>
-                    <Text style={{ color: c.textMuted, fontSize: 12 }}>
-                      Real: {Math.round(item.tempo_real_seg / 60)} min
-                    </Text>
-                    <Text
-                      style={{
-                        color: acertou ? c.success : c.textMuted,
-                        fontSize: 12,
-                        fontWeight: '600',
-                      }}
-                    >
-                      {erroSeg === 0
-                        ? 'previsão exata'
-                        : `LIA errou ${erroSeg > 0 ? '−' : '+'}${Math.abs(Math.round(erroSeg / 60))} min`}
-                    </Text>
-                  </View>
-                );
-              })()
-            )}
-
-            <View style={styles.cardFooter}>
-              <Text style={{ color: c.textSubtle, fontSize: 12 }}>
-                {formatDate(item.created_at)}
+          {/* Predição × realidade. Sem tempo real, oferece o campo que o coleta. */}
+          {item.tempo_real_seg != null ? (
+            (() => {
+              const erroSeg = item.tempo_real_seg - item.tempo_total_seg;
+              const erroMin = Math.abs(min(erroSeg));
+              const acertou = Math.abs(erroSeg) <= 120; // dentro de 2 min
+              return (
+                <View style={[styles.resumo, { backgroundColor: c.surfaceAlt, borderRadius: theme.radius.sm }]}>
+                  <Text style={[theme.typography.caption, { color: c.textMuted }]}>
+                    Real <Text style={{ color: c.text, fontFamily: theme.fonts.mono }}>{min(item.tempo_real_seg)} min</Text>
+                  </Text>
+                  <Text style={[theme.typography.captionMd, { color: acertou ? c.success : c.textMuted, fontFamily: theme.fonts.mono }]}>
+                    {erroMin === 0 ? 'previsão exata' : `${erroSeg > 0 ? '+' : '−'}${erroMin} min vs. previsto`}
+                  </Text>
+                </View>
+              );
+            })()
+          ) : emFeedback ? (
+            <View style={[styles.feedback, { borderTopColor: c.border }]}>
+              <Text style={[theme.typography.captionMd, { color: c.text }]}>Quanto demorou de verdade?</Text>
+              <Text style={[theme.typography.caption, { color: c.textMuted, marginTop: 2, marginBottom: 10 }]}>
+                A LIA previu {min(item.tempo_total_seg)} min. O tempo real mede a precisão do modelo.
               </Text>
-              <Pressable onPress={() => handleDelete(item.id)} style={styles.deleteBtn}>
-                <Icon name="ion:trash-outline" size={16} color={c.textSubtle} />
-              </Pressable>
+              <View style={styles.feedbackLinha}>
+                <View style={{ flex: 1, minWidth: 120 }}>
+                  <Input
+                    value={minutosReais}
+                    onChangeText={setMinutosReais}
+                    keyboardType="number-pad"
+                    selectTextOnFocus
+                    autoFocus
+                    accessibilityLabel="Tempo real em minutos"
+                    placeholder="0"
+                    maxLength={4}
+                    onSubmitEditing={salvarTempoReal}
+                    error={erroFeedback}
+                    right={<Text style={[theme.typography.caption, { color: c.textMuted }]}>min</Text>}
+                    style={{ fontFamily: theme.fonts.monoBold }}
+                  />
+                </View>
+                <Button label="Salvar" loading={salvandoFeedback} onPress={salvarTempoReal} style={{ height: 44 }} />
+                <Button label="Agora não" variant="ghost" onPress={fecharFeedback} style={{ height: 44 }} />
+              </View>
             </View>
+          ) : (
+            <Button
+              label="Informar tempo real"
+              variant="secondary"
+              size="sm"
+              icon="ion:time-outline"
+              fullWidth
+              onPress={() => abrirFeedback(item)}
+              style={{ marginTop: 12 }}
+            />
+          )}
+        </Cartao>
+      </Surgir>
+    );
+  };
+
+  let ordem = 0;
+  return (
+    <ScrollView
+      style={{ flex: 1, backgroundColor: c.background }}
+      contentContainerStyle={{ paddingTop: desktop ? 32 : insets.top + 16, paddingBottom: 100 }}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}
+      keyboardShouldPersistTaps="handled"
+    >
+      <Container>
+        <Surgir>
+          <TituloPagina titulo="Histórico" sub="Rotas que a LIA calculou para você." />
+        </Surgir>
+
+        {loading ? (
+          <View style={[styles.grade, { marginTop: 24 }]}>
+            {[0, 1, 2, 3].map((i) => (
+              <View key={i} style={celula}>
+                <Cartao padding={16}>
+                  <Skeleton altura={12} largura={60} />
+                  <View style={{ height: 16 }} />
+                  <Skeleton altura={16} largura="80%" />
+                  <View style={{ height: 10 }} />
+                  <Skeleton altura={16} largura="65%" />
+                  <View style={{ height: 20 }} />
+                  <Skeleton altura={34} />
+                </Cartao>
+              </View>
+            ))}
           </View>
+        ) : total === 0 ? (
+          <Surgir ordem={1} style={{ marginTop: 24 }}>
+            <Cartao padding={32} style={{ alignItems: 'center' }}>
+              <View style={[styles.vazioIcone, { backgroundColor: c.accentSoft }]}>
+                <Icon name="ion:time-outline" size={26} color={c.accent} />
+              </View>
+              <Text style={[theme.typography.h4, { color: c.text, marginTop: 16 }]}>Nenhuma rota ainda</Text>
+              <Text style={[theme.typography.body, { color: c.textMuted, marginTop: 4, textAlign: 'center' }]}>
+                Calcule uma rota no mapa e ela aparece aqui, com a previsão da LIA.
+              </Text>
+              <Button label="Ir para o mapa" icon="ion:map-outline" onPress={() => navigation?.navigate('Mapa')} style={{ marginTop: 20, alignSelf: 'center' }} />
+            </Cartao>
+          </Surgir>
+        ) : (
+          <>
+            <View style={{ marginTop: 24 }}>
+              <GradeKpi>
+                <Kpi icone="ion:navigate-outline" valor={String(total)} rotulo={total === 1 ? 'Rota calculada' : 'Rotas calculadas'} ordem={1} />
+                <Kpi icone="ion:time-outline" valor={`${tempoMedio} min`} rotulo="Tempo médio previsto" ordem={2} />
+                <Kpi
+                  icone="ion:analytics-outline"
+                  valor={pctDiferente == null ? '—' : `${pctDiferente}%`}
+                  rotulo="Vezes em que a LIA escolheu outra rota"
+                  destaque={pctDiferente != null}
+                  ordem={3}
+                />
+              </GradeKpi>
+            </View>
+
+            {agruparPorDia(items).map((g) => (
+              <View key={g.dia}>
+                <RotuloSecao>{g.dia}</RotuloSecao>
+                <View style={styles.grade}>{g.rotas.map((r) => renderCartao(r, ordem++))}</View>
+              </View>
+            ))}
+          </>
         )}
-      />
-
-      {/* Modal em vez de Alert.prompt: prompt só existe no iOS. */}
-      <Modal
-        visible={rotaEmFeedback !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setRotaEmFeedback(null)}
-      >
-        <View style={styles.modalFundo}>
-          <View style={[styles.modalCaixa, { backgroundColor: c.surface }]}>
-            <Text style={{ color: c.text, fontSize: 18, fontWeight: '700' }}>
-              Quanto demorou?
-            </Text>
-            <Text style={{ color: c.textMuted, fontSize: 13, marginTop: 6 }}>
-              {rotaEmFeedback?.origem_label} → {rotaEmFeedback?.destino_label}
-            </Text>
-            <Text style={{ color: c.textSubtle, fontSize: 12, marginTop: 10 }}>
-              A LIA previu {rotaEmFeedback ? Math.round(rotaEmFeedback.tempo_total_seg / 60) : 0} min.
-              Informar o tempo real ajuda a medir a precisão do modelo.
-            </Text>
-
-            <View style={[styles.modalInputLinha, { borderColor: c.surfaceMuted }]}>
-              <TextInput
-                value={minutosReais}
-                onChangeText={setMinutosReais}
-                keyboardType="number-pad"
-                selectTextOnFocus
-                style={[styles.modalInput, { color: c.text }]}
-                placeholder="0"
-                placeholderTextColor={c.textSubtle}
-              />
-              <Text style={{ color: c.textMuted, fontSize: 15 }}>minutos</Text>
-            </View>
-
-            <View style={styles.modalBotoes}>
-              <Pressable
-                onPress={() => setRotaEmFeedback(null)}
-                style={[styles.modalBtn, { borderColor: c.surfaceMuted }]}
-              >
-                <Text style={{ color: c.textMuted, fontWeight: '600' }}>Agora não</Text>
-              </Pressable>
-              <Pressable
-                onPress={salvarTempoReal}
-                disabled={salvandoFeedback}
-                style={[
-                  styles.modalBtn,
-                  { backgroundColor: c.accent, borderColor: c.accent, opacity: salvandoFeedback ? 0.6 : 1 },
-                ]}
-              >
-                <Text style={{ color: '#fff', fontWeight: '700' }}>
-                  {salvandoFeedback ? 'Salvando…' : 'Salvar'}
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </View>
+      </Container>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  feedbackBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginTop: 10,
-    paddingVertical: 9,
-    borderWidth: 1,
-    borderRadius: 10,
-    borderStyle: 'dashed',
-  },
-  feedbackResumo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-  },
-  modalFundo: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  modalCaixa: { width: '100%', maxWidth: 420, borderRadius: 18, padding: 22 },
-  modalInputLinha: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderRadius: 12,
-  },
-  modalInput: { flex: 1, fontSize: 26, fontWeight: '700', padding: 0 },
-  modalBotoes: { flexDirection: 'row', gap: 10, marginTop: 18 },
-  modalBtn: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderRadius: 12,
-  },
-  header: { padding: 20, paddingTop: 60 },
-  title: { fontSize: 32, fontWeight: '700', letterSpacing: -0.5 },
-  subtitle: { fontSize: 14, marginTop: 4 },
-  empty: {
-    alignItems: 'center',
-    padding: 40,
-    borderWidth: 1,
-    borderRadius: 16,
-    borderStyle: 'dashed',
-    marginTop: 40,
-  },
-  card: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-  },
-  cardHeader: { flexDirection: 'row', alignItems: 'center' },
-  dot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
-  dashLine: { width: 2, height: 14, marginLeft: 4, marginVertical: 2 },
-  cardLabel: { fontSize: 14, fontWeight: '500', flex: 1 },
-  metricsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 14,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    gap: 16,
-  },
-  metric: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  metricText: { fontSize: 13, fontWeight: '600' },
-  cardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  deleteBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  grade: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -6 },
+  topo: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  excluir: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  trajeto: { flexDirection: 'row', gap: 12, marginTop: 10 },
+  trilho: { alignItems: 'center', paddingTop: 5, width: 16 },
+  origem: { width: 12, height: 12, borderRadius: 6, borderWidth: 2 },
+  linha: { width: 2, flex: 1, minHeight: 10, marginVertical: 3, borderRadius: 1 },
+  enderecos: { flex: 1, minWidth: 0, gap: 8 },
+  metricas: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 14, marginTop: 14, paddingTop: 12, borderTopWidth: 1 },
+  metrica: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  num: { fontSize: 13, lineHeight: 18, fontVariant: ['tabular-nums'] },
+  resumo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, paddingVertical: 8, paddingHorizontal: 12 },
+  feedback: { marginTop: 12, paddingTop: 12, borderTopWidth: 1 },
+  feedbackLinha: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' },
+  vazioIcone: { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
 });

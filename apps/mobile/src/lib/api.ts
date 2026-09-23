@@ -4,6 +4,10 @@ import { supabase } from './supabase';
 export const API_URL =
   (process.env.EXPO_PUBLIC_API_URL as string | undefined) ?? 'http://localhost:8000';
 
+/** Painel ADM (Next) no mesmo domínio em produção (`/admin`); em dev roda no :3000. */
+export const ADMIN_URL =
+  (process.env.EXPO_PUBLIC_ADMIN_URL as string | undefined) ?? 'http://localhost:3000/admin';
+
 /**
  * Cabeçalhos para a API com o JWT da sessão Supabase. A API valida o token no
  * servidor e associa o uso à conta (painel ADM). Sem sessão, segue anônimo.

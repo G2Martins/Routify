@@ -1,24 +1,20 @@
 import React, { useEffect, useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import { useDesktopLayout } from '../lib/responsive';
 import Input from '../components/Input';
 import Button from '../components/Button';
 import Icon from '../components/Icon';
+import { Cartao, Container, Surgir, TituloPagina } from '../components/ui';
+import { AvatarAnel } from './ProfileScreen';
 
 export default function EditProfileScreen({ navigation }: any) {
   const { theme } = useTheme();
   const c = theme.colors;
   const { user, profile, refreshProfile } = useAuth();
+  const desktop = useDesktopLayout();
 
   const [nome, setNome] = useState(profile?.nome || '');
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || '');
@@ -63,6 +59,7 @@ export default function EditProfileScreen({ navigation }: any) {
   };
 
   const initial = (nome || user?.email || 'U')[0]?.toUpperCase();
+  const corAviso = feedback?.type === 'success' ? c.success : c.danger;
 
   return (
     <KeyboardAvoidingView
@@ -70,117 +67,102 @@ export default function EditProfileScreen({ navigation }: any) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
-        contentContainerStyle={{ padding: 20, paddingTop: 60, paddingBottom: 100 }}
+        contentContainerStyle={{ paddingTop: desktop ? 32 : 48, paddingBottom: 100 }}
         keyboardShouldPersistTaps="handled"
       >
-        <Pressable
-          onPress={() => navigation.goBack()}
-          style={[styles.back, { backgroundColor: c.surfaceAlt }]}
-        >
-          <Icon name="ion:arrow-back" size={20} color={c.text} />
-        </Pressable>
-
-        <Text style={[styles.title, { color: c.text }]}>Editar perfil</Text>
-        <Text style={[styles.subtitle, { color: c.textMuted }]}>
-          Atualize suas informações pessoais.
-        </Text>
-
-        <View style={styles.avatarRow}>
-          <View style={[styles.avatar, { backgroundColor: c.inverse }]}>
-            <Text style={{ color: c.onInverse, fontSize: 32, fontWeight: '700' }}>{initial}</Text>
-          </View>
-          <View style={{ flex: 1, marginLeft: 14 }}>
-            <Text style={{ color: c.textMuted, fontSize: 13 }}>Email</Text>
-            <Text style={{ color: c.text, fontSize: 15, fontWeight: '500' }}>{user?.email}</Text>
-          </View>
-        </View>
-
-        <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.surfaceMuted }]}>
-          <Input
-            label="Nome de exibição"
-            iconLeft="ion:person-outline"
-            placeholder="Como devemos te chamar"
-            value={nome}
-            onChangeText={setNome}
-          />
-          <Input
-            label="URL do avatar (opcional)"
-            iconLeft="ion:eye-outline"
-            placeholder="https://..."
-            value={avatarUrl}
-            onChangeText={setAvatarUrl}
-            autoCapitalize="none"
-            keyboardType="url"
-          />
-        </View>
-
-        {feedback ? (
-          <View
-            style={[
-              styles.feedback,
-              {
-                backgroundColor:
-                  feedback.type === 'success' ? c.success + '22' : c.danger + '22',
-              },
-            ]}
-          >
-            <Icon
-              name={feedback.type === 'success' ? 'ion:checkmark-circle' : 'ion:close'}
-              size={16}
-              color={feedback.type === 'success' ? c.success : c.danger}
+        <Container>
+          <View style={styles.coluna}>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="ion:arrow-back"
+              label="Perfil"
+              onPress={() => navigation.goBack()}
+              style={styles.voltar}
             />
-            <Text
-              style={{
-                color: feedback.type === 'success' ? c.success : c.danger,
-                fontSize: 13,
-                marginLeft: 8,
-                flex: 1,
-              }}
-            >
-              {feedback.msg}
-            </Text>
-          </View>
-        ) : null}
 
-        <Button
-          label="Salvar alterações"
-          variant="primary"
-          fullWidth
-          size="lg"
-          loading={saving}
-          onPress={handleSave}
-          style={{ marginTop: 18 }}
-        />
+            <Surgir>
+              <TituloPagina titulo="Editar perfil" sub="Atualize como você aparece no Routify." />
+            </Surgir>
+
+            <Surgir ordem={1} style={{ marginTop: 24 }}>
+              <Cartao>
+                <View style={styles.identidade}>
+                  <AvatarAnel letra={initial} tamanho={56} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[theme.typography.micro, { color: c.textSubtle, textTransform: 'uppercase' }]}>
+                      E-mail
+                    </Text>
+                    <Text style={[theme.typography.bodyMd, { color: c.text, marginTop: 2 }]} numberOfLines={1}>
+                      {user?.email}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={[styles.divisor, { backgroundColor: c.border }]} />
+
+                <Input
+                  label="Nome de exibição"
+                  iconLeft="ion:person-outline"
+                  placeholder="Como devemos te chamar"
+                  value={nome}
+                  onChangeText={setNome}
+                />
+                <Input
+                  label="URL do avatar (opcional)"
+                  iconLeft="ion:eye-outline"
+                  placeholder="https://..."
+                  value={avatarUrl}
+                  onChangeText={setAvatarUrl}
+                  autoCapitalize="none"
+                  keyboardType="url"
+                />
+
+                {feedback ? (
+                  <View
+                    accessibilityLiveRegion="polite"
+                    style={[styles.aviso, { borderColor: corAviso, backgroundColor: c.surfaceAlt }]}
+                  >
+                    <Icon
+                      name={feedback.type === 'success' ? 'ion:checkmark-circle' : 'ion:close'}
+                      size={16}
+                      color={corAviso}
+                    />
+                    <Text style={[theme.typography.caption, { color: corAviso, flex: 1 }]}>{feedback.msg}</Text>
+                  </View>
+                ) : null}
+
+                <Button
+                  label="Salvar alterações"
+                  variant="primary"
+                  fullWidth={!desktop}
+                  size="lg"
+                  loading={saving}
+                  onPress={handleSave}
+                  style={{ marginTop: 8 }}
+                />
+              </Cartao>
+            </Surgir>
+          </View>
+        </Container>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  back: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 18,
-  },
-  title: { fontSize: 32, fontWeight: '700', letterSpacing: -0.5 },
-  subtitle: { fontSize: 14, marginTop: 6, marginBottom: 24 },
-  avatarRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 24 },
-  avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  card: { padding: 16, borderRadius: 14, borderWidth: 1 },
-  feedback: {
+  coluna: { width: '100%', maxWidth: 640 },
+  // ghost tem 12 de respiro lateral: puxa para o ícone alinhar com o título.
+  voltar: { marginLeft: -12, marginBottom: 12 },
+  identidade: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  divisor: { height: 1, marginVertical: 20 },
+  aviso: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
     padding: 12,
-    borderRadius: 10,
-    marginTop: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 14,
   },
 });

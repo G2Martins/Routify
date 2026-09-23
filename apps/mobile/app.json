@@ -27,6 +27,9 @@
       "favicon": "./assets/Logo_Routify_icon.png",
       "name": "Routify - Otimização Logística",
       "shortName": "Routify"
-    }
+    },
+    "plugins": [
+      "expo-font"
+    ]
   }
 }

@@ -1,13 +1,10 @@
+/**
+ * Input — linguagem Valerium: raio 8, borda 1 px, altura 44, rótulo acima.
+ * Foco = borda `accent` + anel `ring`; erro = borda e texto `danger`.
+ * `password` liga o olho de mostrar/ocultar; `right` aceita outro acessório.
+ */
 import React, { forwardRef, useState } from 'react';
-import {
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TextInputProps,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, TextInput, TextInputProps, View } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import Icon from './Icon';
 
@@ -16,75 +13,82 @@ interface Props extends TextInputProps {
   error?: string | null;
   iconLeft?: string;
   password?: boolean;
+  /** Acessório à direita (ex.: unidade "min"). Com `password`, o olho vem depois dele. */
+  right?: React.ReactNode;
 }
 
+const WEB_SEM_OUTLINE = Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : null;
+
 const Input = forwardRef<TextInput, Props>(function Input(
-  { label, error, iconLeft, password, style, ...rest },
+  { label, error, iconLeft, password, right, style, editable, ...rest },
   ref
 ) {
   const { theme } = useTheme();
   const c = theme.colors;
   const [secure, setSecure] = useState(!!password);
   const [focused, setFocused] = useState(false);
-
-  const webOutline = Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : null;
+  const desabilitado = editable === false;
 
   return (
-    <View style={{ marginBottom: 14 }}>
-      {label ? (
-        <Text style={{ color: c.textMuted, marginBottom: 6, fontSize: 13, fontWeight: '500' }}>
-          {label}
-        </Text>
-      ) : null}
+    <View style={styles.bloco}>
+      {label ? <Text style={[theme.typography.captionMd, { color: c.text, marginBottom: 6 }]}>{label}</Text> : null}
 
       <View
         style={[
-          styles.wrap,
+          styles.caixa,
           {
-            backgroundColor: c.surface,
-            borderColor: error ? c.danger : focused ? c.text : c.border,
-            borderWidth: focused || error ? 1.5 : 1,
+            backgroundColor: desabilitado ? c.surfaceAlt : c.surface,
+            borderColor: error ? c.danger : focused ? c.accent : c.border,
+            borderRadius: theme.radius.sm,
           },
+          focused && !error && { boxShadow: `0 0 0 3px ${c.ring}` },
         ]}
       >
-        {iconLeft ? (
-          <Icon name={iconLeft} size={18} color={focused ? c.text : c.textSubtle} />
-        ) : null}
+        {iconLeft ? <Icon name={iconLeft} size={18} color={focused ? c.accent : c.textSubtle} /> : null}
 
         <TextInput
           ref={ref}
           {...rest}
+          accessibilityLabel={rest.accessibilityLabel ?? label}
+          editable={editable}
           secureTextEntry={secure}
-          onFocus={(e: Parameters<NonNullable<TextInputProps['onFocus']>>[0]) => {
+          onFocus={(e) => {
             setFocused(true);
             rest.onFocus?.(e);
           }}
-          onBlur={(e: Parameters<NonNullable<TextInputProps['onBlur']>>[0]) => {
+          onBlur={(e) => {
             setFocused(false);
             rest.onBlur?.(e);
           }}
           placeholderTextColor={c.textSubtle}
           style={[
-            styles.input,
-            { color: c.text, marginLeft: iconLeft ? 8 : 0 },
-            webOutline,
+            theme.typography.body,
+            styles.campo,
+            { color: c.text, marginLeft: iconLeft ? 10 : 0 },
+            WEB_SEM_OUTLINE,
             style,
           ]}
         />
 
+        {right}
+
         {password ? (
-          <TouchableOpacity onPress={() => setSecure((s) => !s)} style={{ padding: 4 }}>
-            <Icon
-              name={secure ? 'ion:eye-outline' : 'ion:eye-off-outline'}
-              size={18}
-              color={c.textSubtle}
-            />
-          </TouchableOpacity>
+          <Pressable
+            onPress={() => setSecure((s) => !s)}
+            accessibilityRole="button"
+            accessibilityLabel={secure ? 'Mostrar senha' : 'Ocultar senha'}
+            hitSlop={8}
+            style={styles.olho}
+          >
+            <Icon name={secure ? 'ion:eye-outline' : 'ion:eye-off-outline'} size={18} color={c.textSubtle} />
+          </Pressable>
         ) : null}
       </View>
 
       {error ? (
-        <Text style={{ color: c.danger, fontSize: 12, marginTop: 4 }}>{error}</Text>
+        <Text accessibilityLiveRegion="polite" style={[theme.typography.caption, { color: c.danger, marginTop: 6 }]}>
+          {error}
+        </Text>
       ) : null}
     </View>
   );
@@ -93,15 +97,8 @@ const Input = forwardRef<TextInput, Props>(function Input(
 export default Input;
 
 const styles = StyleSheet.create({
-  wrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    height: 50,
-    borderRadius: 8,
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-  },
+  bloco: { marginBottom: 16 },
+  caixa: { flexDirection: 'row', alignItems: 'center', height: 44, paddingHorizontal: 12, borderWidth: 1 },
+  campo: { flex: 1, height: '100%', paddingVertical: 0 },
+  olho: { marginLeft: 8, padding: 2 },
 });

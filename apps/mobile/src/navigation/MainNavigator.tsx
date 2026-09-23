@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   NavigationContainer,
   DefaultTheme,
@@ -62,52 +63,23 @@ function tabsCommonScreens() {
 }
 
 // --------------------------------------------------------------------- MOBILE
-function FocusedTabIcon({
-  focused,
-  size,
-  routeName,
-  accent,
-  inactive,
-}: {
-  focused: boolean;
-  size: number;
-  routeName: string;
-  accent: string;
-  inactive: string;
-}) {
+/** Ícone da aba: pílula `accentSoft` atrás do ícone ativo (sem glow). */
+function TabIcon({ focused, routeName }: { focused: boolean; routeName: string }) {
+  const { theme } = useTheme();
+  const c = theme.colors;
   const map = TAB_ICONS[routeName] || TAB_ICONS.Mapa;
   return (
     <View
       style={{
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+        width: 52,
+        height: 30,
+        borderRadius: theme.radius.pill,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: focused ? `${accent}22` : 'transparent',
-        borderWidth: focused ? 1 : 0,
-        borderColor: focused ? `${accent}66` : 'transparent',
-        ...Platform.select({
-          web: focused
-            ? ({ boxShadow: `0 4px 14px ${accent}55` } as any)
-            : {},
-          default: focused
-            ? {
-                shadowColor: accent,
-                shadowOpacity: 0.45,
-                shadowRadius: 8,
-                shadowOffset: { width: 0, height: 2 },
-                elevation: 5,
-              }
-            : {},
-        }),
+        backgroundColor: focused ? c.accentSoft : 'transparent',
       }}
     >
-      <Icon
-        name={focused ? map.active : map.inactive}
-        size={size}
-        color={focused ? accent : inactive}
-      />
+      <Icon name={focused ? map.active : map.inactive} size={20} color={focused ? c.accent : c.textSubtle} />
     </View>
   );
 }
@@ -115,30 +87,23 @@ function FocusedTabIcon({
 function MainTabsMobile() {
   const { theme } = useTheme();
   const c = theme.colors;
+  const insets = useSafeAreaInsets();
   return (
     <Tab.Navigator
       screenOptions={({ route }: { route: { name: string } }) => ({
         headerShown: false,
-        tabBarIcon: ({ focused, size }: { focused: boolean; size: number }) => (
-          <FocusedTabIcon
-            focused={focused}
-            size={size}
-            routeName={route.name}
-            accent={c.accent}
-            inactive={c.textSubtle}
-          />
-        ),
+        tabBarIcon: ({ focused }: { focused: boolean }) => <TabIcon focused={focused} routeName={route.name} />,
         tabBarActiveTintColor: c.accent,
         tabBarInactiveTintColor: c.textSubtle,
         tabBarStyle: {
           backgroundColor: c.surface,
-          borderTopColor: c.surfaceMuted,
+          borderTopColor: c.border,
           borderTopWidth: 1,
-          height: 72,
+          height: 64 + insets.bottom,
           paddingTop: 8,
-          paddingBottom: 10,
+          paddingBottom: 8 + insets.bottom,
         },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '500' },
+        tabBarLabelStyle: { fontFamily: theme.fonts.sansMedium, fontSize: 11, marginTop: 2 },
       })}
     >
       {tabsCommonScreens()}
@@ -209,6 +174,8 @@ function AuthStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Register" component={RegisterScreen} />
+      {/* Aviso de privacidade acessível antes do login (aceite no cadastro — LGPD). */}
+      <Stack.Screen name="Privacy" component={PrivacyScreen} />
     </Stack.Navigator>
   );
 }
@@ -228,7 +195,7 @@ export default function RootNavigator() {
           backgroundColor: c.background,
         }}
       >
-        <ActivityIndicator color={c.text} size="large" />
+        <ActivityIndicator color={c.accent} size="large" />
       </View>
     );
   }
@@ -240,8 +207,8 @@ export default function RootNavigator() {
       background: c.background,
       card: c.surface,
       text: c.text,
-      border: c.surfaceMuted,
-      primary: c.text,
+      border: c.border,
+      primary: c.accent,
     },
   };
 

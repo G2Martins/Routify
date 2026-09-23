@@ -68,6 +68,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const setPreference = (pref: ThemePreference) => {
     setPreferenceState(pref);
     storageSet(STORAGE_KEY_THEME, pref);
+    // Painel ADM (Next, mesmo domínio) lê este cookie para abrir no mesmo tema.
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      document.cookie = `routify-tema=${pref}; path=/; max-age=31536000; samesite=lax`;
+    }
   };
 
   const setMapStyle = (style: MapStyle) => {

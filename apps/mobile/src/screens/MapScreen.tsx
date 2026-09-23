@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -8,6 +9,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useDesktopLayout } from '../lib/responsive';
@@ -15,13 +17,16 @@ import { supabase } from '../lib/supabase';
 import { API_URL, apiHeaders, enviarEvento } from '../lib/api';
 import AddressAutocomplete, { PlaceSuggestion } from '../components/AddressAutocomplete';
 import NavigationPanel from '../components/NavigationPanel';
-import MapStyleToggle from '../components/MapStyleToggle';
+import MapStyleToggle, { BotaoMapa } from '../components/MapStyleToggle';
 import LIAIndicator, { LIAStatus } from '../components/LIAIndicator';
+import { FaixaMarca, Surgir, useMenosMovimento } from '../components/ui';
 import Icon from '../components/Icon';
 import Button from '../components/Button';
 
 // @ts-ignore
 import MapComponent from '../components/MapComponent';
+
+const NATIVO = Platform.OS !== 'web';
 
 interface RouteResult {
   polyline: number[][];
@@ -59,6 +64,64 @@ interface RouteResult {
     referencia_sem_transito_seg: number | null;
     referencia_distancia_km: number | null;
   } | null;
+
+  // Fusão LIA × TomTom (API ≥ 2026-09-23)
+  fonte_rota?: 'lia' | 'tomtom';
+  tempo_lia_seg?: number | null;
+  semaforos_na_rota?: number | null;
+  fora_da_malha?: boolean;
+  alternativa?: { fonte: 'lia' | 'tomtom'; polyline: number[][]; tempo_seg: number; distancia_km: number } | null;
+}
+
+/** POST /route com o JWT da sessão; erro da API vira Error com a mensagem dela. */
+async function pedirRota(origem: { lat: number; lon: number }, destino: { lat: number; lon: number }): Promise<RouteResult> {
+  const res = await fetch(`${API_URL}/route`, {
+    method: 'POST',
+    headers: await apiHeaders(),
+    body: JSON.stringify({ origem, destino }),
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e.detail || `Erro ${res.status}`);
+  }
+  return res.json();
+}
+
+/** Barra indeterminada com o gradiente da marca enquanto a rota é calculada. */
+function BarraProgresso() {
+  const { theme } = useTheme();
+  const reduzir = useMenosMovimento();
+  const x = useRef(new Animated.Value(0)).current;
+  const [w, setW] = useState(0);
+
+  useEffect(() => {
+    if (reduzir) return;
+    const loop = Animated.loop(
+      Animated.timing(x, { toValue: 1, duration: 1400, easing: theme.motion.easeOutExpo, useNativeDriver: NATIVO })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [reduzir]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const trecho = w * 0.4;
+  return (
+    <View
+      accessibilityRole="progressbar"
+      accessibilityLabel="Calculando rota"
+      onLayout={(e) => setW(e.nativeEvent.layout.width)}
+      style={[styles.barra, { backgroundColor: theme.colors.surfaceAlt }]}
+    >
+      {reduzir ? (
+        <FaixaMarca />
+      ) : w > 0 ? (
+        <Animated.View
+          style={{ width: trecho, transform: [{ translateX: x.interpolate({ inputRange: [0, 1], outputRange: [-trecho, w] }) }] }}
+        >
+          <FaixaMarca />
+        </Animated.View>
+      ) : null}
+    </View>
+  );
 }
 
 export default function MapScreen() {
@@ -66,6 +129,8 @@ export default function MapScreen() {
   const c = theme.colors;
   const { user } = useAuth();
   const desktop = useDesktopLayout();
+  const insets = useSafeAreaInsets();
+  const [alturaPainel, setAlturaPainel] = useState(200);
 
   const [origemText, setOrigemText] = useState('');
   const [destinoText, setDestinoText] = useState('');
@@ -113,24 +178,16 @@ export default function MapScreen() {
     mapRef.current?.clearRoute?.();
 
     try {
-      const res = await fetch(`${API_URL}/route`, {
-        method: 'POST',
-        headers: await apiHeaders(),
-        body: JSON.stringify({
-          origem: { lat: origemPlace.lat, lon: origemPlace.lon },
-          destino: { lat: destinoPlace.lat, lon: destinoPlace.lon },
-        }),
-      });
-      if (!res.ok) {
-        const e = await res.json().catch(() => ({}));
-        throw new Error(e.detail || `Erro ${res.status}`);
-      }
-      const data: RouteResult = await res.json();
+      const data = await pedirRota(
+        { lat: origemPlace.lat, lon: origemPlace.lon },
+        { lat: destinoPlace.lat, lon: destinoPlace.lon }
+      );
 
       mapRef.current?.showRoute?.(
         data.polyline,
         [origemPlace.lat, origemPlace.lon],
-        [destinoPlace.lat, destinoPlace.lon]
+        [destinoPlace.lat, destinoPlace.lon],
+        data.alternativa?.polyline ?? null
       );
       setRoute(data);
       setLiaStatus('done');
@@ -210,17 +267,8 @@ export default function MapScreen() {
     if (!dest || recalcInflightRef.current) return;
     recalcInflightRef.current = true;
     try {
-      const res = await fetch(`${API_URL}/route`, {
-        method: 'POST',
-        headers: await apiHeaders(),
-        body: JSON.stringify({
-          origem: { lat, lon },
-          destino: { lat: dest.lat, lon: dest.lon },
-        }),
-      });
-      if (!res.ok) return;
-      const data: RouteResult = await res.json();
-      mapRef.current?.showRoute?.(data.polyline, [lat, lon], [dest.lat, dest.lon]);
+      const data = await pedirRota({ lat, lon }, { lat: dest.lat, lon: dest.lon });
+      mapRef.current?.showRoute?.(data.polyline, [lat, lon], [dest.lat, dest.lon], data.alternativa?.polyline ?? null);
       setRoute(data);
     } catch (e) {
       console.warn('[Routify] replan fail', e);
@@ -262,92 +310,146 @@ export default function MapScreen() {
     };
   }, []);
 
-  const searchInputs = (
-    <>
-      <AddressAutocomplete
-        placeholder="Onde você está?"
-        iconLeft="ion:location-outline"
-        value={origemText}
-        onChangeText={(v: string) => {
-          setOrigemText(v);
-          if (origemPlace) setOrigemPlace(null);
-        }}
-        onSelect={(p: PlaceSuggestion) => {
-          setOrigemPlace(p);
-          setOrigemText(p.label);
-        }}
-        zIndex={60}
-      />
-      <View style={[styles.divider, { backgroundColor: c.surfaceMuted }]} />
-      <AddressAutocomplete
-        placeholder="Para onde você vai?"
-        iconLeft="ion:flag-outline"
-        value={destinoText}
-        onChangeText={(v: string) => {
-          setDestinoText(v);
-          if (destinoPlace) setDestinoPlace(null);
-        }}
-        onSelect={(p: PlaceSuggestion) => {
-          setDestinoPlace(p);
-          setDestinoText(p.label);
-        }}
-        zIndex={50}
-      />
+  const podeOtimizar = !!origemPlace && !!destinoPlace;
+  const sombraFlutuante = `0 10px 30px ${c.shadowMedium}, 0 0 0 1px ${c.shadowLight}`;
+
+  const trocar = () => {
+    setOrigemText(destinoText);
+    setDestinoText(origemText);
+    setOrigemPlace(destinoPlace);
+    setDestinoPlace(origemPlace);
+    if (route) {
+      setRoute(null);
+      mapRef.current?.clearRoute?.();
+    }
+  };
+
+  const painelBusca = (
+    <View style={[styles.painel, { backgroundColor: c.surface, borderColor: c.border, boxShadow: sombraFlutuante }]}>
+      {calculating ? <BarraProgresso /> : null}
+
+      <View style={styles.linhaCampos}>
+        {/* Trilho: origem (anel teal) · pontilhado · destino (pino azul) */}
+        <View style={styles.trilho}>
+          <View style={[styles.pontoOrigem, { borderColor: c.teal, backgroundColor: c.surface }]} />
+          <View style={styles.pontilhado}>
+            {[0, 1, 2].map((i) => (
+              <View key={i} style={[styles.pingo, { backgroundColor: c.borderStrong }]} />
+            ))}
+          </View>
+          <Icon name="ion:location" size={16} color={c.accent} />
+        </View>
+
+        <View style={styles.campos}>
+          <AddressAutocomplete
+            placeholder="De onde você sai?"
+            value={origemText}
+            onChangeText={(v: string) => {
+              setOrigemText(v);
+              if (origemPlace) setOrigemPlace(null);
+            }}
+            onSelect={(p: PlaceSuggestion) => {
+              setOrigemPlace(p);
+              setOrigemText(p.label);
+            }}
+            zIndex={2}
+            listaStyle={styles.listaLarga}
+          />
+          <AddressAutocomplete
+            placeholder="Para onde você vai?"
+            value={destinoText}
+            onChangeText={(v: string) => {
+              setDestinoText(v);
+              if (destinoPlace) setDestinoPlace(null);
+            }}
+            onSelect={(p: PlaceSuggestion) => {
+              setDestinoPlace(p);
+              setDestinoText(p.label);
+            }}
+            zIndex={1}
+            listaStyle={styles.listaLarga}
+          />
+        </View>
+
+        <Pressable
+          onPress={trocar}
+          disabled={navigating || (!origemText && !destinoText)}
+          accessibilityRole="button"
+          accessibilityLabel="Inverter origem e destino"
+          style={(estado) => {
+            const { hovered, pressed } = estado as { hovered?: boolean; pressed: boolean };
+            return [
+              styles.trocar,
+              {
+                backgroundColor: hovered ? c.surfaceAlt : 'transparent',
+                transform: [{ scale: pressed ? theme.motion.pressScale : 1 }],
+              },
+            ];
+          }}
+        >
+          <Icon name="ion:swap-vertical" size={18} color={c.textMuted} />
+        </Pressable>
+      </View>
+
       {error ? (
-        <View style={[styles.errorBox, { backgroundColor: c.danger + '11' }]}>
+        <View
+          accessibilityRole="alert"
+          style={[styles.erro, { backgroundColor: c.surfaceAlt, borderColor: c.border, borderLeftColor: c.danger }]}
+        >
           <Icon name="ion:alert-circle-outline" size={16} color={c.danger} />
-          <Text
-            style={{ flex: 1, marginLeft: 8, color: c.danger, fontSize: 13 }}
-            numberOfLines={3}
-          >
+          <Text style={[theme.typography.caption, { flex: 1, color: c.text }]} numberOfLines={3}>
             {error}
           </Text>
-          <Pressable onPress={() => setError(null)} hitSlop={8}>
-            <Icon name="ion:close" size={16} color={c.danger} />
+          <Pressable onPress={() => setError(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Fechar aviso">
+            <Icon name="ion:close" size={16} color={c.textMuted} />
           </Pressable>
         </View>
       ) : null}
-    </>
-  );
 
-  const actionBlock = route ? (
-    <NavigationPanel
-      route={route}
-      navigating={navigating}
-      onStart={handleStartNav}
-      onCancel={handleClear}
-    />
-  ) : (
-    <Button
-      label={calculating ? 'LIA está calculando...' : 'Otimizar rota'}
-      variant="primary"
-      size="lg"
-      fullWidth
-      loading={calculating}
-      onPress={handleOptimize}
-      icon="ion:flash-outline"
-      disabled={!origemPlace || !destinoPlace}
-    />
-  );
-
-  const mapControls = (
-    <View style={[styles.rightStack, desktop ? styles.rightStackDesktop : null]}>
-      <MapStyleToggle />
-      <Pressable
-        onPress={() => mapRef.current?.centerOnUser((m: string) => setError(m))}
-        style={({ pressed }: { pressed: boolean }) => [
-          styles.gpsBtn,
-          {
-            backgroundColor: c.surface,
-            opacity: pressed ? 0.8 : 1,
-            shadowColor: '#000',
-          },
-        ]}
-      >
-        <Icon name="ion:locate" size={20} color={c.text} />
-      </Pressable>
+      {!route ? (
+        <Button
+          label={calculating ? 'Calculando rota…' : 'Otimizar rota'}
+          variant="primary"
+          size="lg"
+          fullWidth
+          loading={calculating}
+          onPress={handleOptimize}
+          icon="ion:flash-outline"
+          disabled={!podeOtimizar}
+        />
+      ) : null}
     </View>
   );
+
+  const painelRota = route ? (
+    <Surgir key="rota" style={desktop ? { zIndex: 1 } : styles.dockMobile}>
+      <NavigationPanel route={route} navigating={navigating} onStart={handleStartNav} onCancel={handleClear} />
+    </Surgir>
+  ) : null;
+
+  const topoPainel = insets.top + 12;
+  const controles = (
+    <View style={[styles.controles, { top: desktop ? 16 : topoPainel + alturaPainel + 12 }]}>
+      <MapStyleToggle />
+      <BotaoMapa
+        icone="ion:locate"
+        rotulo="Centralizar na minha localização"
+        onPress={() => mapRef.current?.centerOnUser((m: string) => setError(m))}
+      />
+    </View>
+  );
+
+  const pilulaLIA =
+    liaStatus === 'thinking' ? (
+      <View
+        style={[
+          styles.pilula,
+          { backgroundColor: c.surface, borderColor: c.border, boxShadow: sombraFlutuante },
+        ]}
+      >
+        <LIAIndicator status="thinking" />
+      </View>
+    ) : null;
 
   // ---------------------------------------------------------------- DESKTOP
   if (desktop) {
@@ -355,33 +457,14 @@ export default function MapScreen() {
       <View style={{ flex: 1, backgroundColor: c.background }}>
         <MapComponent ref={mapRef} />
 
-        {/* Search card flutuante — top-left sobre mapa */}
-        <View
-          style={[
-            styles.searchCardDesktopFloat,
-            { backgroundColor: c.surface, shadowColor: '#000' },
-          ]}
-        >
-          {searchInputs}
+        {/* Coluna flutuante à esquerda: busca + resumo da rota */}
+        <View style={styles.colunaDesktop}>
+          <Surgir style={{ zIndex: 2 }}>{painelBusca}</Surgir>
+          {painelRota}
         </View>
 
-        {/* Map controls — top-right */}
-        {mapControls}
-
-        {/* LIA indicator flutuante */}
-        {liaStatus === 'thinking' ? (
-          <View
-            style={[
-              styles.liaFloatDesktop,
-              { backgroundColor: c.surface, shadowColor: '#000' },
-            ]}
-          >
-            <LIAIndicator status="thinking" version="LIA 1.0" />
-          </View>
-        ) : null}
-
-        {/* Action block — bottom-left flutuante */}
-        <View style={styles.bottomDockDesktopFloat}>{actionBlock}</View>
+        {controles}
+        {pilulaLIA}
       </View>
     );
   }
@@ -394,150 +477,73 @@ export default function MapScreen() {
     >
       <MapComponent ref={mapRef} />
 
-      <View
-        style={[
-          styles.searchCard,
-          { backgroundColor: c.surface, shadowColor: '#000' },
-        ]}
-      >
-        {searchInputs}
-      </View>
+      <Surgir style={[styles.painelMobile, { top: topoPainel }]}>
+        <View onLayout={(e) => setAlturaPainel(e.nativeEvent.layout.height)}>{painelBusca}</View>
+      </Surgir>
 
-      {mapControls}
-
-      {liaStatus === 'thinking' ? (
-        <View
-          style={[
-            styles.liaFloat,
-            { backgroundColor: c.surface, shadowColor: '#000' },
-          ]}
-        >
-          <LIAIndicator status="thinking" version="LIA 1.0" />
-        </View>
-      ) : null}
-
-      <View style={styles.bottomDock}>{actionBlock}</View>
+      {controles}
+      {pilulaLIA}
+      {painelRota}
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  searchCard: {
+  painel: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 12,
+    gap: 12,
+  },
+  barra: {
     position: 'absolute',
-    top: 50,
+    top: 0,
     left: 16,
     right: 16,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 4,
-    ...Platform.select({
-      web: { boxShadow: '0 4px 16px rgba(0,0,0,0.16)' as any },
-      default: {
-        shadowOpacity: 0.16,
-        shadowRadius: 16,
-        shadowOffset: { width: 0, height: 4 },
-        elevation: 8,
-      },
-    }),
-    zIndex: 30,
+    height: 3,
+    borderRadius: 2,
+    overflow: 'hidden',
   },
-  divider: { height: 1, marginHorizontal: 4, marginBottom: 10, marginTop: -2 },
-  errorBox: {
+  linhaCampos: { flexDirection: 'row', gap: 8, zIndex: 2 },
+  // Centros alinhados aos campos de 44 px (22 e 22 + 8 + 44).
+  trilho: { width: 20, alignItems: 'center', justifyContent: 'space-between', paddingTop: 16, paddingBottom: 14 },
+  pontoOrigem: { width: 12, height: 12, borderRadius: 6, borderWidth: 3 },
+  pontilhado: { flex: 1, justifyContent: 'space-evenly', paddingVertical: 2 },
+  pingo: { width: 3, height: 3, borderRadius: 2 },
+  campos: { flex: 1, gap: 8 },
+  // A lista cobre do trilho até o botão de inverter (20 + 8 à esquerda, 36 + 8 à direita).
+  listaLarga: { left: -28, right: -44 },
+  trocar: { width: 36, height: 36, borderRadius: 8, alignSelf: 'center', alignItems: 'center', justifyContent: 'center' },
+  erro: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 10,
-    borderRadius: 10,
-    marginBottom: 10,
-    marginTop: -4,
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderLeftWidth: 3,
   },
-  rightStack: {
-    position: 'absolute',
-    right: 16,
-    bottom: 220,
-    gap: 10,
-    zIndex: 20,
-  },
-  gpsBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...Platform.select({
-      web: { boxShadow: '0 2px 8px rgba(0,0,0,0.16)' as any },
-      default: {
-        shadowOpacity: 0.16,
-        shadowOffset: { width: 0, height: 2 },
-        shadowRadius: 8,
-        elevation: 4,
-      },
-    }),
-  },
-  liaFloat: {
-    position: 'absolute',
-    top: 220,
-    alignSelf: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 999,
-    ...Platform.select({
-      web: { boxShadow: '0 4px 16px rgba(0,0,0,0.16)' as any },
-      default: {
-        shadowOpacity: 0.16,
-        shadowOffset: { width: 0, height: 4 },
-        shadowRadius: 16,
-        elevation: 8,
-      },
-    }),
-    zIndex: 20,
-  },
-  bottomDock: {
-    position: 'absolute',
-    bottom: 24,
-    left: 16,
-    right: 16,
-    zIndex: 25,
-  },
-  // Desktop layout — search/action flutuantes sobre mapa
-  searchCardDesktopFloat: {
+  colunaDesktop: {
     position: 'absolute',
     top: 16,
     left: 16,
     width: 400,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 4,
-    ...Platform.select({
-      web: { boxShadow: '0 4px 16px rgba(0,0,0,0.16)' as any },
-      default: {},
-    }),
+    gap: 12,
     zIndex: 30,
   },
-  bottomDockDesktopFloat: {
+  painelMobile: { position: 'absolute', left: 16, right: 16, zIndex: 30 },
+  dockMobile: { position: 'absolute', bottom: 16, left: 16, right: 16, zIndex: 25 },
+  controles: { position: 'absolute', right: 16, gap: 8, zIndex: 20 },
+  // Embaixo no centro: enquanto calcula não há painel de rota, e em cima colidiria com a coluna.
+  pilula: {
     position: 'absolute',
-    bottom: 16,
-    left: 16,
-    width: 400,
-    zIndex: 25,
-  },
-  liaFloatDesktop: {
-    position: 'absolute',
-    top: 16,
+    bottom: 24,
     alignSelf: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     borderRadius: 999,
-    ...Platform.select({
-      web: { boxShadow: '0 4px 16px rgba(0,0,0,0.16)' as any },
-      default: {},
-    }),
+    borderWidth: 1,
     zIndex: 20,
-  },
-  rightStackDesktop: {
-    top: 16,
-    bottom: undefined,
-    right: 16,
   },
 });
