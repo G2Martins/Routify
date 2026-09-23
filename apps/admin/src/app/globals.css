@@ -1,0 +1,96 @@
+@import "tailwindcss";
+
+/* Tokens (linguagem Valerium): papel claro, tinta quente, azul só como acento.
+   Cores só aqui — componentes usam as classes do tema, nunca hex. */
+:root {
+  color-scheme: light;
+  --background: 45 29% 97%;
+  --foreground: 45 6% 12%;
+  --card: 43 26% 95%;
+  --muted: 45 18% 92%;
+  --muted-foreground: 44 5% 41%;
+  --border: 45 21% 86%;
+  --accent: 224 100% 43%;
+  --destructive: 0 75% 45%;
+  --ok: 120 86% 29%;
+  --alerta: 36 96% 40%;
+
+  /* Gráficos: paleta validada (skill dataviz) — azul, laranja, água + neutro */
+  --chart-1: #2a78d6;
+  --chart-2: #eb6834;
+  --chart-3: #1baf7a;
+  --chart-neutro: #b5b3ab;
+  --chart-grade: #e1e0d9;
+  --chart-eixo: #898781;
+  --radius: 0.5rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --background: 0 0% 9%;
+    --foreground: 0 0% 97%;
+    --card: 0 0% 12%;
+    --muted: 0 0% 17%;
+    --muted-foreground: 0 0% 72%;
+    --border: 0 0% 24%;
+    --accent: 217 91% 64%;
+    --destructive: 0 84% 62%;
+    --ok: 120 70% 45%;
+    --alerta: 40 95% 55%;
+    --chart-1: #3987e5;
+    --chart-2: #d95926;
+    --chart-3: #199e70;
+    --chart-neutro: #6b6a64;
+    --chart-grade: #2c2c2a;
+    --chart-eixo: #898781;
+  }
+}
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-border: hsl(var(--border));
+  --color-accent: hsl(var(--accent));
+  --color-destructive: hsl(var(--destructive));
+  --color-ok: hsl(var(--ok));
+  --color-alerta: hsl(var(--alerta));
+  --font-sans: var(--font-plex-sans), system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+  --font-display: var(--font-serif), Georgia, serif;
+  --radius-lg: var(--radius);
+}
+
+body {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--font-sans);
+}
+
+/* Retícula de mapa: pontos finos, como papel quadriculado de topógrafo */
+.fundo-mapa {
+  background-image: radial-gradient(hsl(var(--foreground) / 0.06) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes surgir {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.surgir { animation: surgir 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .surgir { animation: none; }
+}
+
+/* React Flow no tema do painel */
+.react-flow { --xy-background-color: transparent; }
+.react-flow__attribution { display: none; }
