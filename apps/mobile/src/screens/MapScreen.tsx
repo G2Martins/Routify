@@ -12,7 +12,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useDesktopLayout } from '../lib/responsive';
 import { supabase } from '../lib/supabase';
-import { API_URL } from '../lib/api';
+import { API_URL, apiHeaders, enviarEvento } from '../lib/api';
 import AddressAutocomplete, { PlaceSuggestion } from '../components/AddressAutocomplete';
 import NavigationPanel from '../components/NavigationPanel';
 import MapStyleToggle from '../components/MapStyleToggle';
@@ -115,7 +115,7 @@ export default function MapScreen() {
     try {
       const res = await fetch(`${API_URL}/route`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await apiHeaders(),
         body: JSON.stringify({
           origem: { lat: origemPlace.lat, lon: origemPlace.lon },
           destino: { lat: destinoPlace.lat, lon: destinoPlace.lon },
@@ -177,6 +177,9 @@ export default function MapScreen() {
   };
 
   const handleClear = () => {
+    if (navigatingRef.current) {
+      enviarEvento('navegacao_concluida', { modelo: route?.modelo_utilizado ?? null });
+    }
     setRoute(null);
     setNavigating(false);
     setOrigemPlace(null);
@@ -209,7 +212,7 @@ export default function MapScreen() {
     try {
       const res = await fetch(`${API_URL}/route`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await apiHeaders(),
         body: JSON.stringify({
           origem: { lat, lon },
           destino: { lat: dest.lat, lon: dest.lon },
@@ -240,6 +243,11 @@ export default function MapScreen() {
   };
 
   const handleStartNav = () => {
+    enviarEvento('navegacao_iniciada', {
+      distancia_km: route?.distancia_km ?? null,
+      tempo_previsto_seg: route?.tempo_total_seg ?? null,
+      modelo: route?.modelo_utilizado ?? null,
+    });
     setNavigating(true);
     lastReplanRef.current = null;
     mapRef.current?.startFollow?.(

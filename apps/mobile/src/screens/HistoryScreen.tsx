@@ -17,6 +17,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useDesktopLayout } from '../lib/responsive';
 import { supabase, RouteHistoryRow } from '../lib/supabase';
+import { enviarEvento } from '../lib/api';
 import Icon from '../components/Icon';
 
 function formatDate(iso: string): string {
@@ -73,6 +74,7 @@ export default function HistoryScreen() {
       Platform.OS === 'web' ? window.alert(msg) : Alert.alert('Erro', msg);
       return;
     }
+    enviarEvento('feedback', { minutos_reais: Math.round(minutos) });
 
     setItems((prev) =>
       prev.map((r) =>

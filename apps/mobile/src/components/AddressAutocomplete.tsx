@@ -16,7 +16,7 @@ import {
   View,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
-import { API_URL } from '../lib/api';
+import { API_URL, apiHeaders, enviarEvento } from '../lib/api';
 import Input from './Input';
 import Icon from './Icon';
 
@@ -74,7 +74,8 @@ export default function AddressAutocomplete({
       setLoading(true);
       try {
         const res = await fetch(
-          `${API_URL}/search/places?q=${encodeURIComponent(value)}&limit=8`
+          `${API_URL}/search/places?q=${encodeURIComponent(value)}&limit=8`,
+          { headers: await apiHeaders(false) }
         );
         if (res.ok) {
           const data: PlaceSuggestion[] = await res.json();
@@ -97,6 +98,7 @@ export default function AddressAutocomplete({
     // Só onSelect — parent atualiza texto + place no mesmo tick.
     // justPickedRef evita re-fetch quando parent muda value programático.
     justPickedRef.current = true;
+    enviarEvento('busca', { fonte: item.source });
     onSelect(item);
     setOpen(false);
     setItems([]);
