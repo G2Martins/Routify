@@ -1,6 +1,6 @@
 # Nomenclatura do monorepo + escopo do Admin
 
-**Última revisão:** 2026-09-22 · Status: **proposta — aguardando OK** (a renomeação toca todos os caminhos; executar num commit só, antes do Admin)
+**Última revisão:** 2026-09-22 · Status: **nomenclatura executada em 2026-09-22** (§1, num commit só, com o histórico preservado via renomeação). Admin (§2) segue como plano.
 
 ## 1. Nomenclatura
 
@@ -46,7 +46,7 @@ routify/
 | `BackEnd/Treinamento_IA/figuras_tcc.py` | `ml/thesis_figures.py` |
 | `BackEnd/sql/001_route_history.sql` | `supabase/migrations/20260427000000_route_history.sql` |
 | `BackEnd/sql/002_validacao_tese.sql` | `supabase/migrations/20260907000000_thesis_validation.sql` |
-| `BackEnd/Servidor/config/.env` (lido pela API) | `apps/api/.env` próprio (+ `.env.example`) |
+| `BackEnd/Servidor/config/.env` (lido pela API) | **adiado:** o `.env` segue compartilhado em `services/collector/config/`, com menos atrito local. Em produção, a API recebe variáveis de ambiente. |
 
 Os demais ficam como estão: `main.py`, `graph_enrichment.py`, `lia_inference.py`, `tomtom.py`, `routers/`, `silver.py`, `features.py`, `train.py`, `benchmark_lstm_xgboost.py`.
 

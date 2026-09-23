@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="Docs/Logo/Logo_Routify.png" alt="Routify" width="320"/>
+  <img src="docs/Logo/Logo_Routify.png" alt="Routify" width="320"/>
 
   # Routify
 
@@ -48,63 +48,17 @@ O motor preditivo — **LIA** (*Logística de Inteligência Artificial*) — ali
 
 ## 🏗 Arquitetura
 
+```mermaid
+flowchart TB
+    COL["services/collector/<br/>coleta TomTom a cada 8 min — pausada na fase final<br/>OSMnx: topologia da malha · Fase 3"] -->|INSERT| SB[("Supabase · Postgres<br/>malha_completa ~38k vias · vias_monitoradas ~630<br/>historico_trafego 1,5M+ linhas · route_history / profiles")]
+    SB -->|SELECT em blocos| ML["ml/ — local<br/>silver → features → train (XGBoost + CV temporal)<br/>tune_hyperparams · calibrate_transfer"]
+    ML -->|artefatos em ml/artifacts| API["apps/api/ — FastAPI<br/>modelo + grafo OSM em RAM<br/>/route (A* + LIA + TomTom sob demanda) · /predict · /search/places · /health"]
+    TT["TomTom<br/>Flow · Incidents · Routing · Search"] <-->|sob demanda, pool de chaves| API
+    API -->|HTTPS / JSON| APP["apps/mobile/ — Expo<br/>iOS · Android · Web"]
+    APP -.->|Auth + histórico (RLS)| SB
 ```
-                 ┌───────────────────────────────────────┐
-                 │   BackEnd/Servidor/  (processo 24/7)   │
-                 │   ─────────────────                    │
-                 │   • TomTom Flow API (ciclo de 8 min)   │
-                 │   • OSMnx (topologia da malha viária)  │
-                 │   • Fase 3: validação LIA×TomTom (4x/dia)│
-                 │   • db_manager → Supabase               │
-                 └─────────────────┬───────────────────────┘
-                                   │ INSERT
-                                   ▼
-                 ┌───────────────────────────────────────┐
-                 │   Supabase (Postgres)                  │
-                 │   ─────────────────                    │
-                 │   • malha_completa      (~38k vias)    │
-                 │   • vias_monitoradas    (~630 pontos)  │
-                 │   • historico_trafego   (1,5M+ linhas) │
-                 │   • route_history / profiles (auth)    │
-                 └─────────────────┬───────────────────────┘
-                                   │ SELECT (chunks de 1k)
-                                   ▼
-                 ┌───────────────────────────────────────┐
-                 │   BackEnd/Treinamento_IA/   [local]    │
-                 │   ─────────────────                    │
-                 │   1. silver.py       → Parquet limpo   │
-                 │   2. features.py     → 16 features     │
-                 │   3. train.py        → XGBoost + CV    │
-                 │   4. otimizar_hiperparametros.py       │
-                 │      (Optuna, busca bayesiana)         │
-                 │   5. calibrar_transfer.py               │
-                 │      (confiança do Knowledge Transfer) │
-                 │     ↓                                    │
-                 │   models/lia_2.1.pkl + encoder + perfis│
-                 └─────────────────┬───────────────────────┘
-                                   │ joblib.load
-                                   ▼
-                 ┌───────────────────────────────────────┐
-                 │   BackEnd/API/                          │
-                 │   ─────────────────                    │
-                 │   • FastAPI + lifespan                 │
-                 │   • Modelo + grafo OSM em cache de RAM │
-                 │   • POST /predict → razão por segmento │
-                 │   • POST /route   → A* com pesos LIA   │
-                 │   • GET  /search/places → autocomplete │
-                 │   • GET  /health · /metrics             │
-                 └─────────────────┬───────────────────────┘
-                                   │ HTTPS / JSON
-                                   ▼
-                 ┌───────────────────────────────────────┐
-                 │   FrontEnd (React Native + Expo)        │
-                 │   ─────────────────                    │
-                 │   • App universal (iOS/Android/Web)    │
-                 │   • Auth + histórico de rotas (Supabase)│
-                 │   • Web: Leaflet · Native: react-native-maps│
-                 │   • Autocomplete de endereços           │
-                 └───────────────────────────────────────┘
-```
+
+Detalhe dos fluxos (cache de recência, rotação de chaves, busca de endereços): [docs/core/architecture.md](docs/core/architecture.md).
 
 ---
 
@@ -139,54 +93,42 @@ O motor preditivo — **LIA** (*Logística de Inteligência Artificial*) — ali
 
 ```
 Routify/
-├── BackEnd/
-│   ├── Servidor/                    ← Coletor de tráfego, 24/7
-│   │   ├── config/
-│   │   │   ├── .env.example         ← copie para .env e preencha
-│   │   │   └── tomtom_keys.example.json
-│   │   ├── deploy/                  ← guia de deploy (Oracle Cloud Free Tier)
-│   │   ├── models/db_manager.py
-│   │   ├── services/
-│   │   │   ├── map_extractor.py     ← Overpass → malha_completa
-│   │   │   └── traffic_collector.py ← TomTom Flow → historico_trafego
-│   │   ├── main.py                  ← scheduler: coleta (8min) + Fase 3 (4x/dia)
+├── apps/
+│   ├── api/                       ← FastAPI: LIA + A* + TomTom sob demanda
+│   │   ├── main.py                ← lifespan: carrega modelo + grafo
+│   │   ├── lia_inference.py       ← features e cascata de perfis (espelha ml/features.py)
+│   │   ├── graph_enrichment.py    ← liga o grafo às vias monitoradas
+│   │   ├── recency_cache.py       ← última observação real por via
+│   │   ├── tomtom.py              ← pool de chaves + clientes TomTom
+│   │   ├── routers/               ← predict.py · route.py · search.py
+│   │   ├── tests/                 ← pytest
 │   │   └── requirements.txt
-│   │
-│   ├── Treinamento_IA/              ← Pipeline de treino da LIA (local)
-│   │   ├── silver.py                ← Bronze → Silver
-│   │   ├── features.py              ← perfis históricos + recência
-│   │   ├── train.py                 ← XGBoost + TimeSeriesSplit + MLflow
-│   │   ├── otimizar_hiperparametros.py  ← busca bayesiana (Optuna)
-│   │   ├── calibrar_transfer.py     ← calibra a confiança do Knowledge Transfer
-│   │   ├── validar_fase3.py         ← LIA vs. TomTom vs. menor distância
-│   │   ├── models/                  ← (gitignored) artefatos pesados
-│   │   └── requirements.txt
-│   │
-│   ├── API/                         ← FastAPI servindo LIA + A*
-│   │   ├── main.py                  ← lifespan: carrega modelo + grafo
-│   │   ├── routers/
-│   │   │   ├── predict.py           ← POST /predict (segmento)
-│   │   │   ├── route.py             ← POST /route (A* com pesos LIA)
-│   │   │   └── search.py            ← GET /search/places (autocomplete)
-│   │   └── requirements.txt
-│   │
-│   └── sql/                         ← scripts para rodar no Supabase SQL Editor
-│       ├── 001_route_history.sql    ← tabelas de auth/histórico
-│       └── 002_validacao_tese.sql   ← instrumentação da Fase 3
-│
-├── FrontEnd/                        ← App universal (iOS/Android/Web)
-│   ├── src/
-│   │   ├── components/              ← MapComponent (web/native), AddressAutocomplete...
-│   │   ├── context/                 ← AuthContext, ThemeContext
-│   │   ├── screens/                 ← Map, Dashboard, History, Profile, Login...
-│   │   └── navigation/
-│   ├── .env.example
-│   └── package.json
-│
-├── Docs/
-│   └── Logo/
-│
-└── README.md                        ← este arquivo
+│   └── mobile/                    ← app universal Expo (iOS/Android/Web)
+│       ├── src/                   ← components · context · screens · navigation · lib
+│       ├── .env.example
+│       └── package.json
+├── services/
+│   └── collector/                 ← coletor de tráfego (pausado na fase final)
+│       ├── config/                ← .env.example + tomtom_keys.example.json
+│       ├── deploy/                ← guia de deploy 24/7 (systemd)
+│       ├── db.py                  ← acesso ao Supabase
+│       ├── map_extractor.py       ← Overpass → malha_completa / vias_monitoradas
+│       ├── traffic_collector.py   ← TomTom Flow → historico_trafego (rotação de chaves)
+│       └── main.py                ← scheduler: coleta (8 min) + Fase 3 (4x/dia)
+├── ml/                            ← pipeline de treino da LIA (local)
+│   ├── silver.py · features.py · train.py
+│   ├── tune_hyperparams.py        ← busca bayesiana (Optuna)
+│   ├── calibrate_transfer.py      ← confiança do Knowledge Transfer
+│   ├── benchmark_lstm_xgboost.py  ← LSTM × XGBoost
+│   ├── external_validation.py     ← Fase 3: LIA × TomTom × menor distância
+│   ├── thesis_figures.py          ← figuras do texto → docs/figuras/
+│   └── artifacts/                 ← metadata JSON versionado; .pkl/.graphml/.parquet fora do git
+├── supabase/migrations/           ← DDL versionada (rodar em ordem)
+├── docs/                          ← arquitetura, texto do TCC, figuras, logo
+├── .planning/                     ← estado e decisões (GSD)
+├── .github/workflows/             ← CI, links da doc, keep-alive do Supabase
+├── CLAUDE.md                      ← spec viva (porta de entrada)
+└── README.md
 ```
 
 > Os relatórios de auditoria técnica e o plano de execução do TCC 2 são
@@ -218,7 +160,7 @@ O planejamento inicial do projeto previa migrar de XGBoost para uma rede LSTM ne
 ### Pré-requisitos
 - Python **3.11**
 - Node.js **18+** e npm
-- Conta Supabase (URL + chave) — peça acesso ao projeto ou crie um novo e rode os scripts em `BackEnd/sql/`
+- Conta Supabase (URL + chave) — peça acesso ao projeto ou crie um novo e rode os scripts em `supabase/migrations/`
 - Chaves TomTom (só necessárias para rodar o coletor — dá pra testar API e app sem elas, usando dados já existentes no Supabase)
 
 ---
@@ -227,19 +169,19 @@ O planejamento inicial do projeto previa migrar de XGBoost para uma rede LSTM ne
 
 ```bash
 # Supabase + TomTom, usados pelo coletor, pelo treino e pela API
-cd BackEnd/Servidor/config
+cd services/collector/config
 cp .env.example .env                       # preencha SUPABASE_URL e SUPABASE_KEY
 cp tomtom_keys.example.json tomtom_keys.json  # preencha com chave(s) da TomTom
 
 # Frontend
-cd ../../../FrontEnd
+cd ../../../apps/mobile
 cp .env.example .env                       # preencha as 3 variáveis
 ```
 
 No Supabase Dashboard → SQL Editor, rode nesta ordem:
 ```
-BackEnd/sql/001_route_history.sql
-BackEnd/sql/002_validacao_tese.sql
+supabase/migrations/20260427000000_route_history.sql
+supabase/migrations/20260907000000_thesis_validation.sql
 ```
 
 ---
@@ -247,13 +189,13 @@ BackEnd/sql/002_validacao_tese.sql
 ### 2️⃣ Coleta de dados (opcional para só testar o app)
 
 ```bash
-cd BackEnd/Servidor
+cd services/collector
 pip install -r requirements.txt
 python main.py
 ```
 
 Roda em loop: coleta de tráfego a cada 8 minutos, mais o experimento de
-validação (Fase 3) 4x/dia. Ver `BackEnd/Servidor/deploy/README.md` para
+validação (Fase 3) 4x/dia. Ver `services/collector/deploy/README.md` para
 colocar isso rodando 24/7 (guia para Oracle Cloud Free Tier).
 
 ---
@@ -261,19 +203,19 @@ colocar isso rodando 24/7 (guia para Oracle Cloud Free Tier).
 ### 3️⃣ Treinar a LIA
 
 ```bash
-cd BackEnd/Treinamento_IA
+cd ml
 pip install -r requirements.txt
 
 python train.py
 ```
 
-Gera em `models/`: `lia_2.1.pkl`, `lia_2.1_encoder.pkl`, `lia_2.1_profiles.pkl`, `lia_2.1_metadata.json`.
+Gera em `artifacts/`: `lia_2.1.pkl`, `lia_2.1_encoder.pkl`, `lia_2.1_profiles.pkl`, `lia_2.1_metadata.json`.
 
 Scripts complementares (opcionais, não bloqueiam a API):
 ```bash
-python calibrar_transfer.py          # recalibra a confiança do Knowledge Transfer
-python otimizar_hiperparametros.py   # busca bayesiana de hiperparâmetros (Optuna)
-python validar_fase3.py              # compara LIA vs. TomTom vs. menor distância
+python calibrate_transfer.py          # recalibra a confiança do Knowledge Transfer
+python tune_hyperparams.py   # busca bayesiana de hiperparâmetros (Optuna)
+python external_validation.py              # compara LIA vs. TomTom vs. menor distância
 ```
 
 ---
@@ -281,13 +223,13 @@ python validar_fase3.py              # compara LIA vs. TomTom vs. menor distânc
 ### 4️⃣ API FastAPI
 
 ```bash
-cd BackEnd/API
+cd apps/api
 pip install -r requirements.txt
 
 uvicorn main:app --reload --port 8000
 ```
 
-**Pré-requisito:** modelo treinado em `../Treinamento_IA/models/` (passo anterior).
+**Pré-requisito:** modelo treinado em `../../ml/artifacts/` (passo anterior).
 
 Primeira execução baixa o grafo OSM de Brasília (raio configurável via `GRAPH_RADIUS_KM`, default cobre até as cidades-satélite) — pode levar alguns minutos; fica cacheado em `.graphml` para as próximas.
 
@@ -305,10 +247,10 @@ curl -X POST http://localhost:8000/route \
 
 ---
 
-### 5️⃣ Frontend (Expo)
+### 5️⃣ App (Expo)
 
 ```bash
-cd FrontEnd
+cd apps/mobile
 npm install
 
 npx expo start
@@ -319,7 +261,19 @@ npx expo start
 - `i` → iOS (simulador ou app Expo Go)
 
 Em dispositivo físico, troque `localhost` pelo IP da máquina em
-`EXPO_PUBLIC_API_URL` (`.env` do FrontEnd).
+`EXPO_PUBLIC_API_URL` (`apps/mobile/.env`).
+
+
+### Problemas comuns
+
+| Erro | Causa | Solução |
+|---|---|---|
+| `ModuleNotFoundError` | venv errada ou dependência faltando | `pip install -r requirements.txt` na pasta do módulo |
+| `supabase.exceptions.AuthApiError` / host não resolve | URL/chave erradas ou projeto free pausado | conferir `services/collector/config/.env`; projeto pausado → Dashboard → Resume |
+| `FileNotFoundError: lia_2.1.pkl` na API | modelo não treinado nesta máquina | `cd ml && python train.py` (ou copiar os artefatos para `ml/artifacts/`) |
+| API trava em "Baixando grafo" | Overpass lento na 1ª execução | aguardar; fica em cache em `ml/artifacts/brasilia_graph.graphml` |
+| `429` da TomTom | cota da chave esgotada | o pool rotaciona sozinho; ver `GET /health` › `tomtom` |
+| `KeyError: 'c'` no MLflow (Windows) | caminho lido como esquema de URI | já corrigido com `Path(...).as_uri()` |
 
 ---
 
@@ -357,7 +311,7 @@ validação da hipótese central contra uma referência de tráfego externa
 **Em aberto para um próximo ciclo:**
 - [ ] Offline-first no app (cache local de rota para tolerar perda de conectividade)
 - [ ] Acumular mais rodadas da Fase 3 para validação estatisticamente robusta
-- [ ] Hospedagem 24/7 do coletor (tentativa em Oracle Cloud Free Tier não concluída por falta de capacidade do provedor — ver `BackEnd/Servidor/deploy/README.md`)
+- [ ] Hospedagem 24/7 do coletor (tentativa em Oracle Cloud Free Tier não concluída por falta de capacidade do provedor — ver `services/collector/deploy/README.md`)
 
 ---
 
@@ -378,7 +332,7 @@ Projeto acadêmico (TCC — IESB). Uso restrito a fins educacionais.
 ---
 
 <div align="center">
-  <img src="Docs/Logo/Logo_Routify_icon.png" alt="Routify" width="80"/>
+  <img src="docs/Logo/Logo_Routify_icon.png" alt="Routify" width="80"/>
 
   <i>Brasília merece logística previsível.</i>
 </div>

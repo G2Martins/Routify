@@ -22,5 +22,5 @@ jobs:
           args: >-
             --no-progress --max-retries 3 --retry-wait-time 10
             --exclude-loopback --accept '200..=299,403,429'
-            README.md CLAUDE.md 'BackEnd/**/README.md' 'FrontEnd/README.md'
-            'Docs/**/*.md' '.planning/**/*.md'
+            README.md CLAUDE.md 'apps/**/README.md' 'services/**/README.md' 'ml/README.md'
+            'docs/**/*.md' '.planning/**/*.md'

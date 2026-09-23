@@ -1,0 +1,13 @@
+# Contexto de build = raiz do repo; a imagem da API só precisa de apps/api + ml/artifacts.
+.git
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+**/.env
+**/tomtom_keys.json
+apps/mobile
+docs
+services
+ml/artifacts/mlruns
+ml/artifacts/*.parquet
+ml/artifacts/*.csv

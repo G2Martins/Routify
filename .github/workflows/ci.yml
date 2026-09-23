@@ -20,23 +20,23 @@ jobs:
       # Só o necessário pros testes unitários; o teste de integração do /route
       # pula sozinho sem osmnx/supabase.
       - run: pip install pytest httpx numpy networkx
-      - run: python -m compileall -q BackEnd
+      - run: python -m compileall -q apps/api services ml
       - run: pytest -q
-        working-directory: BackEnd/API
+        working-directory: apps/api
 
   frontend:
-    name: FrontEnd (tsc)
+    name: App mobile (tsc)
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: FrontEnd
+        working-directory: apps/mobile
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: FrontEnd/package-lock.json
+          cache-dependency-path: apps/mobile/package-lock.json
       - run: npm ci
       - run: npx tsc --noEmit
 

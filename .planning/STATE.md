@@ -15,9 +15,9 @@ Já no `main` (e no remoto):
 - CLAUDE.md, `.planning/`, `.mcp.json.example`.
 
 Na branch `feat/tomtom-sob-demanda` (local, aguardando OK pra push/merge):
-- `BackEnd/API/tomtom.py` + integração no `/route` e no `/search/places`, com 24 testes pytest. Teste real com o pool de 39 chaves passou: fluxo, incidentes, busca e rota de referência.
-- `figuras_tcc.py` → 4 figuras em `Docs/figuras/` (MAE/RMSE por versão, calibração isotônica, benchmark, congestionamento).
-- `Docs/core/architecture.md` (diagramas pedidos pelo orientador) e `Docs/tcc/resultados-e-limitacoes.md` (rascunho do texto).
+- `apps/api/tomtom.py` + integração no `/route` e no `/search/places`, com 24 testes pytest. Teste real com o pool de 39 chaves passou: fluxo, incidentes, busca e rota de referência.
+- `thesis_figures.py` → 4 figuras em `docs/figuras/` (MAE/RMSE por versão, calibração isotônica, benchmark, congestionamento).
+- `docs/core/architecture.md` (diagramas pedidos pelo orientador) e `docs/tcc/resultados-e-limitacoes.md` (rascunho do texto).
 - CI: `ci.yml` (pytest, tsc, gitleaks), `docs-links.yml` (lychee, do tpotce), `supabase-keepalive.yml`.
 
 **Não executado end-to-end:** o `/route` completo precisa dos artefatos da LIA 2.1 (com o Pedro) e do Supabase de volta.
@@ -39,8 +39,8 @@ O Pedro tem o parquet silver completo (1,5 mi linhas): **preservar como backup**
 - Banco: só Supabase, sem MongoDB.
 - MCP Supabase em `read_only=true` por padrão.
 - `tcc2` integrada; coletor = implementação do main + cota com janela rolante de 24 h.
-- `.gitignore`: "*.md só README", com exceções pra `CLAUDE.md`, `Docs/`, `.planning/`.
-- Admin = Next.js separado (`apps/admin`), design Valerium. Estrutura: manter `BackEnd/`/`FrontEnd/` + `apps/admin`.
+- `.gitignore`: "*.md só README", com exceções pra `CLAUDE.md`, `docs/`, `.planning/`.
+- Admin = Next.js separado (`apps/admin`), design Valerium. Estrutura renomeada para `apps/` · `services/` · `ml/` · `supabase/` · `docs/` (executada em 2026-09-22).
 - Hospedagem dividida: Hostinger (front web + admin) + host grátis pra API Python.
 - **Convex descartado pra API** (sem Python, 512 MiB).
 - TomTom sob demanda:
@@ -81,6 +81,6 @@ Detalhe e ordem: [research/2026-09-22-nomenclatura-e-admin.md](research/2026-09-
 - [x] Gráfico MAE/RMSE LIA 1.0 → 2.0 → 2.1 × baseline (`fig1`; números finais dependem do re-run)
 - [x] Curva isotônica confiança × distância (`fig2`) + ressalva do recorte
 - [x] Limitações e trabalhos futuros (rascunho, §6–7) + `fig4` do congestionamento
-- [x] Diagrama de arquitetura (`Docs/core/architecture.md`)
+- [x] Diagrama de arquitetura (`docs/core/architecture.md`)
 - [x] "Erro médio" = RMSE; coluna MAE na Tabela 1
 - [ ] Equipe revisar/reescrever o rascunho e declarar o uso de IA
