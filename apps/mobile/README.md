@@ -13,7 +13,25 @@
 
 ## 📖 Sobre o App
 
-Cliente do **Routify** rodando em **iOS, Android e Web** via Expo + React Native. Consome a `apps/api` para roteamento A\* com pesos da LIA, mostra mapa interativo (Leaflet/web, react-native-maps/mobile), histórico de rotas, perfil e dashboard de métricas.
+**Última revisão:** 2026-09-23
+
+Cliente do **Routify** rodando em **iOS, Android e Web** via Expo + React Native. Consome a `apps/api` para roteamento A\* com pesos da LIA, fundido com a TomTom. Tem:
+- mapa interativo: Leaflet na web, react-native-maps no celular;
+- histórico de rotas, perfil e dashboard de métricas.
+
+**Design:** paleta da logo + linguagem Valerium. Tokens em `src/constants/Theme.ts`, peças prontas em `src/components/ui.tsx`, regras em [docs/core/design-system.md](../../docs/core/design-system.md).
+
+**Sessão:** na web, a sessão Supabase fica em **cookie** (`@supabase/ssr`), a mesma que o painel ADM (`/admin`) lê. O login é único, e o item "Painel ADM" aparece só para `app_metadata.role = admin`. No celular, a sessão fica no AsyncStorage.
+
+**Busca:**
+- destinos recentes ao focar o campo;
+- debounce de 250 ms com cancelamento, trecho digitado destacado, teclado ↑ ↓ Enter Esc na web;
+- eventos sem texto nem coordenada (LGPD).
+
+**Mapa:**
+- a linha sólida segue só a via;
+- o trecho até o ponto escolhido e a alternativa da fusão LIA × TomTom aparecem tracejados;
+- o painel mostra a fonte da rota, os semáforos e a comparação LIA × TomTom.
 
 ## 🏗️ Estrutura
 
@@ -59,6 +77,7 @@ Preencher com as credenciais do Supabase Dashboard → Settings → API:
 EXPO_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 EXPO_PUBLIC_API_URL=http://localhost:8000
+EXPO_PUBLIC_ADMIN_URL=http://localhost:3000/admin   # em produção: /admin (mesmo domínio)
 ```
 
 > Em mobile físico, trocar `localhost` pelo IP da máquina (`http://192.168.x.x:8000`).
