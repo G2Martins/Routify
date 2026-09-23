@@ -19,7 +19,7 @@ jobs:
           python-version: '3.11'
       # Só o necessário pros testes unitários; o teste de integração do /route
       # pula sozinho sem osmnx/supabase.
-      - run: pip install pytest httpx numpy networkx fastapi
+      - run: pip install pytest httpx numpy networkx fastapi scikit-learn==1.8.0  # trajeto.py usa BallTree
       - run: python -m compileall -q apps/api services ml
       - run: pytest -q
         working-directory: apps/api
