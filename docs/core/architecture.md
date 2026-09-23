@@ -66,7 +66,7 @@ sequenceDiagram
     participant TT as TomTom
     App->>API: origem, destino
     API->>RC: refresh se TTL venceu (backoff se o Supabase caiu)
-    API->>API: snap no nó mais próximo (> 400 m = fora da malha → rota da TomTom)
+    API->>API: snap no nó mais próximo (> 600 m = fora da malha → rota da TomTom)
     API->>API: vias monitoradas a até 1,5 km da reta O-D com recência > 10 min (máx. 8)
     par em paralelo
         API->>Pool: Flow Segment Data × vias selecionadas

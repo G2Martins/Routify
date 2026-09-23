@@ -21,7 +21,7 @@ from sklearn.neighbors import BallTree
 logger = logging.getLogger(__name__)
 
 RAIO_TERRA_M = 6_371_000.0
-LIMITE_SNAP_M = 400.0  # além disso o ponto está fora da malha coberta (rota da TomTom)
+LIMITE_SNAP_M = 600.0  # além disso = fora da malha (rota da TomTom). 400 m tirava o Aeroporto (496 m), corredor da Fase 3
 MAX_PONTOS_APOIO = 100  # supportingPoints por chamada (a geometria vem inteira de volta)
 MARGEM_REL = 0.10  # a rota da TomTom precisa ser >= 10% mais rápida…
 MARGEM_ABS_S = 60.0  # …e ganhar pelo menos 1 min, para trocar a da LIA

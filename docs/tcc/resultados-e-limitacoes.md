@@ -1,6 +1,6 @@
 # Resultados, calibração e limitações — rascunho para o texto final
 
-**Última revisão:** 2026-09-22
+**Última revisão:** 2026-09-23
 
 > **Status: rascunho.** Redigido com apoio de IA a partir dos artefatos versionados do repositório (`ml/artifacts/*.json`), para atender às recomendações do orientador sobre a seção de Resultados e Discussão. A equipe deve revisar, reescrever com a própria voz e declarar o uso de IA conforme as normas da instituição. Todo número abaixo aponta para a chave do JSON de origem; as figuras são geradas por `ml/thesis_figures.py` e se atualizam sozinhas quando os JSONs mudarem.
 
@@ -116,7 +116,9 @@ A Fase 3 compara, para o mesmo par origem-destino e no mesmo instante:
    - **Resultado:** δ = 22,9 s (erro-padrão 15,7 s), compatível com a faixa do HCM para LOS C (20–35 s), mas estatisticamente fraco. β = 22,9 s/km, com R² ≈ 0.
      - Leitura: a maior parte da diferença não vem dos semáforos. É um viés por quilômetro da **velocidade livre**.
      - Causa: na inferência, a API usa o limite de via do OSM (`speed_kph`) como velocidade livre, enquanto a LIA foi treinada com a velocidade livre da TomTom. O tempo da rota sai otimista.
-     - Correção em teste: `VEL_LIVRE_TOMTOM=1` usa a velocidade livre da TomTom nos trechos monitorados (`ml/free_flow_speeds.py`).
+     - Teste A/B com a velocidade livre da TomTom só nos trechos monitorados (`VEL_LIVRE_TOMTOM=1`), nos mesmos 60 pares: a LIA ficou 29,2% abaixo da TomTom, contra 29,7% na versão atual.
+       - O ganho é desprezível porque esses trechos são poucos: o viés está nas arestas por transferência e heurística.
+       - Próximo passo: calibrar a velocidade livre por classe de via.
    - **Limitação da coleta:** a calibração foi feita de madrugada; repetir em horário comercial e estratificar por região.
 2. **Subestimação em congestionamento extremo** (Figura 4).
    - No subconjunto congestionado (razão < 0,95; 17,1% das amostras), o RMSE da LIA 2.1 sobe de 40,7 s para 87,5 s (2,1×).

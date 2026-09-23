@@ -48,7 +48,7 @@ class RouteInput(BaseModel):
     # ETA de referência da TomTom (Routing, trânsito ao vivo). Opcional porque
     # gasta cota a cada rota — o app liga quando quer mostrar a comparação.
     referencia_tomtom: bool = Field(
-        False, description="Pede também o ETA da TomTom com trânsito ao vivo (gasta 1 chamada de Routing).")
+        False, description="Legado: o ETA da TomTom já vem pela fusão. Só tem efeito se o painel ADM desligar a fusão.")
 
 
 class IncidenteRota(BaseModel):
@@ -68,7 +68,7 @@ class TomTomResumo(BaseModel):
     arestas_interditadas: int = Field(0, description="Arestas do grafo bloqueadas por interdição no corredor.")
     interdicoes_na_rota: int = Field(0, description="Interdições que ainda tocam a rota escolhida.")
     incidentes: List[IncidenteRota] = Field([], description="Incidentes próximos à rota.")
-    referencia_tempo_seg: Optional[int] = Field(None, description="ETA da TomTom com trânsito (se referencia_tomtom).")
+    referencia_tempo_seg: Optional[int] = Field(None, description="ETA da TomTom com trânsito para o trajeto da LIA (reconstruído na fusão); fora da malha, para a rota da própria TomTom.")
     referencia_atraso_seg: Optional[int] = Field(None, description="Atraso por trânsito segundo a TomTom.")
     referencia_sem_transito_seg: Optional[int] = Field(None, description="ETA da TomTom sem trânsito.")
     referencia_distancia_km: Optional[float] = Field(None, description="Distância da rota da TomTom.")
@@ -83,7 +83,7 @@ class AlternativaRota(BaseModel):
 
 class RouteOutput(BaseModel):
     polyline: List[List[float]] = Field(..., description="Pontos [lat, lon] seguindo a geometria real das vias.")
-    tempo_total_seg: int = Field(..., description="Tempo previsto pela LIA para a rota escolhida.")
+    tempo_total_seg: int = Field(..., description="Tempo estimado da rota exibida: LIA onde há cobertura, TomTom nas lacunas (ver fusão).")
     distancia_km: float
     via_principal: str = Field(..., description="Via com maior extensão na rota.")
     modelo_utilizado: str = Field(..., description="Versão da LIA (ex.: lia_2.1).")

@@ -231,7 +231,7 @@ Campos extras são rejeitados (422). O ETA da TomTom vem sempre pela fusão, ent
 **Fusão LIA × TomTom** (`trajeto.py`, 1 chamada de Routing por rota):
 - **Tempo exibido** (`tempo_total_seg`) = cobertura × LIA + (1 − cobertura) × TomTom no mesmo trajeto. A LIA vale onde tem histórico; a TomTom cobre as lacunas.
 - **Troca de rota:** a alternativa da TomTom só assume (`fonte_rota: "tomtom"`) se a própria TomTom a considerar ≥ 10% **e** ≥ 60 s mais rápida. A candidata não escolhida volta em `alternativa`, e o app a desenha tracejada.
-- **Fora da malha** (ponto a mais de 400 m do grafo de 38 km): a rota é só da TomTom (`fora_da_malha: true`).
+- **Fora da malha** (ponto a mais de 600 m do grafo de 38 km): a rota é só da TomTom (`fora_da_malha: true`).
 - **Semáforos:** `tempo_lia_seg` e `tempo_rota_curta_seg` somam o atraso médio por semáforo cruzado. Os semáforos são as tags do OSM encaixadas no cruzamento; o atraso vem calibrado em `ml/artifacts/semaforos_calibracao.json` (ver `ml/calibrate_signals.py`). A soma é igual nas duas rotas, então a comparação da tese não fica enviesada.
 
 `tempo_rota_curta_seg` … `dia_semana` são instrumentação da Fase 3 (validação da tese): a rota de

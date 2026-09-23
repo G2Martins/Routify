@@ -115,7 +115,8 @@ export default function NavigationPanel({ route, navigating, onStart, onCancel }
               )}
             </Text>
           </View>
-          {tt.referencia_tempo_seg != null && route.tempo_lia_seg != null ? (
+          {/* Comparação no mesmo trajeto (o da LIA); se a rota exibida é a da TomTom, a da LIA aparece como alternativa. */}
+          {tt.referencia_tempo_seg != null && route.tempo_lia_seg != null && route.fonte_rota !== 'tomtom' ? (
             <Text style={[theme.typography.caption, { color: c.textMuted, fontSize: 12 }]}>
               LIA <Text style={[mono, { color: c.accent }]}>{tempo(route.tempo_lia_seg).join(' ')}</Text>
               {'  ·  '}TomTom <Text style={[mono, { color: c.text }]}>{tempo(tt.referencia_tempo_seg).join(' ')}</Text>

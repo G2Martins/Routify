@@ -9,7 +9,7 @@
 | 1 | Grafo em cache era o antigo de ~15 km (34 mil nós); Ceilândia/Samambaia ficavam fora e o destino grudava na borda | **Corrigido:** `brasilia_graph_38km.graphml` (97.739 nós), raio no nome do arquivo |
 | 2 | App ligava o ponto real ao cruzamento mais próximo com **reta sólida** (atravessava quadra) | **Corrigido:** conector fino tracejado ("a pé até a via"); linha sólida só na via |
 | 3 | Busca da TomTom devolvia o centro do POI (dentro do prédio) | **Corrigido:** usa `entryPoints[0]` |
-| 4 | Snap aceitava até 800 m | **Corrigido:** 400 m; além disso a rota é da TomTom |
+| 4 | Snap aceitava até 800 m | **Corrigido:** 600 m (400 m tirava o Aeroporto, a 496 m do grafo); além disso a rota é da TomTom |
 | 5 | Snap no **nó** (cruzamento), não na aresta | Backlog: snap na aresta + trecho parcial (índice espacial de arestas; custa RAM) |
 
 A geometria (`montar_polyline`) é idêntica à do Pedro — não havia terceiro bug.
@@ -20,7 +20,7 @@ A geometria (`montar_polyline`) é idêntica à do Pedro — não havia terceiro
 - `routes[0]` = a TomTom reconstrói **a nossa rota** e dá o ETA ao vivo dela (mesmo trajeto);
 - `routes[1]` = alternativa, só se a TomTom achar melhor (`alternativeType=betterRoute`).
 
-Tempo exibido = cobertura·LIA + (1−cobertura)·TomTom — a LIA vale onde enxerga, a TomTom cobre os buracos do histórico. A alternativa só vence com ganho ≥ 10 % **e** ≥ 60 s; a outra volta em `alternativa` e o mapa desenha tracejada. Fora da malha (snap > 400 m) a rota é só da TomTom. A instrumentação da tese (LIA × menor distância) segue intacta.
+Tempo exibido = cobertura·LIA + (1−cobertura)·TomTom — a LIA vale onde enxerga, a TomTom cobre os buracos do histórico. A alternativa só vence com ganho ≥ 10 % **e** ≥ 60 s; a outra volta em `alternativa` e o mapa desenha tracejada. Fora da malha (snap > 600 m) a rota é só da TomTom. A instrumentação da tese (LIA × menor distância) segue intacta.
 
 Teste real (Águas Claras → Ceilândia, 01h): LIA 710 s × TomTom 875 s no **mesmo** trajeto (sem trânsito: 901 s). A Fase 3 do Pedro mostra o mesmo de dia (Rodoviária → Aeroporto 11h: LIA 682 s × TomTom 1.136 s).
 
@@ -30,6 +30,17 @@ Teste real (Águas Claras → Ceilândia, 01h): LIA 710 s × TomTom 875 s no **m
 - Literatura (HCM/Webster): atraso de controle 10–35 s/veículo (LOS B–C); d ≈ r²/2C.
 - OSM do DF: **423** semáforos (Overpass). O grafo simplificado só guardava 114 — os demais ficam na linha de retenção, antes do cruzamento. Agora: pontos do OSM encaixados no cruzamento a ≤ 40 m (`semaforos_osm_38km.json`).
 - **Calibração com dado real** (`ml/calibrate_signals.py`): N rotas sorteadas (semente fixa), resíduo = TomTom sem trânsito − LIA no mesmo trajeto, OLS `δ·semáforos + β·km` (β absorve o viés de velocidade livre). Saída versionada `semaforos_calibracao.json`; a API aplica δ igual na rota da LIA e na baseline.
+- **Resultado (60 rotas, semente 42, madrugada):** δ = 22,9 s (EP 15,7), dentro da faixa HCM; β = 22,9 s/km; R² ≈ 0. Aplicado δ; β fica documentado.
+- **A/B da velocidade livre** (mesmos pares O-D):
+
+  | Variante | LIA abaixo da TomTom sem trânsito | MAE |
+  | --- | --- | --- |
+  | A — limite de via do OSM (atual) | 29,7% | 564 s |
+  | B — `VEL_LIVRE_TOMTOM=1`, TomTom nos trechos monitorados | 29,2% | 555 s |
+
+  - O ganho é desprezível, porque trechos a < 50 m de um ponto monitorado são poucos. **Flag fica desligada.**
+  - O viés de ~30% vem das arestas não monitoradas (transferência e heurística), que usam o limite do OSM.
+  - Próximo passo (decisão do grupo): calibrar a velocidade livre por classe de via com a freeFlowSpeed da TomTom dos 630 pontos.
 - Limitação: coletar também em horário diurno e estratificar por região; DF não publica tempos semafóricos (Detran-DF só por pedido).
 
 ## 4. RAG, harness, modelo semântico, MCP — o que vale para a LIA
