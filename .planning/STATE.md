@@ -1,86 +1,90 @@
 # STATE — Routify
 
-**Última revisão:** 2026-09-22
+**Última revisão:** 2026-09-23
 
 ## Onde estamos
 
 Fase final do TCC 2.
 
-- **F0 Fundação:** feita, exceto o banco (bloqueio abaixo).
-- **F0.5 Banca:** entregue em rascunho.
-- **F2 TomTom sob demanda:** implementada na branch `feat/tomtom-sob-demanda`.
+| Fase | Estado |
+|---|---|
+| F0 Fundação | feita (banco restaurado; migrations pendentes, abaixo) |
+| F0.5 Banca | entregue em rascunho (figuras, arquitetura, resultados) |
+| F1 API segura | parcial: CORS allowlist + JWT verificado; falta rate-limit por cliente e `route_history` pela API |
+| F2 TomTom sob demanda | feita e validada ao vivo (39 chaves) |
+| F3 Observabilidade / captura de uso | código pronto (`usage.py`, `/eventos`, eventos no app); **grava depois da migration** |
+| F5 Admin | `apps/admin` pronto (6 páginas, `tsc` + `next build` ok); precisa das migrations |
+| F4 Auth + Resend · F6 Deploy | não iniciadas |
 
-Já no `main` (e no remoto):
-- `tcc2` do Pedro integrada (`0e066fb`);
-- CLAUDE.md, `.planning/`, `.mcp.json.example`.
+Verificado localmente em 2026-09-23:
+- API sobe com LIA 2.1, 39 chaves e 630 vias;
+- `/route` com TomTom: 8 vias atualizadas, 18 arestas interditadas, ETA de referência;
+- `/eventos`: 401 sem token e 422 com campo extra; CORS recusa origem fora da lista;
+- 37 testes pytest; `tsc` do mobile e do admin; `next build` do admin.
 
-Na branch `feat/tomtom-sob-demanda` (local, aguardando OK pra push/merge):
-- `apps/api/tomtom.py` + integração no `/route` e no `/search/places`, com 24 testes pytest. Teste real com o pool de 39 chaves passou: fluxo, incidentes, busca e rota de referência.
-- `thesis_figures.py` → 4 figuras em `docs/figuras/` (MAE/RMSE por versão, calibração isotônica, benchmark, congestionamento).
-- `docs/core/architecture.md` (diagramas pedidos pelo orientador) e `docs/tcc/resultados-e-limitacoes.md` (rascunho do texto).
-- CI: `ci.yml` (pytest, tsc, gitleaks), `docs-links.yml` (lychee, do tpotce), `supabase-keepalive.yml`.
+Retreino local da LIA 2.1 confirmou os números do Pedro: RMSE 40,92 × 40,69, MAE 15,03 × 14,62 (`ml/artifacts/lia_2.1_retreino_20260923_metadata.json`).
 
-**Não executado end-to-end:** o `/route` completo precisa dos artefatos da LIA 2.1 (com o Pedro) e do Supabase de volta.
+## ⚠️ Banco — aplicar (bloqueia captura de uso e painel)
 
-## ⚠️ Supabase restaurado (2026-09-23) — segurança pendente
+Em ordem, todas idempotentes:
+1. `20260907000000_thesis_validation.sql` (Pedro, nunca aplicada);
+2. `20260923000000_security_hardening.sql` — RLS nas 3 tabelas do dataset. Hoje o `anon` lê e apaga;
+3. `20260923010000_usage_tracking_admin.sql`.
 
-- Projeto de volta no ar (resume + restauração concluída às 01:34 UTC).
-- **Dados íntegros:** `historico_trafego` 1.513.828 linhas (2026-03-07 → 2026-07-20), `vias_monitoradas` 630, `malha_completa` 45.476, `route_history` 17, 2 usuários; 168 MB.
-- **Crítico:** as 3 tabelas do dataset estão sem RLS, com o `anon` podendo SELECT/INSERT/DELETE.
-  - Correção pronta em `supabase/migrations/20260923000000_security_hardening.sql`.
-  - **Aplicar primeiro a `20260907000000_thesis_validation.sql`** (nunca aplicada: faltam colunas de validação + policy de UPDATE; o feedback do app falha).
-- **Backup local bruto** das 3 tabelas em `ml/artifacts/backup_20260923_*.parquet` (fora do git).
-- **Pendente no painel:**
-  - secrets do keep-alive no GitHub (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`);
-  - "Leaked password protection" (Auth).
+Depois:
+- promover os 2 admins (SQL em `supabase/.local/aplicar-2026-09-23.sql`, gitignored, já com as 3 migrations concatenadas);
+- `python ml/publish_metrics.py`.
 
-## Decisões tomadas (2026-09-22)
+**Como aplicar:** o MCP Supabase está sem `read_only`, mas precisa de OAuth numa sessão interativa (`/mcp`). Alternativa: colar o arquivo no SQL Editor. Passo a passo em [docs/core/rodar-local.md](../docs/core/rodar-local.md).
+
+Backup bruto das 3 tabelas em `ml/artifacts/backup_20260923_*.parquet` (1.513.828 / 630 / 45.476 linhas, fora do git).
+
+**Pendente no painel do Supabase:**
+- secrets do keep-alive no GitHub (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`);
+- "Leaked password protection" (Auth).
+
+## Decisões tomadas
 
 - Banco: só Supabase, sem MongoDB.
-- MCP Supabase em `read_only=true` por padrão.
 - `tcc2` integrada; coletor = implementação do main + cota com janela rolante de 24 h.
-- `.gitignore`: "*.md só README", com exceções pra `CLAUDE.md`, `docs/`, `.planning/`.
-- Admin = Next.js separado (`apps/admin`), design Valerium. Estrutura renomeada para `apps/` · `services/` · `ml/` · `supabase/` · `docs/` (executada em 2026-09-22).
-- Hospedagem dividida: Hostinger (front web + admin) + host grátis pra API Python.
-- **Convex descartado pra API** (sem Python, 512 MiB).
+- Estrutura `apps/` · `services/` · `ml/` · `supabase/` · `docs/` (2026-09-22).
+- Admin = Next.js separado (`apps/admin`), design Valerium.
+- Admin = `app_metadata.role`. As RPCs `security definer` checam `is_admin()`; o painel só tem a chave publishable.
+- Captura de uso **pelo servidor** (service_role):
+  - coordenadas arredondadas em 3 casas;
+  - texto de busca nunca gravado;
+  - retenção de 90 dias via `pg_cron`.
+- Hospedagem dividida: Hostinger (front web + admin) + host grátis pra API Python. Candidato principal: AWS (t4g.small, créditos free). **Convex descartado** (sem Python, 512 MiB).
 - TomTom sob demanda:
-  - cooldown por (chave, serviço), porque a cota é mensal e por API;
-  - só interdição bloqueia aresta (lentidão é papel da LIA + recência);
-  - `referencia_tomtom` é opcional por gastar cota.
-- Repo é público: nada de ref, domínio ou token de outra org.
-
-## Escopo novo do Admin (pedido de 2026-09-22)
-
-- Página **LIA — desempenho e benchmarks** (acompanhamento contínuo das fig. 1–4, histórico de treinos, erro real em produção, LIA × TomTom).
-- **Arquitetura viva** (diagrama interativo dos fluxos API/LIA/Supabase/TomTom, com status por nó).
-- **Captura de uso** feita pelo servidor, com LGPD.
-
-Detalhe e ordem: [research/2026-09-22-nomenclatura-e-admin.md](research/2026-09-22-nomenclatura-e-admin.md).
+  - cooldown por (chave, serviço);
+  - só interdição bloqueia aresta;
+  - `referencia_tomtom` opcional.
+- MCP Supabase com escrita liberada (2026-09-23, pedido do dono), só com arquivo versionado.
+- Repo público: nada de ref, domínio ou token de outra org.
 
 ## Decisões abertas
 
-0. **Renomeação do monorepo** (`apps/api`, `apps/mobile`, `apps/admin`, `services/collector`, `ml/`, `supabase/migrations/`, `docs/`) — proposta no doc acima, aguardando OK.
-1. Host da API: **AWS com créditos Free Tier** (opção levantada pelo dono; regras de 2025+ em verificação) × Cloud Run × Oracle Free × Azure for Students. Medir o RSS antes.
+1. Host da API: AWS × Cloud Run × Oracle Free × Azure for Students. Medir o RSS antes.
 2. Domínio do Routify / Resend (conta nova).
 3. Plano do Supabase (free com keep-alive × Pro).
-4. Números finais da tese: re-rodar o CV da LIA 2.0/2.1 (pós-Optuna) — decisão do grupo (Pedro).
+4. Números finais da tese: re-rodar o CV da LIA 2.0/2.1 pós-Optuna (grupo/Pedro).
 5. Pool de 39 chaves × ToS §14.2: manter só no protótipo e declarar na tese?
+6. Commitar `lia_2.1_retreino_20260923_metadata.json`? Hoje entra como histórico no painel (`publish_metrics`).
 
 ## Próximos passos
 
-- [ ] Restaurar o Supabase → autenticar o MCP (OAuth em sessão interativa, `/mcp`).
-- [ ] Via MCP (read-only): RLS das tabelas de tráfego, `pg_database_size`.
-- [ ] Snapshot de `vias_monitoradas` no repo (fallback da API sem banco).
-- [ ] Rodar a API com os artefatos da LIA 2.1 e validar o `/route` com a TomTom ao vivo.
-- [ ] UI: mostrar incidentes/interdições e ETA TomTom no `NavigationPanel` (tipos já no `MapScreen`).
-- [ ] F1 API segura (JWT Supabase, CORS allowlist, rate-limit, `route_history` pela API).
-- [ ] F3 Observabilidade → F4 Auth + Resend → F5 Admin → F6 Deploy.
+- [ ] Aplicar as 3 migrations + promover admins + `publish_metrics.py` → conferir o Security Advisor sem ERROR.
+- [ ] Testar ponta a ponta com o [rodar-local](../docs/core/rodar-local.md) (visão de usuário + ADM).
+- [ ] UI: incidentes/interdições e ETA TomTom no `NavigationPanel` (tipos já no `MapScreen`).
+- [ ] Texto de consentimento LGPD na tela Privacy (captura de uso + retenção de 90 dias).
+- [ ] F1 restante: rate-limit por cliente em `/route`/`/search`; `route_history` gravado pela API.
+- [ ] F4 Auth polida + Resend (SMTP custom no Supabase) → F6 Deploy (API na AWS, web + admin na Hostinger).
 
 ## Checklist do orientador (texto final)
 
 - [x] Gráfico MAE/RMSE LIA 1.0 → 2.0 → 2.1 × baseline (`fig1`; números finais dependem do re-run)
 - [x] Curva isotônica confiança × distância (`fig2`) + ressalva do recorte
 - [x] Limitações e trabalhos futuros (rascunho, §6–7) + `fig4` do congestionamento
-- [x] Diagrama de arquitetura (`docs/core/architecture.md`)
+- [x] Diagrama de arquitetura (`docs/core/architecture.md`) + versão viva no painel ADM
 - [x] "Erro médio" = RMSE; coluna MAE na Tabela 1
 - [ ] Equipe revisar/reescrever o rascunho e declarar o uso de IA
