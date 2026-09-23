@@ -1,7 +1,6 @@
-import Link from 'next/link';
 import { BarrasHora, SerieUso } from '@/components/graficos';
 import { StatusApi } from '@/components/StatusApi';
-import { Aviso, Cabecalho, Cartao, ErroConsulta, Kpi, Tabela } from '@/components/ui';
+import { Aviso, Cabecalho, Cartao, ErroConsulta, Kpi, SeletorJanela, Tabela } from '@/components/ui';
 import { exigirAdmin } from '@/lib/auth';
 import { fmtInt, fmtPct } from '@/lib/formato';
 import type { ResumoUso } from '@/lib/tipos';
@@ -22,19 +21,7 @@ export default async function VisaoGeral({ searchParams }: { searchParams: Promi
   const { data, error } = await sb.rpc('admin_resumo_uso', { dias });
   const r = data as ResumoUso | null;
 
-  const seletor = (
-    <div className="flex items-center gap-1 rounded-full border border-border bg-card p-1 text-xs">
-      {JANELAS.map((j) => (
-        <Link
-          key={j}
-          href={`/?dias=${j}`}
-          className={`rounded-full px-3 py-1 ${j === dias ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'}`}
-        >
-          {j} dias
-        </Link>
-      ))}
-    </div>
-  );
+  const seletor = <SeletorJanela base="/admin" atual={dias} janelas={JANELAS} />;
 
   return (
     <>

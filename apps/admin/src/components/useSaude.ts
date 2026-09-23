@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { Saude } from '@/lib/tipos';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+export const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 /** Consulta o /health da API (público) a cada `intervaloMs`. */
 export function useSaude(intervaloMs = 15000) {

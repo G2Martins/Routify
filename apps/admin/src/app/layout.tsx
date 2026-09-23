@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
-import { IBM_Plex_Mono, IBM_Plex_Sans, Instrument_Serif } from 'next/font/google';
+import { Geist, Geist_Mono, Kalam } from 'next/font/google';
+import { cookies } from 'next/headers';
 import './globals.css';
 
-const sans = IBM_Plex_Sans({ subsets: ['latin'], weight: ['400', '500', '600'], variable: '--font-plex-sans' });
-const mono = IBM_Plex_Mono({ subsets: ['latin'], weight: ['400', '500'], variable: '--font-plex-mono' });
-const serif = Instrument_Serif({ subsets: ['latin'], weight: '400', variable: '--font-serif' });
+const sans = Geist({ subsets: ['latin'], variable: '--font-geist-sans' });
+const mono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono' });
+const display = Kalam({ subsets: ['latin'], weight: '700', variable: '--font-kalam' });
 
 export const metadata: Metadata = {
   title: 'Routify · Painel ADM',
@@ -12,9 +13,12 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Mesmo tema escolhido no app (cookie compartilhado). Sem cookie = segue o sistema.
+  const tema = (await cookies()).get('routify-tema')?.value;
+  const dataTema = tema === 'dark' ? 'escuro' : tema === 'light' ? 'claro' : undefined;
   return (
-    <html lang="pt-BR" className={`${sans.variable} ${mono.variable} ${serif.variable}`}>
+    <html lang="pt-BR" data-tema={dataTema} className={`${sans.variable} ${mono.variable} ${display.variable}`}>
       {/* Extensões (ColorZilla, Grammarly) injetam atributos no body antes da hidratação. */}
       <body className="min-h-dvh antialiased" suppressHydrationWarning>
         {children}

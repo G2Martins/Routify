@@ -327,6 +327,61 @@ begin
     set valor = excluded.valor, atualizado_em = excluded.atualizado_em, atualizado_por = excluded.atualizado_por;
 end $$;
 
+-- Pausa/retomada de UMA chave, atômica: lê e grava a lista sob lock de linha.
+-- (Gravar a lista inteira pelo cliente perdia alteração com dois admins juntos.)
+create or replace function public.admin_tomtom_pausar(p_id text, p_pausada boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_lista jsonb;
+begin
+  if p_id is null or p_id !~ '^[A-Za-z0-9_.-]{1,40}$' then
+    raise exception 'id de chave inválido' using errcode = '22023';
+  end if;
+  perform public._admin_acao('tomtom_pausar', p_id, jsonb_build_object('pausada', p_pausada), 2);
+  insert into public.config_runtime (chave, valor) values ('tomtom_chaves_pausadas', '[]')
+  on conflict (chave) do nothing;
+  select valor into v_lista from public.config_runtime where chave = 'tomtom_chaves_pausadas' for update;
+  select coalesce(jsonb_agg(e), '[]'::jsonb) into v_lista
+  from (select distinct e from jsonb_array_elements_text(coalesce(v_lista, '[]'::jsonb)) e
+        where e <> p_id
+        union select p_id where p_pausada) s(e);
+  update public.config_runtime
+  set valor = v_lista, atualizado_em = now(), atualizado_por = auth.uid()
+  where chave = 'tomtom_chaves_pausadas';
+  return v_lista;
+end $$;
+
+-- admin_usuarios agora diz se a conta está bloqueada (banned_until vigente).
+drop function if exists public.admin_usuarios();
+create function public.admin_usuarios()
+returns table (id uuid, email text, nome text, criado_em timestamptz, ultimo_login timestamptz,
+               papel text, rotas bigint, bloqueado boolean)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not public.is_admin() then
+    raise exception 'acesso negado' using errcode = '42501';
+  end if;
+  return query
+    select u.id, u.email::text, coalesce(p.nome, u.raw_user_meta_data ->> 'nome'),
+           u.created_at, u.last_sign_in_at,
+           coalesce(u.raw_app_meta_data ->> 'role', 'usuario'),
+           (select count(*) from public.rotas_calculadas r where r.user_id = u.id),
+           coalesce(u.banned_until > now(), false)
+    from auth.users u
+    left join public.profiles p on p.id = u.id
+    order by u.created_at;
+end $$;
+revoke execute on function public.admin_usuarios() from public, anon;
+grant execute on function public.admin_usuarios() to authenticated;
+
 -- 8. Avisos --------------------------------------------------------------------
 create or replace function public.admin_aviso_salvar(p_id uuid, p_mensagem text, p_nivel text,
                                                     p_ativo boolean, p_inicio timestamptz, p_fim timestamptz)
@@ -498,7 +553,8 @@ revoke execute on function
   public.admin_definir_papel(uuid, text), public.admin_definir_bloqueio(uuid, boolean),
   public.admin_encerrar_sessoes(uuid), public.admin_exportar_dados(uuid),
   public.admin_apagar_dados(uuid, text, boolean), public.admin_definir_config(text, jsonb),
-  public.admin_tomtom_zerar_cooldowns(), public.admin_aviso_salvar(uuid, text, text, boolean, timestamptz, timestamptz),
+  public.admin_tomtom_zerar_cooldowns(), public.admin_tomtom_pausar(text, boolean),
+  public.admin_aviso_salvar(uuid, text, text, boolean, timestamptz, timestamptz),
   public.admin_aviso_remover(uuid), public.admin_feedback_excluir(uuid, boolean, text),
   public.admin_recalcular_qualidade(), public.admin_expurgar_uso(), public.admin_validacao_feedback(),
   public.admin_analytics_uso(integer)
@@ -508,7 +564,8 @@ grant execute on function
   public.admin_definir_papel(uuid, text), public.admin_definir_bloqueio(uuid, boolean),
   public.admin_encerrar_sessoes(uuid), public.admin_exportar_dados(uuid),
   public.admin_apagar_dados(uuid, text, boolean), public.admin_definir_config(text, jsonb),
-  public.admin_tomtom_zerar_cooldowns(), public.admin_aviso_salvar(uuid, text, text, boolean, timestamptz, timestamptz),
+  public.admin_tomtom_zerar_cooldowns(), public.admin_tomtom_pausar(text, boolean),
+  public.admin_aviso_salvar(uuid, text, text, boolean, timestamptz, timestamptz),
   public.admin_aviso_remover(uuid), public.admin_feedback_excluir(uuid, boolean, text),
   public.admin_recalcular_qualidade(), public.admin_expurgar_uso(), public.admin_validacao_feedback(),
   public.admin_analytics_uso(integer)

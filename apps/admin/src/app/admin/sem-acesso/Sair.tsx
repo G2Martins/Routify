@@ -1,19 +1,13 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { clienteNavegador } from '@/lib/supabase-navegador';
+import { sairParaApp } from '@/components/Sidebar';
 
 export function Sair() {
-  const router = useRouter();
   return (
     <button
       type="button"
-      onClick={async () => {
-        await clienteNavegador().auth.signOut();
-        router.replace('/login');
-        router.refresh();
-      }}
-      className="mt-6 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
+      onClick={sairParaApp}
+      className="mt-6 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white shadow-cta transition-all duration-200 ease-out hover:brightness-110 active:scale-[0.98]"
     >
       Sair e entrar com outra conta
     </button>

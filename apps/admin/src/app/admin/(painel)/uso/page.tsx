@@ -1,6 +1,8 @@
-import { Cabecalho, Cartao, ErroConsulta, Selo, Tabela } from '@/components/ui';
+import { Cabecalho, Cartao, ErroConsulta, SeletorJanela, Selo, Tabela } from '@/components/ui';
 import { exigirAdmin } from '@/lib/auth';
 import { fmtData, fmtDec, fmtDuracao, fmtInt } from '@/lib/formato';
+import type { AnalyticsUso } from '@/lib/tipos';
+import { Analytics } from './Analytics';
 
 type Rota = {
   id: number;
@@ -24,10 +26,14 @@ type Evento = { id: number; criado_em: string; tipo: string; plataforma: string 
 type Requisicao = { id: number; criado_em: string; metodo: string; rota: string; status: number; latencia_ms: number; user_id: string | null; erro: string | null };
 
 const coord = (lat: number, lon: number) => `${Number(lat).toFixed(3)}, ${Number(lon).toFixed(3)}`;
+const JANELAS = [7, 30, 90];
 
-export default async function UsoPage() {
+export default async function UsoPage({ searchParams }: { searchParams: Promise<{ dias?: string }> }) {
+  const { dias: diasParam } = await searchParams;
+  const dias = JANELAS.includes(Number(diasParam)) ? Number(diasParam) : 30;
   const { sb } = await exigirAdmin();
-  const [rotas, eventos, requisicoes] = await Promise.all([
+  const [analytics, rotas, eventos, requisicoes] = await Promise.all([
+    sb.rpc('admin_analytics_uso', { dias }),
     sb.from('rotas_calculadas').select('*').order('criado_em', { ascending: false }).limit(50),
     sb.from('eventos_app').select('id, criado_em, tipo, plataforma, dados').order('criado_em', { ascending: false }).limit(50),
     sb.from('api_requisicoes').select('*').order('criado_em', { ascending: false }).limit(50),
@@ -37,8 +43,14 @@ export default async function UsoPage() {
     <>
       <Cabecalho
         titulo="Uso da plataforma"
-        sobre="Últimas buscas de rota, eventos do app e requisições à API. Coordenadas arredondadas a ~110 m e dados brutos expurgados após 90 dias (LGPD)."
+        sobre="Funil, busca, LIA × menor distância e onde a plataforma é usada — agregados no banco. Abaixo, os últimos registros brutos (coordenadas a ~110 m, expurgo em 90 dias, LGPD)."
+        direita={<SeletorJanela base="/admin/uso" atual={dias} janelas={JANELAS} />}
       />
+      <div className="mb-10">
+        <ErroConsulta erro={analytics.error} acoes />
+        {analytics.data ? <Analytics a={analytics.data as AnalyticsUso} /> : null}
+      </div>
+      <h2 className="surgir mb-4 font-display text-2xl leading-none">Últimos registros</h2>
       <ErroConsulta erro={rotas.error ?? eventos.error ?? requisicoes.error} />
       <div className="space-y-5">
         <Cartao titulo="Últimas rotas calculadas">

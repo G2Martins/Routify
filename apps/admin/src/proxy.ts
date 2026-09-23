@@ -1,7 +1,12 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { APP_URL } from './lib/app-url';
 
-/** Renova a sessão Supabase a cada requisição e manda quem não logou para /login. */
+/**
+ * Renova a sessão Supabase (cookie compartilhado com o app) a cada requisição do
+ * painel. Sem sessão, manda para o login do app — sem parâmetro de retorno, para
+ * não abrir redirecionamento arbitrário.
+ */
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -25,21 +30,11 @@ export async function proxy(request: NextRequest) {
   const {
     data: { user },
   } = await sb.auth.getUser();
-  const rotaLogin = request.nextUrl.pathname.startsWith('/login');
 
-  if (!user && !rotaLogin) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    return NextResponse.redirect(url);
-  }
-  if (user && rotaLogin) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/';
-    return NextResponse.redirect(url);
-  }
+  if (!user) return NextResponse.redirect(new URL(APP_URL, request.url));
   return response;
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|ico)$).*)'],
+  matcher: ['/admin/:path*'],
 };

@@ -1,4 +1,6 @@
+import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { MIGRACAO_ACOES, faltaMigracao } from '@/lib/erros';
 
 export function Cabecalho({ titulo, sobre, direita }: { titulo: string; sobre?: ReactNode; direita?: ReactNode }) {
   return (
@@ -77,16 +79,51 @@ export function Aviso({ titulo, children }: { titulo: string; children?: ReactNo
   );
 }
 
-/** Mensagem amigável para erro de RPC/consulta (42501 = não é admin). */
-export function ErroConsulta({ erro }: { erro: { code?: string; message?: string } | null }) {
+/** Mensagem amigável para erro de RPC/consulta (42501 = não é admin).
+ *  `acoes`: a consulta depende da migration das ações do ADM. */
+export function ErroConsulta({ erro, acoes = false }: { erro: { code?: string; message?: string } | null; acoes?: boolean }) {
   if (!erro) return null;
   const semAcesso = erro.code === '42501';
+  if (acoes && faltaMigracao(erro)) {
+    return (
+      <Aviso titulo="Migration pendente">
+        Aplique a migration <span className="num">{MIGRACAO_ACOES}</span> (ver docs/core/rodar-local.md).
+      </Aviso>
+    );
+  }
   return (
     <Aviso titulo={semAcesso ? 'Acesso negado pelo banco' : 'Não foi possível carregar os dados'}>
       {semAcesso
         ? 'Sua sessão não tem o papel admin no JWT. Saia e entre de novo depois da promoção.'
         : 'Confira se as migrations de captura de uso foram aplicadas no Supabase.'}
     </Aviso>
+  );
+}
+
+/* Botões (raio 8, pressão 0,98, hover 160 ms). */
+const BTN =
+  'inline-flex items-center justify-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-150 ease-out active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50';
+export const BTN_PRIMARIO = `${BTN} bg-accent text-white shadow-cta hover:brightness-110`;
+export const BTN_SECUNDARIO = `${BTN} border border-border bg-card text-foreground shadow-card hover:border-border-strong hover:shadow-card-hover`;
+export const BTN_PERIGO = `${BTN} bg-destructive text-white hover:brightness-110`;
+export const CAMPO =
+  'w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground transition-colors duration-150 placeholder:text-muted-foreground focus:border-accent focus:outline-none';
+
+/** Seletor de janela 7/30/90 dias por link (Server Component). */
+export function SeletorJanela({ base, atual, janelas = [7, 30, 90] }: { base: string; atual: number; janelas?: number[] }) {
+  return (
+    <div className="flex items-center gap-1 rounded-full border border-border bg-card p-1 text-xs">
+      {janelas.map((j) => (
+        <Link
+          key={j}
+          href={`${base}?dias=${j}`}
+          aria-current={j === atual ? 'page' : undefined}
+          className={`rounded-full px-3 py-1 ${j === atual ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'}`}
+        >
+          {j} dias
+        </Link>
+      ))}
+    </div>
   );
 }
 

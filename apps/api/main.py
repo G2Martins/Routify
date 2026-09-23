@@ -310,6 +310,7 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["GET", "POST"],
     allow_headers=["Authorization", "Content-Type"],
+    expose_headers=["Retry-After"],  # o painel lê quando mostrar "tente em X s"
 )
 
 # Sem log: health checks (o painel ADM consulta a cada poucos segundos) e docs.

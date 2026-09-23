@@ -2,7 +2,9 @@ import { BarrasVersao, BenchmarkFolds, Congestionamento, CurvaCalibracao, Disper
 import { Aviso, Cabecalho, Cartao, ErroConsulta, Kpi, Tabela } from '@/components/ui';
 import { exigirAdmin } from '@/lib/auth';
 import { fmtData, fmtDec, fmtInt, num } from '@/lib/formato';
-import type { Benchmark, Calibracao, LiaTreino } from '@/lib/tipos';
+import { MIGRACAO_ACOES } from '@/lib/erros';
+import type { Benchmark, Calibracao, Feedback, LiaTreino } from '@/lib/tipos';
+import { FeedbackOutliers } from './FeedbackOutliers';
 
 /** lia_2.1_retreino_20260923 → "LIA 2.1 re-treino 23/09" */
 function rotulo(versao: string) {
@@ -40,8 +42,12 @@ export default async function LiaPage() {
         destaque: l.versao === 'lia_2.1',
       }));
 
-  const pontosFeedback = ((feedback.data ?? []) as { tempo_previsto_seg: number | null; tempo_real_seg: number }[])
-    .filter((p) => p.tempo_previsto_seg !== null)
+  const linhasFeedback = (feedback.data ?? []) as Feedback[];
+  // Sem a migration das ações, a RPC antiga não traz id/feedback_excluido.
+  const comExclusao = !linhasFeedback.length || 'feedback_excluido' in linhasFeedback[0];
+  const excluidas = linhasFeedback.filter((p) => p.feedback_excluido).length;
+  const pontosFeedback = linhasFeedback
+    .filter((p) => p.tempo_previsto_seg !== null && !p.feedback_excluido)
     .map((p) => ({ previsto: (p.tempo_previsto_seg ?? 0) / 60, real: p.tempo_real_seg / 60 }));
   const maeReal = pontosFeedback.length
     ? pontosFeedback.reduce((s, p) => s + Math.abs(p.previsto - p.real), 0) / pontosFeedback.length
@@ -126,17 +132,31 @@ export default async function LiaPage() {
         titulo="Erro real em produção — previsto × informado pelo usuário"
         className="mb-5"
         atraso={400}
-        nota={maeReal !== null ? `MAE real: ${fmtDec(maeReal)} min em ${pontosFeedback.length} viagens. Linha tracejada = previsão perfeita.` : undefined}
+        nota={
+          maeReal !== null
+            ? `MAE real: ${fmtDec(maeReal)} min em ${pontosFeedback.length} viagens${excluidas ? ` (${excluidas} excluída${excluidas > 1 ? 's' : ''} como outlier)` : ''}. Linha tracejada = previsão perfeita.`
+            : undefined
+        }
       >
         {feedback.error ? (
           <ErroConsulta erro={feedback.error} />
         ) : pontosFeedback.length ? (
           <DispersaoFeedback pontos={pontosFeedback} />
         ) : (
-          <Aviso titulo="Ainda sem feedback">
-            O usuário informa o tempo real da viagem na tela Histórico do app. Cada resposta vira um ponto aqui.
+          <Aviso titulo={linhasFeedback.length ? 'Todas as viagens estão excluídas' : 'Ainda sem feedback'}>
+            {linhasFeedback.length
+              ? 'Reinclua alguma viagem na tabela abaixo para voltar a ter pontos no gráfico.'
+              : 'O usuário informa o tempo real da viagem na tela Histórico do app. Cada resposta vira um ponto aqui.'}
           </Aviso>
         )}
+        {linhasFeedback.length && comExclusao ? <FeedbackOutliers linhas={linhasFeedback} /> : null}
+        {linhasFeedback.length && !comExclusao ? (
+          <div className="mt-4">
+            <Aviso titulo="Exclusão de outliers indisponível">
+              Aplique a migration <span className="num">{MIGRACAO_ACOES}</span> (ver docs/core/rodar-local.md).
+            </Aviso>
+          </div>
+        ) : null}
       </Cartao>
 
       {linhas.length ? (

@@ -1,43 +1,27 @@
-import { Cabecalho, Cartao, ErroConsulta, Selo, Tabela } from '@/components/ui';
+import { Cabecalho, Cartao, ErroConsulta } from '@/components/ui';
 import { exigirAdmin } from '@/lib/auth';
-import { fmtData, fmtInt } from '@/lib/formato';
-
-type Usuario = {
-  id: string;
-  email: string;
-  nome: string | null;
-  criado_em: string;
-  ultimo_login: string | null;
-  papel: string;
-  rotas: number;
-};
+import type { Usuario } from '@/lib/tipos';
+import { TabelaUsuarios } from './TabelaUsuarios';
 
 export default async function UsuariosPage() {
-  const { sb } = await exigirAdmin();
-  const { data, error } = await sb.rpc('admin_usuarios');
-  const usuarios = (data ?? []) as Usuario[];
+  const { sb, user } = await exigirAdmin();
+  const lista = await sb.rpc('admin_usuarios');
+  const usuarios = (lista.data ?? []) as Usuario[];
+  // `bloqueado` vem do banco (banned_until vigente), não do painel.
+  const bloqueados = usuarios.filter((u) => u.bloqueado).map((u) => u.id);
 
   return (
     <>
       <Cabecalho
         titulo="Usuários"
-        sobre="Contas cadastradas. O papel de administrador vem de app_metadata, que só o banco (service_role) grava — ninguém se promove pelo app."
+        sobre="Contas cadastradas e ações de administração. O papel de administrador vem de app_metadata, que só o banco grava — ninguém se promove pelo app. Toda ação é auditada."
       />
-      <ErroConsulta erro={error} />
-      <Cartao>
-        <Tabela cabecalho={['Nome', 'E-mail', 'Papel', 'Cadastro', 'Último login', 'Rotas']}>
-          {usuarios.map((u) => (
-            <tr key={u.id}>
-              <td className="font-medium">{u.nome ?? '—'}</td>
-              <td className="num text-xs">{u.email}</td>
-              <td>{u.papel === 'admin' ? <Selo tom="ok">admin</Selo> : <Selo tom="neutro">usuário</Selo>}</td>
-              <td className="num text-xs">{fmtData(u.criado_em)}</td>
-              <td className="num text-xs">{fmtData(u.ultimo_login)}</td>
-              <td className="num">{fmtInt(u.rotas)}</td>
-            </tr>
-          ))}
-        </Tabela>
-      </Cartao>
+      <div className="space-y-5">
+        <ErroConsulta erro={lista.error} acoes />
+        <Cartao nota="Na própria conta, só a exportação fica liberada.">
+          <TabelaUsuarios usuarios={usuarios} bloqueados={bloqueados} eu={user.id} />
+        </Cartao>
+      </div>
     </>
   );
 }

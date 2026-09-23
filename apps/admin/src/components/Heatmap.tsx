@@ -1,7 +1,13 @@
 const DIAS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
-/** Cobertura hora × dia: um tom (azul), claro → escuro por quantidade de amostras. */
-export function HeatmapCobertura({ celulas }: { celulas: { dia_semana: number; hora: number; n: number }[] }) {
+/** Hora × dia (dia_semana 1 = segunda … 7 = domingo): um tom (azul), claro → escuro por quantidade. */
+export function HeatmapCobertura({
+  celulas,
+  unidade = 'amostras',
+}: {
+  celulas: { dia_semana: number; hora: number; n: number }[];
+  unidade?: string;
+}) {
   const mapa = new Map(celulas.map((c) => [`${c.dia_semana}-${c.hora}`, c.n]));
   const maximo = Math.max(1, ...celulas.map((c) => c.n));
   const tom = (n: number) =>
@@ -24,7 +30,7 @@ export function HeatmapCobertura({ celulas }: { celulas: { dia_semana: number; h
               return (
                 <span
                   key={h}
-                  title={`${dia} ${h}h — ${n.toLocaleString('pt-BR')} amostras`}
+                  title={`${dia} ${h}h — ${n.toLocaleString('pt-BR')} ${unidade}`}
                   className="h-5 rounded-[3px]"
                   style={{ background: tom(n) }}
                 />
@@ -38,7 +44,9 @@ export function HeatmapCobertura({ celulas }: { celulas: { dia_semana: number; h
         {[0.1, 0.35, 0.6, 0.85, 1].map((f) => (
           <span key={f} className="h-3 w-6 rounded-[2px]" style={{ background: tom(f * maximo) }} />
         ))}
-        <span>mais amostras (máx. {maximo.toLocaleString('pt-BR')})</span>
+        <span>
+          mais {unidade} (máx. {maximo.toLocaleString('pt-BR')})
+        </span>
       </div>
     </div>
   );

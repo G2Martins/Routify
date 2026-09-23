@@ -48,3 +48,7 @@ export const fmtBytes = (v: unknown) => {
   if (n >= 1024) return `${decimal.format(n / 1024)} kB`;
   return `${inteiro.format(n)} B`;
 };
+
+/** Ator/alvo da auditoria: e-mail quando resolvível, senão uuid curto. */
+export const nomeUsuario = (id: string | null | undefined, emails: Record<string, string>) =>
+  !id ? '—' : (emails[id] ?? `${id.slice(0, 8)}…`);
