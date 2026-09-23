@@ -4,7 +4,9 @@
 
 Passo a passo para subir API, app e painel ADM na sua máquina e testar os dois lados. Tempo estimado: ~15 min na primeira vez.
 
-```
+Todo `cd` abaixo parte da **raiz do repo**. API, app e painel ficam rodando ao mesmo tempo, então abra **um terminal para cada um**.
+
+```text
 App (Expo web :8081) ──► API FastAPI (:8000) ──► Supabase · TomTom
 Painel ADM (Next :3000) ─┘          └── LIA 2.1 + grafo OSM em memória
 ```
@@ -69,7 +71,8 @@ pip install -r requirements.txt   # primeira vez
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Confira em http://localhost:8000/health. O esperado é:
+Confira em <http://localhost:8000/health>. O esperado é:
+
 - `modelo_ativo: "lia_2.1"`;
 - `vias_monitoradas: 630`;
 - `tomtom.ativo: true`.
@@ -84,7 +87,8 @@ npm install        # primeira vez
 npm run web
 ```
 
-Abra http://localhost:8081 e faça o roteiro:
+Abra <http://localhost:8081> e faça o roteiro:
+
 1. **Entre** com uma conta existente (ou cadastre uma nova).
 2. **Mapa:** escolha origem e destino no autocomplete e toque em **Otimizar rota**. A LIA calcula; a TomTom atualiza as vias do trajeto e remove interdições.
 3. **Iniciar navegação** e depois **Encerrar viagem** (gera os eventos de navegação).
@@ -99,7 +103,7 @@ npm install        # primeira vez
 
 Crie `apps/admin/.env.local` com as chaves **públicas**. Os valores são os mesmos de `apps/mobile/.env`:
 
-```
+```dotenv
 NEXT_PUBLIC_SUPABASE_URL=<mesmo valor de EXPO_PUBLIC_SUPABASE_URL>
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<mesmo valor de EXPO_PUBLIC_SUPABASE_ANON_KEY>
 NEXT_PUBLIC_API_URL=http://localhost:8000
@@ -109,10 +113,10 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 npm run dev
 ```
 
-Abra http://localhost:3000, entre com uma conta **admin** e percorra:
+Abra <http://localhost:3000>, entre com uma conta **admin** e percorra:
 
 | Página | O que conferir |
-|---|---|
+| --- | --- |
 | Visão geral | a rota que você pediu no app aparece nos números e no gráfico diário |
 | LIA · benchmarks | MAE/RMSE por versão, curva isotônica, LSTM × XGBoost, congestionamento, feedback |
 | Arquitetura viva | status verde na API, no cache de recência, no pool TomTom e no Supabase; troque os fluxos |
@@ -125,7 +129,7 @@ Conta sem papel admin cai em "Sem acesso", e o banco recusa as consultas mesmo q
 ## Problemas comuns
 
 | Sintoma | Causa provável | Solução |
-|---|---|---|
+| --- | --- | --- |
 | Painel mostra "Acesso negado pelo banco" | token antigo, sem o papel | sair e entrar de novo depois da promoção |
 | Painel mostra "Não foi possível carregar os dados" | migration 3 não aplicada | aplicar `20260923010000_usage_tracking_admin.sql` |
 | Log da API: `Uso: falha ao gravar em …` | tabelas de uso não existem ainda | idem acima; a rota funciona mesmo assim |

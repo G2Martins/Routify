@@ -129,10 +129,15 @@ export type Theme = ReturnType<typeof buildTheme>;
 export const MAP_STYLES = ['dark', 'street', 'satellite'] as const;
 export type MapStyle = typeof MAP_STYLES[number];
 
-export const MAP_TILE_URLS: Record<MapStyle, { url: string; attribution: string }> = {
+// ponytail: o CARTO passou a exigir API key (tiles com marca d'água), então o escuro
+// usa os tiles do OSM invertidos por CSS. Teto: a política do tile.openstreetmap.org
+// só aceita baixo volume + atribuição. Com tráfego real, trocar por provedor com chave
+// (MapTiler/Stadia/CARTO).
+export const MAP_TILE_URLS: Record<MapStyle, { url: string; attribution: string; filtro?: string }> = {
   dark: {
-    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    attribution: '© OpenStreetMap · © CARTO',
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '© OpenStreetMap',
+    filtro: 'invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9) saturate(0.5)',
   },
   street: {
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',

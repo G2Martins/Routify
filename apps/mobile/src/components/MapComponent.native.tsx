@@ -4,7 +4,6 @@ import MapView, {
   PROVIDER_DEFAULT,
   Polyline,
   Marker,
-  UrlTile,
   MapType,
 } from 'react-native-maps';
 import * as Location from 'expo-location';
@@ -141,7 +140,8 @@ const MapComponent = forwardRef((_props, ref) => {
   // Mapeia mapStyle do app para mapType nativo
   // Satellite: usa tipo nativo (já tem Esri)
   // Street: standard
-  // Dark: standard + UrlTile do CartoDB para overlay
+  // Dark: mapa nativo em modo escuro. O overlay CARTO saiu (passou a exigir API key).
+  // ponytail: userInterfaceStyle só vale no iOS; no Android o escuro cai no mapa padrão.
   const mapType: MapType = mapStyle === 'satellite' ? 'hybrid' : 'standard';
 
   return (
@@ -151,17 +151,10 @@ const MapComponent = forwardRef((_props, ref) => {
       style={styles.map}
       initialRegion={BRASILIA_REGION}
       mapType={mapType}
+      userInterfaceStyle={mapStyle === 'dark' ? 'dark' : 'light'}
       showsUserLocation
       showsMyLocationButton={false}
     >
-      {mapStyle === 'dark' ? (
-        <UrlTile
-          urlTemplate="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-          maximumZ={19}
-          flipY={false}
-          shouldReplaceMapContent
-        />
-      ) : null}
       {routeCoords.length > 1 ? (
         <Polyline
           coordinates={routeCoords}

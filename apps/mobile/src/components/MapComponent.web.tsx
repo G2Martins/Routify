@@ -33,6 +33,14 @@ function injectLeafletCSS() {
 const BRASILIA_LAT = -15.793889;
 const BRASILIA_LON = -47.882778;
 
+function criarTiles(map: any, style: keyof typeof MAP_TILE_URLS) {
+  const tile = MAP_TILE_URLS[style];
+  const camada = L.tileLayer(tile.url, { attribution: tile.attribution, maxZoom: 19 }).addTo(map);
+  // O filtro vai no container da camada: marcadores e a linha da rota não são afetados.
+  camada.getContainer().style.filter = tile.filtro ?? '';
+  return camada;
+}
+
 const MapComponent = forwardRef((_props, ref) => {
   const { mapStyle, theme } = useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -65,12 +73,7 @@ const MapComponent = forwardRef((_props, ref) => {
         attributionControl: true,
       }).setView([BRASILIA_LAT, BRASILIA_LON], 13);
 
-      const tile = MAP_TILE_URLS[mapStyle];
-      tileLayerRef.current = L.tileLayer(tile.url, {
-        attribution: tile.attribution,
-        maxZoom: 19,
-      }).addTo(map);
-
+      tileLayerRef.current = criarTiles(map, mapStyle);
       mapInstanceRef.current = map;
       setMapLoaded(true);
     }
@@ -90,11 +93,7 @@ const MapComponent = forwardRef((_props, ref) => {
   useEffect(() => {
     if (!mapInstanceRef.current || !L) return;
     if (tileLayerRef.current) tileLayerRef.current.remove();
-    const tile = MAP_TILE_URLS[mapStyle];
-    tileLayerRef.current = L.tileLayer(tile.url, {
-      attribution: tile.attribution,
-      maxZoom: 19,
-    }).addTo(mapInstanceRef.current);
+    tileLayerRef.current = criarTiles(mapInstanceRef.current, mapStyle);
   }, [mapStyle]);
 
   useImperativeHandle(ref, () => ({

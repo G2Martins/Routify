@@ -15,7 +15,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR" className={`${sans.variable} ${mono.variable} ${serif.variable}`}>
-      <body className="min-h-dvh antialiased">{children}</body>
+      {/* Extensões (ColorZilla, Grammarly) injetam atributos no body antes da hidratação. */}
+      <body className="min-h-dvh antialiased" suppressHydrationWarning>
+        {children}
+      </body>
     </html>
   );
 }
