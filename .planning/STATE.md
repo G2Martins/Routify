@@ -22,17 +22,17 @@ Na branch `feat/tomtom-sob-demanda` (local, aguardando OK pra push/merge):
 
 **Não executado end-to-end:** o `/route` completo precisa dos artefatos da LIA 2.1 (com o Pedro) e do Supabase de volta.
 
-## ⚠️ Bloqueio: Supabase pausado
+## ⚠️ Supabase restaurado (2026-09-23) — segurança pendente
 
-`vwbnragsacjxxulxenvg.supabase.co` → NXDOMAIN. O último dado é de 2026-07-19; é o comportamento conhecido de projeto free pausado por inatividade.
-
-**Ação do dono da conta:** Dashboard → projeto → Resume. A janela de restauração do free é de 1 ano.
-
-Depois de restaurar:
-- exportar backup (o free não tem backup automático);
-- configurar os secrets `SUPABASE_URL` + `SUPABASE_PUBLISHABLE_KEY` no GitHub (keep-alive).
-
-O Pedro tem o parquet silver completo (1,5 mi linhas): **preservar como backup**.
+- Projeto de volta no ar (resume + restauração concluída às 01:34 UTC).
+- **Dados íntegros:** `historico_trafego` 1.513.828 linhas (2026-03-07 → 2026-07-20), `vias_monitoradas` 630, `malha_completa` 45.476, `route_history` 17, 2 usuários; 168 MB.
+- **Crítico:** as 3 tabelas do dataset estão sem RLS, com o `anon` podendo SELECT/INSERT/DELETE.
+  - Correção pronta em `supabase/migrations/20260923000000_security_hardening.sql`.
+  - **Aplicar primeiro a `20260907000000_thesis_validation.sql`** (nunca aplicada: faltam colunas de validação + policy de UPDATE; o feedback do app falha).
+- **Backup local bruto** das 3 tabelas em `ml/artifacts/backup_20260923_*.parquet` (fora do git).
+- **Pendente no painel:**
+  - secrets do keep-alive no GitHub (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`);
+  - "Leaked password protection" (Auth).
 
 ## Decisões tomadas (2026-09-22)
 

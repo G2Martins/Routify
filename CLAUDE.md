@@ -74,7 +74,13 @@ CI (`.github/workflows/`):
 
 - A API **não tem auth**, e o CORS usa `allow_origins=["*"]` + `allow_credentials=True` (combinação inválida pela spec) em [apps/api/main.py](apps/api/main.py). Não há rate-limit por cliente. A única barreira contra queimar a cota da TomTom é o teto global `TOMTOM_MAX_CHAMADAS_MIN` (120/min).
 - `route_history` é 100% escrito pelo cliente, então os dados de validação da tese são corrompíveis. Alvo: a API persiste (service role) e o cliente só lê e dá feedback.
-- O RLS das 3 tabelas de tráfego não está versionado, e o app usa anon key pública. Se o RLS estiver desligado, qualquer um lê/apaga o dataset via PostgREST. **Verificar primeiro** quando o MCP conectar.
+- **CONFIRMADO em 2026-09-23 (advisor nível ERROR):** `historico_trafego`, `vias_monitoradas` e `malha_completa` estão **sem RLS**, e o `anon` tem SELECT/INSERT/DELETE. Qualquer um com a chave pública do app lê e apaga o dataset via PostgREST.
+  - Correção versionada em `supabase/migrations/20260923000000_security_hardening.sql`:
+    - RLS sem policy + revoke nas 3 tabelas (API, coletor e ml usam service_role);
+    - UPDATE de `route_history` restrito às colunas de feedback;
+    - `handle_new_user` fora do `/rpc`.
+  - **Pendente: aplicar.**
+- **A migration `20260907000000_thesis_validation.sql` (Pedro) nunca foi aplicada no banco.** Faltam as colunas de validação e a policy de UPDATE, então o salvamento de rota do app `tcc2` e o feedback de tempo real falham. Aplicar antes do hardening.
 - O papel ADM nunca pode ficar em coluna que o próprio usuário edita (`profiles` tem update pelo dono). Usar `app_metadata.role` (só o service role grava; já vem no JWT) + checagem na API e nas policies.
 
 ## 6. Common Hurdles
