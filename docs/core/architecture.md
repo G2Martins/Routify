@@ -1,6 +1,6 @@
 # Arquitetura — Routify
 
-**Última revisão:** 2026-09-22
+**Última revisão:** 2026-09-23
 
 Visão de ponta a ponta do sistema na fase final do TCC 2: a coleta contínua para e a TomTom passa a ser consultada **sob demanda**, complementando a LIA (XGBoost) na hora de cada rota. Este documento atende ao item 3 do orientador: fluxo da API com o cache de recência, a rotação defensiva de chaves e o fallback da busca de endereços.
 
@@ -18,7 +18,8 @@ flowchart LR
         PRED["POST /predict"]
         RC[("Cache de recência<br/>última razão por via<br/>TTL 5 min · merge")]
         POOL["Pool de chaves TomTom<br/>cooldown por (chave, serviço)<br/>orçamento por minuto"]
-        G[("Grafo OSMnx 38 km<br/>enriquecido na subida")]
+        G[("Grafo OSMnx 38 km<br/>enriquecido na subida<br/>+ 271 cruzamentos com semáforo")]
+        FUS["Fusão LIA × TomTom<br/>trajeto.py"]
         M[("Modelo LIA 2.1<br/>+ perfis + curva isotônica")]
     end
 
@@ -34,7 +35,9 @@ flowchart LR
     APP -- "rota / busca" --> API
     APP -- "Auth · histórico (RLS)" --> SB
     ROUTE --> RC & G & M
-    ROUTE -- "vias velhas do corredor,<br/>interdições, ETA de referência" --> POOL
+    ROUTE -- "vias velhas do corredor,<br/>interdições" --> POOL
+    ROUTE --> FUS
+    FUS -- "reconstruir a rota da LIA<br/>(supportingPoints) + alternativa" --> POOL
     SEARCH -- "1º" --> SB
     SEARCH -- "2º se < 3 resultados" --> POOL
     SEARCH -- "3º, cache + 1 req/s" --> NOM
@@ -49,6 +52,7 @@ flowchart LR
 | Cache de recência | `recency_cache.py` | Última observação real por via (`razao_lag1`, `delta_min_lag1`). Faz merge (a leitura ao vivo vence o banco) e aplica backoff quando o Supabase cai. |
 | TomTom sob demanda | `tomtom.py` | Pool de chaves, clientes HTTP, caches e as funções geométricas (corredor, interdições, incidentes na rota). |
 | Knowledge Transfer | `routers/route.py` | Aresta a até 500 m de uma via monitorada herda o padrão dela, com a confiança da curva isotônica (`transfer_confidence_isotonic.pkl`). |
+| Fusão LIA × TomTom + semáforos | `trajeto.py` | Snap (BallTree de nós), semáforos do OSM encaixados no cruzamento com atraso calibrado (`semaforos_calibracao.json`), tempo misto pela cobertura da LIA e regra de troca de rota. |
 
 ## 2. Fluxo do `POST /route`
 
@@ -60,9 +64,9 @@ sequenceDiagram
     participant RC as Cache de recência
     participant Pool as Pool de chaves
     participant TT as TomTom
-    App->>API: origem, destino (+ referencia_tomtom?)
+    App->>API: origem, destino
     API->>RC: refresh se TTL venceu (backoff se o Supabase caiu)
-    API->>API: snap nos nós dirigíveis mais próximos
+    API->>API: snap no nó mais próximo (> 400 m = fora da malha → rota da TomTom)
     API->>API: vias monitoradas a até 1,5 km da reta O-D com recência > 10 min (máx. 8)
     par em paralelo
         API->>Pool: Flow Segment Data × vias selecionadas
@@ -72,14 +76,16 @@ sequenceDiagram
         API->>Pool: Incident Details (bbox do corredor, cache 5 min)
         Pool->>TT: chave livre
         TT-->>API: incidentes (interdição = iconCategory 8)
-    and opcional
-        API->>Pool: Routing (ETA de referência com trânsito)
     end
     API->>RC: registrar razão ao vivo das vias atualizadas
     API->>API: pesos LIA em todas as arestas (recência nova já entra na feature)
-    API->>API: A* com peso que exclui arestas interditadas
+    API->>API: A* (peso = LIA + atraso de semáforo; interditadas fora)
     API->>API: baseline de menor distância (instrumentação da tese)
-    API-->>App: polyline, tempo, cobertura LIA, incidentes na rota, bloco tomtom
+    API->>Pool: Routing com supportingPoints = rota da LIA
+    Pool->>TT: 1 chamada
+    TT-->>API: ETA ao vivo da MESMA rota + alternativa se for melhor
+    API->>API: tempo = cobertura·LIA + resto·TomTom; troca só com ganho ≥ 10% e ≥ 60 s
+    API-->>App: polyline, tempo, fonte_rota, alternativa (tracejada), semáforos, incidentes
 ```
 
 **Modo degradado.** Se não há chave configurada, todas estão em cooldown, o orçamento do minuto estourou ou a TomTom falha, o passo 5 devolve vazio: a rota sai só com a LIA (perfil histórico + última recência conhecida) e `tomtom.degradado = true`. Uma falha da TomTom nunca vira erro para o usuário.

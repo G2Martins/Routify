@@ -151,3 +151,15 @@ docs/build/
 
 # SQL local (pode conter e-mails/dados pessoais) — nunca versionar
 supabase/.local/
+
+# Chaves e credenciais de infra (AWS/Hostinger/SSH) — nunca versionar
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+.aws/
+*.tfstate
+*.tfstate.*
+.terraform/

@@ -107,9 +107,17 @@ A Fase 3 compara, para o mesmo par origem-destino e no mesmo instante:
 
 ## 6. Limitações conhecidas
 
-1. **Semáforos não modelados.**
-   - O grafo não tem penalidade por cruzamento semaforizado, o que gera viés proporcional à distância no tempo total (Fase 3).
-   - Por isso a validação externa usa o atraso por congestionamento, não o tempo absoluto.
+1. **Semáforos e velocidade livre** *(atualizado em 2026-09-23 — números em `ml/artifacts/semaforos_calibracao.json`; a validar pelo grupo)*.
+   - A soma de arestas não modela a espera em cruzamento semaforizado, o que gera viés proporcional à distância no tempo total (Fase 3). Por isso a validação externa usa o atraso por congestionamento, não o tempo absoluto.
+   - **Tratamento implementado:**
+     - semáforos do OSM (`highway=traffic_signals`, 423 no DF) encaixados no cruzamento do grafo (271 cruzamentos; a simplificação do OSMnx guardava só 114);
+     - atraso médio por semáforo calibrado contra a TomTom no **mesmo trajeto** (reconstrução por `supportingPoints`), em 60 pares O-D sorteados com semente fixa;
+     - OLS sem intercepto: `TomTom sem trânsito − LIA ≈ δ·semáforos + β·km`.
+   - **Resultado:** δ = 22,9 s (erro-padrão 15,7 s), compatível com a faixa do HCM para LOS C (20–35 s), mas estatisticamente fraco. β = 22,9 s/km, com R² ≈ 0.
+     - Leitura: a maior parte da diferença não vem dos semáforos. É um viés por quilômetro da **velocidade livre**.
+     - Causa: na inferência, a API usa o limite de via do OSM (`speed_kph`) como velocidade livre, enquanto a LIA foi treinada com a velocidade livre da TomTom. O tempo da rota sai otimista.
+     - Correção em teste: `VEL_LIVRE_TOMTOM=1` usa a velocidade livre da TomTom nos trechos monitorados (`ml/free_flow_speeds.py`).
+   - **Limitação da coleta:** a calibração foi feita de madrugada; repetir em horário comercial e estratificar por região.
 2. **Subestimação em congestionamento extremo** (Figura 4).
    - No subconjunto congestionado (razão < 0,95; 17,1% das amostras), o RMSE da LIA 2.1 sobe de 40,7 s para 87,5 s (2,1×).
    - A vantagem sobre o baseline se mantém (123,7 s; −29,3%).
@@ -139,7 +147,10 @@ A Fase 3 compara, para o mesmo par origem-destino e no mesmo instante:
 
 ## 7. Trabalhos futuros
 
-- **Semáforos:** penalidade por nó `highway=traffic_signals` do OpenStreetMap, calibrada contra as amostras da Fase 3.
+- **Semáforos:** implementado em 2026-09-23 (ver limitação 1). Falta repetir a calibração de dia, por região, e com a velocidade livre corrigida.
+- **Velocidade livre na inferência:** usar a velocidade livre da TomTom (a do treino) também nas arestas por transferência, e calibrar a do OSM por classe de via.
+- **Fusão LIA × TomTom:** implementada. A TomTom reconstrói a rota da LIA e mede o ETA ao vivo do mesmo trajeto, e o tempo exibido mistura as duas fontes pela cobertura da LIA. Avaliar o erro dessa estimativa contra o tempo real informado pelos usuários.
+- **Features de contexto:** vizinhos monitorados em t−1, chuva (Open-Meteo), feriados (BrasilAPI) e incidente ativo por perto.
 - **Cauda de congestionamento:** ponderação das amostras congestionadas, perda quantílica (P90) ou modelo específico para razão < 0,5.
 - **Coleta orientada por demanda:** persistir as leituras ao vivo da TomTom feitas durante o uso (com a fonte identificada) para re-treino, sem varredura contínua.
 - **Incidentes como sinal calibrado:** hoje só a interdição bloqueia arestas; acidentes e obras poderiam virar penalidade aprendida.

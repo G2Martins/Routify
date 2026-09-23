@@ -271,7 +271,7 @@ Em dispositivo físico, troque `localhost` pelo IP da máquina em
 | `ModuleNotFoundError` | venv errada ou dependência faltando | `pip install -r requirements.txt` na pasta do módulo |
 | `supabase.exceptions.AuthApiError` / host não resolve | URL/chave erradas ou projeto free pausado | conferir `services/collector/config/.env`; projeto pausado → Dashboard → Resume |
 | `FileNotFoundError: lia_2.1.pkl` na API | modelo não treinado nesta máquina | `cd ml && python train.py` (ou copiar os artefatos para `ml/artifacts/`) |
-| API trava em "Baixando grafo" | Overpass lento na 1ª execução | aguardar; fica em cache em `ml/artifacts/brasilia_graph.graphml` |
+| API trava em "Baixando grafo" | Overpass lento na 1ª execução | aguardar; fica em cache em `ml/artifacts/brasilia_graph_38km.graphml` (o raio vai no nome) |
 | `429` da TomTom | cota da chave esgotada | o pool rotaciona sozinho; ver `GET /health` › `tomtom` |
 | `KeyError: 'c'` no MLflow (Windows) | caminho lido como esquema de URI | já corrigido com `Path(...).as_uri()` |
 

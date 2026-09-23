@@ -14,10 +14,23 @@ Painel ADM (Next :3000) ─┘          └── LIA 2.1 + grafo OSM em memóri
 ## 0. Pré-requisitos
 
 - Python 3.11 e Node.js 20 ou mais novo.
+- **Ambiente Python da API e do `ml/`: use o venv, não o Python global.**
+  - **Por quê:** os `.pkl` da LIA só carregam com as versões fixadas em `requirements.txt` (pandas 3.0, scikit-learn 1.8, xgboost 3.2, numpy 2.4). Com versões diferentes, o modelo não carrega ou prevê diferente.
+  - **Criar, uma vez:**
+
+    ```bash
+    cd apps/api
+    python -m venv .venv
+    .venv/Scripts/python -m pip install --use-feature=truststore -r requirements.txt pytest
+    ```
+
+  - `--use-feature=truststore` usa os certificados do Windows e resolve o erro `CERTIFICATE_VERIFY_FAILED` quando um antivírus inspeciona HTTPS.
 - `services/collector/config/.env` preenchido (`SUPABASE_URL`, `SUPABASE_KEY` = service_role) e `services/collector/config/tomtom_keys.json` com as chaves (modelos em `*.example`). A API e o `ml/` leem esses mesmos arquivos.
-- Artefatos da LIA em `ml/artifacts/` (fora do git):
-  - `lia_2.1.pkl`, `lia_2.1_encoder.pkl`, `lia_2.1_profiles.pkl`, `transfer_confidence_isotonic.pkl`, `brasilia_graph.graphml`;
-  - quem não tem, gera com `cd ml && python silver.py && python train.py --version lia_2.1 --skip-silver && python calibrate_transfer.py` (~5 min).
+- Artefatos em `ml/artifacts/` (os `.pkl` e o grafo ficam fora do git):
+  - `lia_2.1.pkl`, `lia_2.1_encoder.pkl`, `lia_2.1_profiles.pkl`, `transfer_confidence_isotonic.pkl`;
+  - `brasilia_graph_38km.graphml`: a API baixa sozinha na primeira subida (2–10 min);
+  - `semaforos_osm_38km.json` e `semaforos_calibracao.json`: versionados;
+  - quem não tem a LIA gera com `cd ml && ../apps/api/.venv/Scripts/python train.py --version lia_2.1` (~5 min).
 
 ## 1. Banco — uma vez só
 
@@ -25,9 +38,10 @@ As migrations de `supabase/migrations/` precisam estar aplicadas, na ordem:
 
 1. `20260907000000_thesis_validation.sql` — colunas de validação da tese em `route_history`;
 2. `20260923000000_security_hardening.sql` — **liga o RLS** nas tabelas do dataset;
-3. `20260923010000_usage_tracking_admin.sql` — tabelas de captura de uso, RPCs do painel, views de qualidade, `pg_cron`.
+3. `20260923010000_usage_tracking_admin.sql` — tabelas de captura de uso, RPCs do painel, views de qualidade, `pg_cron`;
+4. `20260923020000_admin_actions.sql` — ações do painel (papel, bloqueio, sessões, exportar/apagar dados, TomTom, avisos, outliers), auditoria append-only e analytics de uso.
 
-**Opção A — SQL Editor (mais simples).** No painel do Supabase → **SQL Editor** → **New query**, cole o conteúdo dos 3 arquivos (nessa ordem) e clique em **Run**. Tudo é idempotente: rodar de novo não estraga nada.
+**Opção A — SQL Editor (mais simples).** No painel do Supabase → **SQL Editor** → **New query**, cole o conteúdo dos arquivos (nessa ordem) e clique em **Run**. Tudo é idempotente: rodar de novo não estraga nada.
 
 **Opção B — pelo Claude.** Numa sessão interativa, rode `/mcp` → `supabase` → **Authenticate** e peça para aplicar; o MCP precisa estar sem `read_only=true` na URL do `.mcp.json`.
 
@@ -58,7 +72,7 @@ RLS (Row Level Security) faz o Postgres checar uma regra em **cada linha** antes
 
 ```bash
 cd ml
-python publish_metrics.py
+../apps/api/.venv/Scripts/python publish_metrics.py
 ```
 
 Lê os JSONs versionados de `ml/artifacts/` e alimenta `lia_treinos` e `lia_analises`. Rode de novo depois de cada treino: o painel acompanha a evolução.
@@ -67,17 +81,38 @@ Lê os JSONs versionados de `ml/artifacts/` e alimenta `lia_treinos` e `lia_anal
 
 ```bash
 cd apps/api
-pip install -r requirements.txt   # primeira vez
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+.venv/Scripts/python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 Confira em <http://localhost:8000/health>. O esperado é:
 
 - `modelo_ativo: "lia_2.1"`;
 - `vias_monitoradas: 630`;
-- `tomtom.ativo: true`.
+- `tomtom.ativo: true`;
+- `semaforos.atraso_s` > 0 (atraso médio por semáforo, calibrado).
+
+No log de subida:
+
+- `Grafo carregado: 97739 nós` — se aparecer ~34 mil, é o grafo antigo de 15 km;
+- `271 cruzamentos com semáforo`.
 
 O Swagger fica em `/docs`.
+
+### Recalibrar o atraso de semáforo (opcional)
+
+`ml/calibrate_signals.py` compara a LIA com a TomTom no **mesmo trajeto** em N rotas sorteadas e grava `ml/artifacts/semaforos_calibracao.json`. Para rodar:
+
+1. Apague o JSON atual e reinicie a API — ela precisa estar sem atraso aplicado.
+2. Rode:
+
+   ```bash
+   cd ml
+   ../apps/api/.venv/Scripts/python calibrate_signals.py --api http://127.0.0.1:8000 --n 60
+   ```
+
+3. Reinicie a API.
+
+Custo: ~10 chamadas TomTom por rota. Vale refazer em horário comercial, porque a calibração atual foi coletada de madrugada.
 
 ## 4. Visão de usuário — app (porta 8081)
 
