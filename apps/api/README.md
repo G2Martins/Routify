@@ -249,8 +249,9 @@ O `Dockerfile` copia `../ml/artifacts/lia_*.pkl` para dentro da imagem — o mod
 
 ## 🔍 Logs e Debug
 
-**Swagger UI:** http://localhost:8000/docs
-**ReDoc:** http://localhost:8000/redoc
+**Swagger UI:** <http://localhost:8000/docs> · **ReDoc:** <http://localhost:8000/redoc>
+
+Textos, grupos e parâmetros do Swagger ficam em `openapi.py`; exemplos e descrições dos campos ficam nos modelos Pydantic de cada router. Para testar rotas com login, cole o `access_token` da sessão Supabase em **Authorize**.
 
 ---
 

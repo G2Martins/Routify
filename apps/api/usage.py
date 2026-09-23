@@ -15,6 +15,16 @@ import logging
 import time
 from typing import Optional
 
+from fastapi.security import HTTPBearer
+
+# Só documenta o esquema no Swagger (botão Authorize + cadeado nas rotas). Quem
+# valida o token é usuario_do_token, então auto_error=False (token é opcional).
+bearer = HTTPBearer(
+    auto_error=False,
+    scheme_name='SupabaseJWT',
+    description='access_token da sessão Supabase. Opcional em /route e /search; obrigatório em /eventos.',
+)
+
 logger = logging.getLogger(__name__)
 
 TTL_TOKEN_S = 300

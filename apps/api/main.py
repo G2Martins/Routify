@@ -1,10 +1,6 @@
 """
-Routify API — FastAPI
-Endpoints:
-  POST /route   → A* com pesos LIA
-  POST /predict → Inferência LIA por ponto
-  GET  /health  → Status da API e modelo carregado
-  GET  /metrics → Métricas reais para o Dashboard
+Routify API — FastAPI. Documentação interativa em /docs (Swagger) e /redoc;
+textos em openapi.py.
 """
 import os
 import json
@@ -23,6 +19,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 import graph_enrichment
+import openapi
 import recency_cache
 import tomtom
 import usage
@@ -286,8 +283,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Routify API",
-    description="Motor de roteamento preditivo com IA (LIA)",
-    version="1.0.0",
+    summary="Roteamento preditivo para Brasília/DF: LIA (XGBoost) + A* + TomTom sob demanda.",
+    description=openapi.DESCRICAO,
+    version="2.1.0",
+    contact={"name": "Equipe Routify (TCC 2026)", "url": "https://github.com/G2Martins/Routify"},
+    openapi_tags=openapi.TAGS,
+    swagger_ui_parameters=openapi.SWAGGER_UI,
     lifespan=lifespan,
 )
 
@@ -356,7 +357,25 @@ def _cv_metric(meta: dict, nome_2_0: str, nome_1_0: str | None = None):
     return meta.get(nome_1_0) if nome_1_0 else None
 
 
-@app.get("/health")
+@app.get(
+    "/health",
+    tags=["Sistema"],
+    summary="Saúde da API",
+    description=(
+        "Modelo carregado, estado do pool TomTom (**só contagens**: nunca ids nem chaves), "
+        "vias monitoradas vinculadas ao grafo e cache de recência. "
+        "`vias_monitoradas = 0` significa Supabase indisponível na subida (rota em heurística). "
+        "O painel ADM consulta este endpoint para o status ao vivo."
+    ),
+    responses={200: {"content": {"application/json": {"example": {
+        "status": "ok", "modelo_ativo": "lia_2.1", "cv_rmse_seg": 40.6942,
+        "dados_treino": None, "total_amostras_treino": 1513194,
+        "tomtom": {"ativo": True, "chaves": 39,
+                   "disponiveis": {"fluxo": 39, "incidentes": 39, "busca": 39, "rota": 39}},
+        "vias_monitoradas": 630, "supabase_configurado": True,
+        "recencia": {"vias": 630, "mais_recente": "2026-07-20T02:56:00+00:00"},
+    }}}}},
+)
 async def health():
     meta = app.state.metadata
     return {
@@ -373,7 +392,16 @@ async def health():
     }
 
 
-@app.get("/metrics")
+@app.get(
+    "/metrics",
+    tags=["Sistema"],
+    summary="Métricas do modelo carregado",
+    description=(
+        "Métricas de validação cruzada (TimeSeriesSplit, 5 folds) lidas do metadata versionado "
+        "do modelo ativo: RMSE e MAE em segundos, baseline, período dos dados e importância das "
+        "features. Alimenta o Painel do app."
+    ),
+)
 async def metrics():
     """Métricas reais para o DashboardScreen (substitui valores hardcoded)."""
     meta = app.state.metadata

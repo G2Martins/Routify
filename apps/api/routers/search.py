@@ -13,8 +13,8 @@ import logging
 from typing import List, Optional
 
 import httpx
-from fastapi import APIRouter, Query, Request
-from pydantic import BaseModel
+from fastapi import APIRouter, Query, Request, Security
+from pydantic import BaseModel, Field
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -24,7 +24,7 @@ from tomtom import CacheTTL
 ENV_PATH = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'services', 'collector', 'config', '.env')
 load_dotenv(ENV_PATH)
 
-router = APIRouter(prefix="/search", tags=["Autocomplete"])
+router = APIRouter(prefix="/search", tags=["Autocomplete"], dependencies=[Security(usage.bearer)])
 logger = logging.getLogger(__name__)
 
 SUPABASE_URL = os.getenv('SUPABASE_URL')
@@ -44,12 +44,12 @@ def get_supabase() -> Optional[Client]:
 
 
 class PlaceSuggestion(BaseModel):
-    label: str
-    sublabel: str
+    label: str = Field(..., description="Nome principal (via, lugar ou endereço).", examples=["EPTG"])
+    sublabel: str = Field(..., description="Complemento: tipo de via ou endereço completo.", examples=["Via arterial"])
     lat: float
     lon: float
-    source: str  # "malha" | "tomtom" | "nominatim"
-    id_ponto: Optional[int] = None
+    source: str = Field(..., description='Origem da sugestão: "malha" | "tomtom" | "nominatim".', examples=["malha"])
+    id_ponto: Optional[int] = Field(None, description="Id da via na malha local, quando source = malha.")
 
 
 def _via_sublabel(tipo_via: Optional[str]) -> str:
@@ -105,11 +105,23 @@ async def _nominatim(q: str, limite: int) -> List[dict]:
     return itens
 
 
-@router.get("/places", response_model=List[PlaceSuggestion])
+@router.get(
+    "/places",
+    response_model=List[PlaceSuggestion],
+    summary="Autocomplete de endereços",
+    description=(
+        "Cadeia de fontes. Cada etapa só roda se a anterior trouxe menos de 3 resultados:\n\n"
+        "1. `malha` — ~38 mil vias do DF no Supabase;\n"
+        "2. `tomtom` — TomTom Search v2, com viés para Brasília e cache de 24 h;\n"
+        "3. `nominatim` — OSM, último recurso, com cache e trava de 1 req/s "
+        "(a política da OSMF proíbe autocomplete).\n\n"
+        "O texto digitado **não** é gravado."
+    ),
+)
 async def autocomplete(
     request: Request,
-    q: str = Query(..., min_length=2, max_length=120, description="Texto digitado"),
-    limit: int = Query(8, ge=1, le=15),
+    q: str = Query(..., min_length=2, max_length=120, description="Texto digitado", examples=["eptg"]),
+    limit: int = Query(8, ge=1, le=15, description="Máximo de sugestões."),
 ):
     # Só associa a requisição à conta (api_requisicoes); o texto digitado não é gravado.
     request.state.user_id = await usage.usuario_do_token_async(

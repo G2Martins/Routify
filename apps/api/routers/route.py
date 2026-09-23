@@ -12,11 +12,12 @@ from typing import List, Tuple, Optional
 import networkx as nx
 import osmnx as ox
 import numpy as np
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, Security
 from pydantic import BaseModel, ConfigDict, Field
 
 import tomtom
 import usage
+from openapi import erro
 
 # ⭐ PRIORITY 2: Imports para Knowledge Transfer
 from supabase import create_client
@@ -27,7 +28,7 @@ from dotenv import load_dotenv
 # ml/features.py.
 import lia_inference as lia_inf
 
-router = APIRouter(prefix="/route", tags=["Roteamento A*"])
+router = APIRouter(prefix="/route", tags=["Roteamento"], dependencies=[Security(usage.bearer)])
 
 BRASILIA_TZ = timezone(timedelta(hours=-3))
 
@@ -105,61 +106,68 @@ def find_nearby_monitored_points(
 
 class Coordenada(BaseModel):
     model_config = ConfigDict(extra='forbid')
-    lat: float = Field(..., description="Latitude", ge=-90, le=90)
-    lon: float = Field(..., description="Longitude", ge=-180, le=180)
+    lat: float = Field(..., description="Latitude (WGS84)", ge=-90, le=90, examples=[-15.7939])
+    lon: float = Field(..., description="Longitude (WGS84)", ge=-180, le=180, examples=[-47.8828])
 
 
 class RouteInput(BaseModel):
-    model_config = ConfigDict(extra='forbid')
-    origem: Coordenada
-    destino: Coordenada
+    model_config = ConfigDict(extra='forbid', json_schema_extra={"examples": [{
+        "origem": {"lat": -15.7939, "lon": -47.8828},
+        "destino": {"lat": -15.8339, "lon": -48.0569},
+        "referencia_tomtom": False,
+    }]})
+    origem: Coordenada = Field(..., description="Ponto de partida. A API faz o snap para o nó navegável mais próximo.")
+    destino: Coordenada = Field(..., description="Ponto de chegada.")
     # ETA de referência da TomTom (Routing, trânsito ao vivo). Opcional porque
     # gasta cota a cada rota — o app liga quando quer mostrar a comparação.
-    referencia_tomtom: bool = False
+    referencia_tomtom: bool = Field(
+        False, description="Pede também o ETA da TomTom com trânsito ao vivo (gasta 1 chamada de Routing).")
 
 
 class IncidenteRota(BaseModel):
-    tipo: str
-    descricao: Optional[str] = None
-    atraso_seg: Optional[int] = None
-    interdicao: bool = False
+    tipo: str = Field(..., description="Categoria da TomTom (ex.: Congestionamento, Obras, Acidente).")
+    descricao: Optional[str] = Field(None, description="Texto do incidente (pt-PT, como a TomTom devolve).")
+    atraso_seg: Optional[int] = Field(None, description="Atraso estimado pela TomTom, em segundos.")
+    interdicao: bool = Field(False, description="Via fechada. Arestas interditadas saem do A*.")
     lat: float
     lon: float
 
 
 class TomTomResumo(BaseModel):
     """O que a TomTom acrescentou à rota. degradado=True: rota só com a LIA."""
-    ativo: bool
-    degradado: bool
-    vias_atualizadas: int = 0
-    arestas_interditadas: int = 0
-    interdicoes_na_rota: int = 0
-    incidentes: List[IncidenteRota] = []
-    referencia_tempo_seg: Optional[int] = None
-    referencia_atraso_seg: Optional[int] = None
-    referencia_sem_transito_seg: Optional[int] = None
-    referencia_distancia_km: Optional[float] = None
+    ativo: bool = Field(..., description="Há chaves TomTom configuradas.")
+    degradado: bool = Field(..., description="Rota calculada só com a LIA (sem chave, cota esgotada ou TomTom fora).")
+    vias_atualizadas: int = Field(0, description="Vias monitoradas do corredor lidas ao vivo (Flow Segment Data).")
+    arestas_interditadas: int = Field(0, description="Arestas do grafo bloqueadas por interdição no corredor.")
+    interdicoes_na_rota: int = Field(0, description="Interdições que ainda tocam a rota escolhida.")
+    incidentes: List[IncidenteRota] = Field([], description="Incidentes próximos à rota.")
+    referencia_tempo_seg: Optional[int] = Field(None, description="ETA da TomTom com trânsito (se referencia_tomtom).")
+    referencia_atraso_seg: Optional[int] = Field(None, description="Atraso por trânsito segundo a TomTom.")
+    referencia_sem_transito_seg: Optional[int] = Field(None, description="ETA da TomTom sem trânsito.")
+    referencia_distancia_km: Optional[float] = Field(None, description="Distância da rota da TomTom.")
 
 
 class RouteOutput(BaseModel):
-    polyline: List[List[float]]
-    tempo_total_seg: int
+    polyline: List[List[float]] = Field(..., description="Pontos [lat, lon] seguindo a geometria real das vias.")
+    tempo_total_seg: int = Field(..., description="Tempo previsto pela LIA para a rota escolhida.")
     distancia_km: float
-    via_principal: str
-    modelo_utilizado: str
-    nos_visitados: int
+    via_principal: str = Field(..., description="Via com maior extensão na rota.")
+    modelo_utilizado: str = Field(..., description="Versão da LIA (ex.: lia_2.1).")
+    nos_visitados: int = Field(..., description="Nós do grafo na rota.")
 
     # --- Instrumentação para validação da tese (TCC 2) ---
     # A rota de menor distância é o "vetor estático" que o artigo afirma superar.
     # Calculá-la na mesma requisição permite comparar as duas decisões sob as
     # mesmas condições de tráfego.
-    tempo_rota_curta_seg: Optional[int] = None
+    tempo_rota_curta_seg: Optional[int] = Field(
+        None, description="Tempo previsto da rota de menor distância (baseline estático da tese).")
     distancia_rota_curta_km: Optional[float] = None
-    rotas_diferentes: Optional[bool] = None
+    rotas_diferentes: Optional[bool] = Field(None, description="A LIA escolheu um caminho diferente do mais curto.")
     # Percentual das arestas da rota cujo peso veio do modelo/transferência.
-    lia_cobertura_pct: Optional[float] = None
-    hora_partida: Optional[int] = None
-    dia_semana: Optional[int] = None
+    lia_cobertura_pct: Optional[float] = Field(
+        None, description="% das arestas da rota com peso vindo da LIA (direto ou por transferência); o resto é heurística.")
+    hora_partida: Optional[int] = Field(None, description="Hora local (Brasília) usada na previsão.")
+    dia_semana: Optional[int] = Field(None, description="0 = segunda … 6 = domingo.")
 
     tomtom: Optional[TomTomResumo] = None
 
@@ -609,7 +617,19 @@ def get_edge_name(G: nx.MultiDiGraph, u: int, v: int) -> str:
     return "Via sem nome"
 
 
-@router.post("", response_model=RouteOutput)
+@router.post(
+    "",
+    response_model=RouteOutput,
+    summary="Calcular rota (LIA + A* + TomTom)",
+    description=(
+        "Rota mais rápida segundo a LIA, com a rota de menor distância calculada junto para "
+        "comparação. A TomTom atualiza as vias do corredor e remove interdições. Sem ela, a "
+        "resposta vem com `tomtom.degradado = true`. Token opcional: com ele, a rota entra no "
+        "histórico de uso da conta (coordenadas arredondadas em ~110 m)."
+    ),
+    responses={422: erro("Coordenadas inválidas, fora do grafo ou sem caminho entre os pontos.",
+                         "Sem rota disponível entre origem e destino.")},
+)
 async def calculate_route(body: RouteInput, request: Request):
     inicio_req = time.perf_counter()
     # Usuário é opcional (rota anônima segue funcionando); com token válido, o

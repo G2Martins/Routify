@@ -13,16 +13,20 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Request, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 import lia_inference as lia_inf
+from openapi import erro
 
-router = APIRouter(prefix="/predict", tags=["LIA Predict"])
+router = APIRouter(prefix="/predict", tags=["LIA"])
 
 BRASILIA_TZ = timezone(timedelta(hours=-3))
 
 
 class PredictInput(BaseModel):
+    model_config = ConfigDict(extra='forbid', json_schema_extra={"examples": [
+        {"id_ponto": 42, "velocidade_livre": 60.0, "comprimento_m": 350.0},
+    ]})
     id_ponto: int = Field(..., description="ID do ponto de monitoramento")
     velocidade_livre: float = Field(
         ..., gt=0, description="Velocidade livre da via em km/h"
@@ -63,7 +67,17 @@ class PredictOutput(BaseModel):
     dia_semana: int
 
 
-@router.post("", response_model=PredictOutput)
+@router.post(
+    "",
+    response_model=PredictOutput,
+    summary="Prever congestionamento de um trecho",
+    description=(
+        "Inferência da LIA para **uma** via monitorada, na hora atual (ou em `timestamp_brasilia`). "
+        "Devolve a razão de congestionamento e, se `comprimento_m` vier, o tempo de viagem. "
+        "A recência vem do cache ao vivo; os campos `*_ultima_observacao` sobrescrevem (teste)."
+    ),
+    responses={422: erro("Via desconhecida pelo modelo ou corpo inválido.", "id_ponto 99999 não foi visto no treino")},
+)
 async def predict(body: PredictInput, request: Request):
     model = request.app.state.model
     encoder = request.app.state.encoder
