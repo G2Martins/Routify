@@ -9,18 +9,17 @@ Os lags da 1.0 saíram do contrato: eles nunca existiram na inferência (o clien
 não tem como saber a velocidade de 24h atrás daquela via) e eram preenchidos com
 valores fabricados.
 """
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
 import lia_inference as lia_inf
+from lia_inference import BRASILIA_TZ
 from openapi import erro
 
 router = APIRouter(prefix="/predict", tags=["LIA"])
-
-BRASILIA_TZ = timezone(timedelta(hours=-3))
 
 
 class PredictInput(BaseModel):

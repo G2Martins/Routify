@@ -105,14 +105,18 @@ class KeyPool:
         self._strikes: Dict[Tuple[str, str], int] = {}
         self.chamadas = {c['id']: 0 for c in self._chaves}
         self.falhas = {c['id']: 0 for c in self._chaves}
+        self.pausadas: set = set()  # ids pausados pelo painel ADM (config_runtime)
 
     @property
     def total(self) -> int:
         return len(self._chaves)
 
+    def _livre(self, chave_id: str, servico: str, agora: float) -> bool:
+        return chave_id not in self.pausadas and self._cooldown.get((chave_id, servico), 0.0) <= agora
+
     def disponiveis(self, servico: str) -> int:
         agora = time.time()
-        return sum(self._cooldown.get((c['id'], servico), 0.0) <= agora for c in self._chaves)
+        return sum(self._livre(c['id'], servico, agora) for c in self._chaves)
 
     def proxima(self, servico: str) -> Optional[Dict[str, str]]:
         """Próxima chave livre pro serviço, em rodízio — espalha QPS e cota."""
@@ -122,10 +126,33 @@ class KeyPool:
         for passo in range(n):
             i = (inicio + passo) % n
             chave = self._chaves[i]
-            if self._cooldown.get((chave['id'], servico), 0.0) <= agora:
+            if self._livre(chave['id'], servico, agora):
                 self._pos[servico] = (i + 1) % n
                 return chave
         return None
+
+    def por_id(self, chave_id: str) -> Optional[Dict[str, str]]:
+        return next((c for c in self._chaves if c['id'] == chave_id), None)
+
+    def zerar(self) -> None:
+        """Devolve todas as chaves ao rodízio (ação do painel ADM)."""
+        self._cooldown.clear()
+        self._strikes.clear()
+
+    def estado(self) -> List[dict]:
+        """Situação por chave para o painel — só ids e contadores, nunca o valor."""
+        agora = time.time()
+        return [{
+            'id': c['id'],
+            'pausada': c['id'] in self.pausadas,
+            'chamadas': self.chamadas[c['id']],
+            'falhas': self.falhas[c['id']],
+            'servicos': {s: {
+                'livre': self._cooldown.get((c['id'], s), 0.0) <= agora,
+                'volta_em_s': max(0, int(self._cooldown.get((c['id'], s), 0.0) - agora)),
+                'strikes': self._strikes.get((c['id'], s), 0),
+            } for s in SERVICOS},
+        } for c in self._chaves]
 
     def sucesso(self, chave_id: str, servico: str) -> None:
         self.chamadas[chave_id] += 1
@@ -193,19 +220,61 @@ class TomTomClient:
         self._http = httpx.AsyncClient(base_url=BASE_URL, timeout=TIMEOUT_S, transport=transport)
         self._cache_incidentes = CacheTTL(300)
         self._cache_busca = CacheTTL(24 * 3600, max_itens=2048)
+        self.habilitado = True  # kill switch / modo só-LIA do painel ADM
+        self._reset_aplicado = None
 
     @property
     def ativo(self) -> bool:
-        return self.pool.total > 0
+        return self.pool.total > 0 and self.habilitado
 
     def resumo(self) -> dict:
         return {'ativo': self.ativo, 'chaves': self.pool.total,
                 'disponiveis': {s: self.pool.disponiveis(s) for s in SERVICOS}}
 
+    def aplicar_config(self, cfg: dict) -> None:
+        """Aplica as flags de config_runtime (ver config_runtime.py)."""
+        self.habilitado = bool(cfg.get('tomtom_ativo', True)) and not cfg.get('modo_so_lia', False)
+        try:
+            self._orcamento.maximo = min(max(int(cfg.get('tomtom_orcamento_min') or MAX_CHAMADAS_MIN), 1), 600)
+        except (TypeError, ValueError):
+            pass
+        self.pool.pausadas = {str(i) for i in (cfg.get('tomtom_chaves_pausadas') or [])}
+        reset = cfg.get('tomtom_reset_em')
+        if reset and reset != self._reset_aplicado:
+            self.pool.zerar()
+            self._reset_aplicado = reset
+
+    def estado(self) -> dict:
+        return {'habilitado': self.habilitado, 'orcamento_min': self._orcamento.maximo,
+                'chamadas_ultimo_min': len(self._orcamento._instantes), 'chaves': self.pool.estado()}
+
+    async def testar_chave(self, chave_id: str) -> Optional[dict]:
+        """Uma chamada de Flow com a chave pedida (gasta 1 requisição da cota dela).
+        None se o id não existe. Atualiza o rodízio com o resultado."""
+        chave = self.pool.por_id(chave_id)
+        if chave is None:
+            return None
+        inicio = time.perf_counter()
+        try:
+            resp = await self._http.get('/traffic/services/4/flowSegmentData/relative0/10/json',
+                                        params={'point': '-15.793889,-47.882778', 'unit': 'kmph', 'key': chave['key']})
+        except httpx.HTTPError as e:
+            return {'ok': False, 'status': None, 'motivo': type(e).__name__, 'latencia_ms': None}
+        latencia = int((time.perf_counter() - inicio) * 1000)
+        if resp.status_code == 200:
+            self.pool.sucesso(chave_id, 'fluxo')
+            return {'ok': True, 'status': 200, 'motivo': None, 'latencia_ms': latencia}
+        motivo = classificar_erro(resp.status_code, resp.text[:500])
+        if motivo:
+            self.pool.falha(chave_id, 'fluxo', motivo)
+        return {'ok': False, 'status': resp.status_code, 'motivo': motivo, 'latencia_ms': latencia}
+
     async def fechar(self) -> None:
         await self._http.aclose()
 
-    async def _get(self, servico: str, caminho: str, params: dict) -> Optional[dict]:
+    async def _get(self, servico: str, caminho: str, params: dict,
+                   corpo: Optional[dict] = None) -> Optional[dict]:
+        """GET (ou POST, se vier `corpo`) com rodízio de chaves e orçamento."""
         for _ in range(min(TENTATIVAS, max(self.pool.total, 1))):
             chave = self.pool.proxima(servico)
             if chave is None:
@@ -214,7 +283,9 @@ class TomTomClient:
                 logger.warning('TomTom: orçamento do minuto esgotado — modo degradado')
                 return None
             try:
-                resp = await self._http.get(caminho, params={**params, 'key': chave['key']})
+                consulta = {**params, 'key': chave['key']}
+                resp = await (self._http.post(caminho, params=consulta, json=corpo) if corpo is not None
+                              else self._http.get(caminho, params=consulta))
             except httpx.HTTPError as e:
                 # Nunca logar str(e): a URL da requisição carrega a chave.
                 logger.warning(f"TomTom {servico}: falha de rede ({type(e).__name__})")
@@ -256,21 +327,59 @@ class TomTomClient:
 
     async def rota_referencia(self, origem: Tuple[float, float],
                               destino: Tuple[float, float]) -> Optional[dict]:
+        """Rota da TomTom com trânsito ao vivo: ETA + polilinha (a geometria já vem
+        na resposta padrão). 1 chamada de Routing."""
         pontos = f'{origem[0]:.6f},{origem[1]:.6f}:{destino[0]:.6f},{destino[1]:.6f}'
         dados = await self._get('rota', f'/routing/1/calculateRoute/{pontos}/json', {
             'traffic': 'true', 'travelMode': 'car', 'routeType': 'fastest',
             'departAt': 'now', 'computeTravelTimeFor': 'all',
         })
         try:
-            s = dados['routes'][0]['summary']
+            rota = dados['routes'][0]
+            s = rota['summary']
         except (TypeError, KeyError, IndexError):
             return None
+        polyline = [[p['latitude'], p['longitude']]
+                    for leg in rota.get('legs') or [] for p in leg.get('points') or []
+                    if 'latitude' in p and 'longitude' in p]
         return {
             'tempo_seg': s.get('travelTimeInSeconds'),
             'atraso_seg': s.get('trafficDelayInSeconds'),
             'sem_transito_seg': s.get('noTrafficTravelTimeInSeconds'),
             'distancia_km': round(float(s.get('lengthInMeters') or 0) / 1000, 2),
+            'polyline': polyline,
         }
+
+    async def rota_reconstruida(self, polyline: List[List[float]], pontos_apoio: List[List[float]]) -> Optional[dict]:
+        """Uma chamada de Routing que (1) reconstrói a NOSSA rota na malha da TomTom,
+        com o ETA dela sob trânsito ao vivo, e (2) devolve uma alternativa só se a
+        TomTom achar rota melhor (alternativeType=betterRoute).
+
+        routes[0] = nossa rota; routes[1] (se houver) = alternativa melhor.
+        """
+        origem, destino = polyline[0], polyline[-1]
+        caminho = f'/routing/1/calculateRoute/{origem[0]:.6f},{origem[1]:.6f}:{destino[0]:.6f},{destino[1]:.6f}/json'
+        dados = await self._get('rota', caminho, {
+            'traffic': 'true', 'travelMode': 'car', 'routeType': 'fastest', 'departAt': 'now',
+            'computeTravelTimeFor': 'all', 'maxAlternatives': 1, 'alternativeType': 'betterRoute',
+            'minDeviationDistance': 0, 'minDeviationTime': 0,
+        }, corpo={'supportingPoints': [{'latitude': p[0], 'longitude': p[1]} for p in pontos_apoio]})
+        rotas = (dados or {}).get('routes') or []
+        if not rotas:
+            return None
+
+        def extrair(rota: dict) -> dict:
+            s = rota.get('summary') or {}
+            return {
+                'tempo_seg': s.get('travelTimeInSeconds'),
+                'atraso_seg': s.get('trafficDelayInSeconds'),
+                'sem_transito_seg': s.get('noTrafficTravelTimeInSeconds'),
+                'distancia_km': round(float(s.get('lengthInMeters') or 0) / 1000, 2),
+                'polyline': [[p['latitude'], p['longitude']]
+                             for leg in rota.get('legs') or [] for p in leg.get('points') or []
+                             if 'latitude' in p and 'longitude' in p],
+            }
+        return {'nossa': extrair(rotas[0]), 'melhor': extrair(rotas[1]) if len(rotas) > 1 else None}
 
     async def buscar(self, q: str, limite: int) -> List[dict]:
         norma = ' '.join(q.lower().split())
@@ -287,7 +396,11 @@ class TomTomClient:
             return []
         resultados = []
         for r in dados.get('results') or []:
-            pos, end = r.get('position') or {}, r.get('address') or {}
+            # Entrada do lugar (na rua) quando houver; `position` é o centro do POI,
+            # muitas vezes dentro do prédio — o snap no grafo caía atrás da quadra.
+            entradas = r.get('entryPoints') or []
+            pos = (entradas[0].get('position') if entradas else None) or r.get('position') or {}
+            end = r.get('address') or {}
             if pos.get('lat') is None or pos.get('lon') is None:
                 continue
             nome = (r.get('poi') or {}).get('name') or end.get('streetName') or end.get('freeformAddress')
@@ -449,11 +562,14 @@ def arestas_interditadas(G, incidentes: Iterable[dict], tol_m: float = 20.0) -> 
     return bloqueadas
 
 
-def peso_sem_interditadas(bloqueadas: Set[Tuple], penalidade: float = 1e9):
+def peso_sem_interditadas(bloqueadas: Set[Tuple], penalidade: float = 1e9, atraso_semaforo: float = 0.0):
     """Peso do A* que tira as arestas interditadas sem mutar o grafo
-    compartilhado (networkx passa {chave: atributos} das arestas paralelas)."""
+    compartilhado (networkx passa {chave: atributos} das arestas paralelas).
+    Com atraso_semaforo > 0, soma o atraso médio ao chegar num cruzamento
+    sinalizado (atributo `semaforo`, ver trajeto.marcar_semaforos)."""
     def peso(u, v, paralelas):
-        return min(penalidade if (u, v, k) in bloqueadas else d.get('travel_time_lia', 1.0)
+        return min(penalidade if (u, v, k) in bloqueadas
+                   else d.get('travel_time_lia', 1.0) + atraso_semaforo * d.get('semaforo', 0)
                    for k, d in paralelas.items())
     return peso
 

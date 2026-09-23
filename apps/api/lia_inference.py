@@ -29,7 +29,11 @@ prático é cair de volta no perfil, que já era o comportamento antes desta
 mudança.
 """
 import math
+from datetime import timedelta, timezone
 from typing import Dict, List, Optional
+
+# Brasília não tem horário de verão desde 2019: UTC-3 fixo.
+BRASILIA_TZ = timezone(timedelta(hours=-3))
 
 HORARIOS_PICO = {6, 7, 8, 17, 18, 19}
 

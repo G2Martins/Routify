@@ -18,12 +18,19 @@ import pandas as pd
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-import graph_enrichment
-import openapi
-import recency_cache
-import tomtom
-import usage
-from routers import eventos, predict, route, search
+from dotenv import load_dotenv
+
+# Credenciais locais (em produção vêm do ambiente). Antes dos imports que leem env.
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', 'services', 'collector', 'config', '.env'))
+
+import config_runtime  # noqa: E402
+import graph_enrichment  # noqa: E402
+import openapi  # noqa: E402
+import recency_cache  # noqa: E402
+import tomtom  # noqa: E402
+import trajeto  # noqa: E402
+import usage  # noqa: E402
+from routers import admin, eventos, predict, route, search  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,7 +44,9 @@ ox.settings.timeout = 300  # 5min por request Overpass
 
 MODELS_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'ml', 'artifacts')
 MODEL_VERSION = os.getenv('LIA_VERSION', 'lia_2.1')
-GRAPH_CACHE = os.path.join(MODELS_DIR, 'brasilia_graph.graphml')
+# O raio entra no nome: trocar GRAPH_RADIUS_KM não reaproveita um grafo menor em
+# silêncio (o brasilia_graph.graphml antigo tinha ~15 km e não cobria Ceilândia).
+GRAPH_CACHE = os.path.join(MODELS_DIR, f"brasilia_graph_{os.getenv('GRAPH_RADIUS_KM', '38')}km.graphml")
 
 # ⭐ PRIORITY 1.1: Controle de Cache do Grafo (6 meses)
 GRAPH_CACHE_MAX_DAYS = 180
@@ -55,7 +64,7 @@ def is_cache_outdated(cache_path: str, max_days: int = 180) -> bool:
     if is_old:
         logging.warning(
             f"Cache com {cache_age_days:.1f} dias (máximo {max_days}). "
-            f"Será atualizado no próximo reinício."
+            f"Para atualizar, apague o arquivo e reinicie (a API baixa de novo)."
         )
     return is_old
 
@@ -123,23 +132,6 @@ BRASILIA_CENTER = (-15.793, -47.882)
 BRASILIA_RADIUS_M = int(os.getenv('GRAPH_RADIUS_KM', '38')) * 1_000
 
 
-NON_DRIVABLE_HIGHWAYS = {
-    'footway', 'pedestrian', 'path', 'steps', 'cycleway',
-    'bridleway', 'corridor', 'platform', 'track', 'construction',
-    'proposed', 'raceway', 'busway', 'bus_guideway',
-    # Rampas de escape existem só para veículo desgovernado; rota normal nunca
-    # deve ser traçada por elas. 'dummy' são artefatos sem via correspondente.
-    'escape', 'dummy',
-}
-
-
-def _hw_value(data: dict) -> str:
-    hw = data.get('highway')
-    if isinstance(hw, list):
-        return (hw[0] if hw else '').lower()
-    return (hw or '').lower()
-
-
 def filter_drivable(G: nx.MultiDiGraph) -> nx.MultiDiGraph:
     """Remove edges não-drivable + nós isolados.
 
@@ -148,7 +140,7 @@ def filter_drivable(G: nx.MultiDiGraph) -> nx.MultiDiGraph:
     """
     edges_to_remove = [
         (u, v, k) for u, v, k, data in G.edges(keys=True, data=True)
-        if _hw_value(data) in NON_DRIVABLE_HIGHWAYS
+        if graph_enrichment.valor_highway(data) in graph_enrichment.NON_DRIVABLE_HIGHWAYS
     ]
     for u, v, k in edges_to_remove:
         G.remove_edge(u, v, k)
@@ -163,19 +155,14 @@ def filter_drivable(G: nx.MultiDiGraph) -> nx.MultiDiGraph:
 
 
 def load_graph() -> nx.MultiDiGraph:
-    """Carrega ou baixa grafo OSM com controle inteligente de cache.
+    """Carrega o grafo OSM do cache (ou baixa na primeira vez e salva).
 
-    ⭐ PRIORITY 1.1: Se cache > 180 dias, deleta e re-download.
-    Previne uso de grafo obsoleto com ruas que não existem mais.
+    Cache com mais de 180 dias só gera aviso: a troca é manual, para não mudar
+    o grafo das métricas da tese sem ninguém saber.
     """
-    # Verificar se cache está expirado
-    if is_cache_outdated(GRAPH_CACHE, GRAPH_CACHE_MAX_DAYS):
-        if os.path.exists(GRAPH_CACHE):
-            logging.info(
-                f"Cache expirado ({GRAPH_CACHE_MAX_DAYS} dias). "
-                f"Deletando para atualizar..."
-            )
-            os.remove(GRAPH_CACHE)
+    # Grafo velho só gera aviso (is_cache_outdated loga): apagar sozinho trocaria
+    # em silêncio o grafo das métricas da tese. Para atualizar, apague o arquivo.
+    is_cache_outdated(GRAPH_CACHE, GRAPH_CACHE_MAX_DAYS)
 
     if os.path.exists(GRAPH_CACHE):
         logging.info(f"Carregando grafo em cache: {GRAPH_CACHE}")
@@ -241,6 +228,21 @@ async def lifespan(app: FastAPI):
             sb = None
 
         graph_stats = graph_enrichment.enrich_graph(G, sb)
+        # Snap sem reconstruir a árvore de nós a cada requisição.
+        arvore_nos = trajeto.ArvoreNos(G)
+        # Semáforos (OSM traffic_signals) + atraso médio calibrado contra a TomTom.
+        n_semaforos = trajeto.marcar_semaforos(G, arvore_nos, trajeto.carregar_semaforos_osm(
+            os.path.join(MODELS_DIR, f'semaforos_osm_{BRASILIA_RADIUS_M // 1000}km.json'),
+            BRASILIA_CENTER, BRASILIA_RADIUS_M))
+        G.graph['atraso_semaforo_s'] = trajeto.carregar_atraso_semaforo(
+            os.path.join(MODELS_DIR, 'semaforos_calibracao.json'))
+        logging.info(f"{n_semaforos} cruzamentos com semáforo no grafo")
+        # Experimento (desligado por padrão: muda os números da tese): velocidade
+        # livre da TomTom nos trechos monitorados, a mesma do treino da LIA.
+        if os.getenv('VEL_LIVRE_TOMTOM', '0') == '1':
+            with open(os.path.join(MODELS_DIR, 'velocidade_livre_tomtom.json'), encoding='utf-8') as f:
+                G.graph['vel_livre_tomtom'] = {int(k): float(v) for k, v in json.load(f)['pontos'].items()}
+            logging.info(f"Velocidade livre da TomTom em {len(G.graph['vel_livre_tomtom'])} trechos monitorados")
         logging.info(f"Grafo enriquecido em {time.time()-t0:.1f}s")
 
         if graph_stats['vinculadas_lia'] == 0:
@@ -264,6 +266,7 @@ async def lifespan(app: FastAPI):
         app.state.profiles = profiles
         app.state.metadata = metadata
         app.state.graph = G
+        app.state.arvore_nos = arvore_nos
         app.state.graph_stats = graph_stats
         app.state.model_version = MODEL_VERSION
         app.state.supabase = sb
@@ -271,6 +274,9 @@ async def lifespan(app: FastAPI):
         app.state.transfer_confidence = transfer_confidence
         # TomTom sob demanda (tomtom.py): sem chave, a API segue só com a LIA.
         app.state.tomtom = tomtom.criar_cliente()
+        # Flags do painel ADM (kill switch, orçamento, chaves pausadas…) — config_runtime.py
+        app.state.config = config_runtime.ConfigRuntime()
+        await app.state.config.atualizar(sb, app.state.tomtom)
 
         logging.info("=== Routify API pronta ===")
     except Exception as e:
@@ -319,6 +325,10 @@ async def registrar_requisicao(request: Request, call_next):
     try:
         resposta = await call_next(request)
         status = resposta.status_code
+        # Headers básicos em toda resposta (CSP fica de fora: o Swagger carrega de CDN).
+        resposta.headers.setdefault('X-Content-Type-Options', 'nosniff')
+        resposta.headers.setdefault('X-Frame-Options', 'DENY')
+        resposta.headers.setdefault('Referrer-Policy', 'no-referrer')
         return resposta
     except Exception as e:
         erro = type(e).__name__
@@ -341,6 +351,7 @@ app.include_router(predict.router)
 app.include_router(route.router)
 app.include_router(search.router)
 app.include_router(eventos.router)
+app.include_router(admin.router)
 
 
 def _cv_metric(meta: dict, nome_2_0: str, nome_1_0: str | None = None):
@@ -389,6 +400,8 @@ async def health():
         "vias_monitoradas": app.state.graph_stats.get("vias_monitoradas"),
         "supabase_configurado": app.state.supabase is not None,
         "recencia": app.state.recencia_cache.resumo(),
+        "semaforos": {"atraso_s": app.state.graph.graph.get('atraso_semaforo_s', 0.0)},
+        "velocidade_livre": "tomtom" if app.state.graph.graph.get('vel_livre_tomtom') else "osm",
     }
 
 

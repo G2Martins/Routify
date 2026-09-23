@@ -4,8 +4,6 @@ POST /eventos — eventos de uso enviados pelo app (navegação, feedback, busca
 Login obrigatório (JWT Supabase), schema estrito, dados planos e pequenos, sem
 coordenadas, e limite por usuário. A gravação é feita pelo servidor.
 """
-import time
-from collections import defaultdict, deque
 from typing import Dict, Literal, Optional, Union
 
 from fastapi import APIRouter, HTTPException, Request, Security
@@ -13,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 import usage
 from openapi import erro
+from seguranca import Limitador, limitar
 
 router = APIRouter(prefix="/eventos", tags=["Uso"], dependencies=[Security(usage.bearer)])
 
@@ -44,25 +43,7 @@ class EventoInput(BaseModel):
         return dados
 
 
-class LimitePorUsuario:
-    """Janela deslizante de 60 s por usuário (memória do processo)."""
-
-    def __init__(self, maximo: int):
-        self.maximo = maximo
-        self._janelas: Dict[str, deque] = defaultdict(deque)
-
-    def permitir(self, usuario: str) -> bool:
-        agora = time.monotonic()
-        janela = self._janelas[usuario]
-        while janela and agora - janela[0] > 60:
-            janela.popleft()
-        if len(janela) >= self.maximo:
-            return False
-        janela.append(agora)
-        return True
-
-
-_limite = LimitePorUsuario(EVENTOS_POR_MINUTO)
+_limite = Limitador(EVENTOS_POR_MINUTO)
 
 
 @router.post(
@@ -82,8 +63,7 @@ async def registrar_evento(body: EventoInput, request: Request):
     if user_id is None:
         raise HTTPException(status_code=401, detail="Login necessário para registrar eventos.")
     request.state.user_id = user_id
-    if not _limite.permitir(user_id):
-        raise HTTPException(status_code=429, detail="Muitos eventos em pouco tempo.")
+    limitar(_limite, user_id, "Muitos eventos em pouco tempo.")
     usage.registrar(sb, 'eventos_app', {
         'user_id': user_id, 'tipo': body.tipo, 'plataforma': body.plataforma, 'dados': body.dados,
     })

@@ -31,6 +31,26 @@ import numpy as np
 import osmnx as ox
 from sklearn.neighbors import BallTree
 
+# Vias por onde carro não passa. main.filter_drivable() remove essas arestas do
+# grafo na subida; o roteamento usa o mesmo set como defesa extra.
+NON_DRIVABLE_HIGHWAYS = {
+    'footway', 'pedestrian', 'path', 'steps', 'cycleway',
+    'bridleway', 'corridor', 'platform', 'track', 'construction',
+    'proposed', 'raceway', 'busway', 'bus_guideway',
+    # Rampas de escape existem só para veículo desgovernado; rota normal nunca
+    # deve ser traçada por elas. 'dummy' são artefatos sem via correspondente.
+    'escape', 'dummy',
+}
+
+
+def valor_highway(data: dict) -> str:
+    """Tipo OSM da aresta, normalizado (o OSMnx às vezes guarda lista)."""
+    hw = data.get('highway')
+    if isinstance(hw, list):
+        return (hw[0] if hw else '').lower()
+    return (hw or '').lower()
+
+
 RAIO_TRANSFER_M = 500.0
 RAIO_TERRA_M = 6_371_000.0
 

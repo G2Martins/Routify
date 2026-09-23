@@ -3,7 +3,8 @@ import pytest
 from pydantic import ValidationError
 
 import usage
-from routers.eventos import EventoInput, LimitePorUsuario
+from routers.eventos import EventoInput
+from seguranca import Limitador
 
 
 class _AuthFalso:
@@ -76,7 +77,7 @@ def test_evento_invalido_e_rejeitado(payload):
 
 
 def test_limite_por_usuario():
-    limite = LimitePorUsuario(2)
+    limite = Limitador(2)
     assert limite.permitir('a') and limite.permitir('a')
     assert not limite.permitir('a')
     assert limite.permitir('b')  # cada usuário tem a própria janela

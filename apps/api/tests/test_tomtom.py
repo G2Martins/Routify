@@ -242,7 +242,10 @@ def test_consultar_tomtom_atualiza_recencia_e_devolve_incidentes_e_referencia():
             return httpx.Response(200, json={'incidents': [_incidente(8, [[-47.86, -15.80], [-47.85, -15.80]])]})
         return httpx.Response(200, json={'routes': [{'summary': {
             'travelTimeInSeconds': 600, 'trafficDelayInSeconds': 60,
-            'noTrafficTravelTimeInSeconds': 540, 'lengthInMeters': 5000}}]})
+            'noTrafficTravelTimeInSeconds': 540, 'lengthInMeters': 5000},
+            'legs': [{'points': [{'latitude': -15.80, 'longitude': -47.90},
+                                 {'latitude': -15.80, 'longitude': -47.85}]},
+                     {'points': [{'latitude': -15.80, 'longitude': -47.80}]}]}]})
 
     rc = recency_cache.RecenciaCache()
     atualizadas, incidentes, ref = _rodar(
@@ -252,7 +255,8 @@ def test_consultar_tomtom_atualiza_recencia_e_devolve_incidentes_e_referencia():
     assert atualizadas == 2  # via 3 está fora do corredor
     assert rc.get(1)['razao_lag1'] == 0.25 and rc.get(3) is None
     assert len(incidentes) == 1
-    assert ref == {'tempo_seg': 600, 'atraso_seg': 60, 'sem_transito_seg': 540, 'distancia_km': 5.0}
+    assert ref == {'tempo_seg': 600, 'atraso_seg': 60, 'sem_transito_seg': 540, 'distancia_km': 5.0,
+                   'polyline': [[-15.80, -47.90], [-15.80, -47.85], [-15.80, -47.80]]}  # legs achatados
 
 
 # --- recência ---------------------------------------------------------------

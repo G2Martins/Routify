@@ -6,7 +6,7 @@ import asyncio
 import math
 import logging
 import time
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
 from typing import List, Tuple, Optional
 
 import networkx as nx
@@ -16,93 +16,20 @@ from fastapi import APIRouter, Request, HTTPException, Security
 from pydantic import BaseModel, ConfigDict, Field
 
 import tomtom
+import trajeto
 import usage
 from openapi import erro
-
-# ⭐ PRIORITY 2: Imports para Knowledge Transfer
-from supabase import create_client
-import os
-from dotenv import load_dotenv
+from seguranca import Limitador, ip_cliente, limitar
 
 # Contrato de features da LIA 2.0 — compartilhado com predict.py e espelhando
 # ml/features.py.
 import lia_inference as lia_inf
+from graph_enrichment import NON_DRIVABLE_HIGHWAYS, valor_highway
+from lia_inference import BRASILIA_TZ
 
 router = APIRouter(prefix="/route", tags=["Roteamento"], dependencies=[Security(usage.bearer)])
 
-BRASILIA_TZ = timezone(timedelta(hours=-3))
-
 logger = logging.getLogger(__name__)
-
-# ⭐ PRIORITY 2: Configurar Supabase para buscar vias próximas
-ENV_PATH = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'services', 'collector', 'config', '.env')
-load_dotenv(ENV_PATH)
-
-SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_KEY = os.getenv('SUPABASE_KEY')
-
-def get_supabase_client():
-    """Conexão com Supabase para queries."""
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        return None
-    return create_client(str(SUPABASE_URL), str(SUPABASE_KEY))
-
-
-# ⭐ PRIORITY 2: Buscar vias monitoradas próximas
-def find_nearby_monitored_points(
-    lat: float,
-    lon: float,
-    radius_m: float = 500,
-    limit: int = 3
-) -> List[dict]:
-    """Busca vias monitoradas próximas usando distância Haversine.
-
-    Retorna lista de dicts:
-    [
-        {'id_ponto': 42, 'nome_via': 'Esplanada...', 'distancia_m': 150},
-        ...
-    ]
-
-    ⭐ PRIORITY 2: Usado para Knowledge Transfer em vias sem dados.
-    """
-    sb = get_supabase_client()
-    if sb is None:
-        return []
-
-    try:
-        # Buscar todas as vias monitoradas
-        response = sb.table('vias_monitoradas').select(
-            'id_ponto, nome_via, latitude, longitude'
-        ).execute()
-
-        vias = response.data or []
-
-        # Calcular distância Haversine para cada uma
-        nearby = []
-        for via in vias:
-            dist = haversine_m(
-                lat, lon,
-                float(via.get('latitude', 0)),
-                float(via.get('longitude', 0))
-            )
-
-            if dist <= radius_m:
-                nearby.append({
-                    'id_ponto': via['id_ponto'],
-                    'nome_via': via.get('nome_via', 'Via sem nome'),
-                    'distancia_m': dist,
-                    'lat': float(via['latitude']),
-                    'lon': float(via['longitude']),
-                })
-
-        # Ordenar por distância
-        nearby.sort(key=lambda x: x['distancia_m'])
-        return nearby[:limit]
-
-    except Exception as e:
-        logger.warning(f"Erro ao buscar vias próximas: {e}")
-        return []
-
 
 class Coordenada(BaseModel):
     model_config = ConfigDict(extra='forbid')
@@ -147,6 +74,13 @@ class TomTomResumo(BaseModel):
     referencia_distancia_km: Optional[float] = Field(None, description="Distância da rota da TomTom.")
 
 
+class AlternativaRota(BaseModel):
+    fonte: str = Field(..., description='"lia" ou "tomtom".')
+    polyline: List[List[float]]
+    tempo_seg: int = Field(..., description="Tempo estimado (misto LIA × TomTom) da alternativa.")
+    distancia_km: float
+
+
 class RouteOutput(BaseModel):
     polyline: List[List[float]] = Field(..., description="Pontos [lat, lon] seguindo a geometria real das vias.")
     tempo_total_seg: int = Field(..., description="Tempo previsto pela LIA para a rota escolhida.")
@@ -171,6 +105,15 @@ class RouteOutput(BaseModel):
 
     tomtom: Optional[TomTomResumo] = None
 
+    # --- Fusão LIA × TomTom ---
+    fonte_rota: str = Field("lia", description='Quem traçou a rota escolhida: "lia" (A* com pesos da LIA) ou "tomtom".')
+    tempo_lia_seg: Optional[int] = Field(
+        None, description="Tempo previsto pela LIA para a rota da LIA, com o atraso médio de semáforo (instrumentação da tese).")
+    fora_da_malha: bool = Field(False, description="Origem/destino além da malha coberta (raio de 38 km); rota só da TomTom.")
+    semaforos_na_rota: Optional[int] = Field(
+        None, description="Cruzamentos com semáforo (OSM traffic_signals) na rota da LIA; entram no tempo com o atraso médio calibrado.")
+    alternativa: Optional[AlternativaRota] = Field(None, description="A candidata não escolhida, para desenho tracejado.")
+
 
 def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     R = 6_371_000
@@ -181,24 +124,13 @@ def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * R * math.asin(math.sqrt(a))
 
 
-NON_DRIVABLE_HIGHWAYS = {
-    'footway', 'pedestrian', 'path', 'steps', 'cycleway',
-    'bridleway', 'corridor', 'platform', 'track',
-}
 PENALTY_NON_DRIVABLE_S = 1e9  # peso astronômico — A* nunca escolhe
-
-
-def _highway_value(edge_data: dict) -> str:
-    hw = edge_data.get('highway')
-    if isinstance(hw, list):
-        return (hw[0] if hw else '').lower()
-    return (hw or '').lower()
 
 
 # ⭐ PRIORITY 1.2: Validar Snap de Nó em Via Drivable
 def is_edge_drivable(edge_data: dict) -> bool:
     """Verifica se aresta é dirigível."""
-    hw = _highway_value(edge_data)
+    hw = valor_highway(edge_data)
     return hw not in NON_DRIVABLE_HIGHWAYS
 
 
@@ -296,80 +228,6 @@ def _confianca_transfer(dist_m, transfer_confidence=None) -> np.ndarray:
     return np.where(dist_m < 200, 1.0, np.where(dist_m < 500, 0.8, 0.6))
 
 
-def lia_predict_edge(model, encoder, profiles, edge_data: dict,
-                     hora: int, dia_semana: int,
-                     transfer_confidence=None) -> Tuple[float, str]:
-    """Prediz tempo de viagem para uma aresta do grafo OSM com Knowledge Transfer.
-
-    Retorna (tempo_segundos, source)
-    source: 'model' | 'transfer' | 'heuristic' | 'blocked'
-
-    LIA 2.0: o modelo devolve razão de congestionamento; a conversão para
-    segundos usa o comprimento REAL da aresta. Todas as features vêm de dados
-    que existem na inferência — a 1.0 fabricava os lags, que valiam 91,7% da
-    importância do modelo, então operava fora da distribuição de treino.
-    """
-    # Aresta não-dirigível → peso astronômico.
-    if _highway_value(edge_data) in NON_DRIVABLE_HIGHWAYS:
-        return PENALTY_NON_DRIVABLE_S, 'blocked'
-
-    vel_livre = float(edge_data.get('speed_kph', 50) or 50)
-    length_m = float(edge_data.get('length', 100) or 100)
-    if vel_livre <= 0:
-        vel_livre = 50.0
-
-    # Check 1: Via está no modelo?
-    id_ponto_raw = edge_data.get('id_ponto_supabase')
-    if id_ponto_raw is not None and id_ponto_raw in encoder.classes_:
-        razao = lia_inf.prever_razao(
-            model, encoder, profiles, id_ponto_raw, hora, dia_semana, vel_livre
-        )
-        return lia_inf.tempo_de_razao(length_m, vel_livre, razao), 'model'
-
-    # Check 2: Tem via próxima monitorada? (Knowledge Transfer)
-    edge_lat = edge_data.get('y')
-    edge_lon = edge_data.get('x')
-
-    if edge_lat is not None and edge_lon is not None:
-        nearby_points = find_nearby_monitored_points(
-            float(edge_lat), float(edge_lon), radius_m=500, limit=1
-        )
-
-        if nearby_points:
-            nearby = nearby_points[0]
-            transfer_via = nearby['id_ponto']
-            transfer_dist = nearby['distancia_m']
-
-            if transfer_via in encoder.classes_:
-                # vel_livre é a da PRÓPRIA aresta, não a da via vizinha: herdamos
-                # só o padrão de congestionamento, não a velocidade da via.
-                razao = lia_inf.prever_razao(
-                    model, encoder, profiles, transfer_via,
-                    hora, dia_semana, vel_livre
-                )
-
-                # Quanto mais longe a via de referência, mais puxamos a razão de
-                # volta para fluxo livre (1.0) — menos confiança, menos correção.
-                confianca = float(_confianca_transfer(transfer_dist, transfer_confidence)[0])
-                razao_ajustada = razao * confianca + 1.0 * (1 - confianca)
-
-                logger.debug(
-                    f"Transfer Learning: via {transfer_via} "
-                    f"({nearby['nome_via']}) a {transfer_dist:.0f}m, "
-                    f"razão {razao:.3f} → {razao_ajustada:.3f} "
-                    f"(confiança {confianca:.1f})"
-                )
-
-                return lia_inf.tempo_de_razao(length_m, vel_livre, razao_ajustada), 'transfer'
-
-    # Fallback 3: Heurística pura (sem IA)
-    fator = 1.5 if hora in {7, 8, 17, 18} else 1.0
-    heuristic_time = (length_m / (vel_livre / 3.6)) * fator
-
-    logger.debug("Via não-monitorada, sem próxima: usando heurística")
-    return heuristic_time, 'heuristic'
-
-
 # Abaixo desta distância, a aresta é considerada o próprio trecho monitorado,
 # não uma vizinha recebendo transferência.
 DIST_VIA_PROPRIA_M = 50.0
@@ -437,9 +295,10 @@ def assign_lia_weights(model, encoder, profiles, G: nx.MultiDiGraph,
 
     linhas, indices, fontes = [], [], []
     resultado = {'model': 0, 'transfer': 0, 'heuristic': 0, 'blocked': 0}
+    vel_tomtom = G.graph.get('vel_livre_tomtom')  # None = comportamento da tese (OSM)
 
     for i, (u, v, k, d) in enumerate(arestas):
-        if _highway_value(d) in NON_DRIVABLE_HIGHWAYS:
+        if valor_highway(d) in NON_DRIVABLE_HIGHWAYS:
             d['travel_time_lia'] = PENALTY_NON_DRIVABLE_S
             d['lia_source'] = 'blocked'
             resultado['blocked'] += 1
@@ -455,6 +314,10 @@ def assign_lia_weights(model, encoder, profiles, G: nx.MultiDiGraph,
         if tpl is not None:
             dist = float(d.get('dist_lia_m') or 0.0)
             fonte = 'model' if dist < DIST_VIA_PROPRIA_M else 'transfer'
+            if fonte == 'model' and vel_tomtom and via in vel_tomtom:
+                # Trecho monitorado: mesma velocidade livre do treino (TomTom), não
+                # o limite de via do OSM (VEL_LIVRE_TOMTOM=1; ver ml/free_flow_speeds.py).
+                vel_livre = vel_tomtom[via]
             linha = tpl.copy()
             linha[IDX_VEL_LIVRE] = vel_livre
             linhas.append(linha)
@@ -605,16 +468,27 @@ async def _consultar_tomtom(tt, G, origem, destino, recencia, com_referencia: bo
     return atualizadas, incidentes, referencia
 
 
-def get_edge_name(G: nx.MultiDiGraph, u: int, v: int) -> str:
-    edge_data = G.get_edge_data(u, v)
-    if edge_data:
-        for key_data in edge_data.values():
-            name = key_data.get('name', '')
-            if name and isinstance(name, str):
-                return name
-            if name and isinstance(name, list):
-                return name[0]
-    return "Via sem nome"
+_limite_ip = Limitador(20)  # cada rota gasta Flow/Incidents/Routing da TomTom
+
+
+def _via_principal(G: nx.MultiDiGraph, nos: List[int]) -> str:
+    """Nome com mais metros na rota (não só nos primeiros trechos)."""
+    metros: dict = {}
+    for u, v in zip(nos[:-1], nos[1:]):
+        dados = min(G[u][v].values(), key=lambda d: d.get('length', 0))
+        nome = dados.get('name')
+        nome = nome[0] if isinstance(nome, list) and nome else nome
+        if isinstance(nome, str) and nome:
+            metros[nome] = metros.get(nome, 0.0) + float(dados.get('length', 0) or 0)
+    return max(metros, key=metros.get) if metros else "Via sem nome"
+
+
+def _snap(request: Request, G: nx.MultiDiGraph, lat: float, lon: float) -> Tuple[int, float]:
+    arvore = getattr(request.app.state, 'arvore_nos', None)
+    if arvore is not None:
+        return arvore.snap(lat, lon)
+    no = find_nearest_drivable_node(G, lat, lon)  # sem árvore (testes, main.py antigo)
+    return no, haversine_m(lat, lon, G.nodes[no]['y'], G.nodes[no]['x'])
 
 
 @router.post(
@@ -622,15 +496,22 @@ def get_edge_name(G: nx.MultiDiGraph, u: int, v: int) -> str:
     response_model=RouteOutput,
     summary="Calcular rota (LIA + A* + TomTom)",
     description=(
-        "Rota mais rápida segundo a LIA, com a rota de menor distância calculada junto para "
-        "comparação. A TomTom atualiza as vias do corredor e remove interdições. Sem ela, a "
-        "resposta vem com `tomtom.degradado = true`. Token opcional: com ele, a rota entra no "
-        "histórico de uso da conta (coordenadas arredondadas em ~110 m)."
+        "Rota mais rápida combinando a LIA com a TomTom. A LIA traça o A* com seus pesos; a TomTom "
+        "atualiza as vias do corredor, remove interdições e propõe a própria rota. Cada candidata "
+        "recebe um tempo misto: a parte coberta pela LIA vale pela LIA, o resto (lacunas do "
+        "histórico) pela TomTom; vence a menor e a outra volta em `alternativa`. Fora da malha de "
+        "38 km, a rota é só da TomTom. A rota de menor distância segue calculada para a tese. "
+        "Token opcional: com ele, a rota entra no histórico de uso da conta (coordenadas "
+        "arredondadas em ~110 m). Limite: 20 rotas/min por IP."
     ),
-    responses={422: erro("Coordenadas inválidas, fora do grafo ou sem caminho entre os pontos.",
-                         "Sem rota disponível entre origem e destino.")},
+    responses={
+        422: erro("Coordenadas fora da área atendida ou sem caminho entre os pontos.",
+                  "Sem rota disponível entre origem e destino."),
+        429: erro("Limite de rotas por minuto excedido.", "Muitas requisições. Tente de novo em instantes."),
+    },
 )
 async def calculate_route(body: RouteInput, request: Request):
+    limitar(_limite_ip, ip_cliente(request))
     inicio_req = time.perf_counter()
     # Usuário é opcional (rota anônima segue funcionando); com token válido, o
     # uso fica associado à conta para o painel ADM.
@@ -643,159 +524,199 @@ async def calculate_route(body: RouteInput, request: Request):
     profiles = request.app.state.profiles
     G = request.app.state.graph
     version = request.app.state.model_version
+    tt = getattr(request.app.state, 'tomtom', None)
+    config = getattr(request.app.state, 'config', None)
+    if config is not None:
+        await config.atualizar(sb, tt)
+    tt_ativo = tt is not None and tt.ativo
+    rota_tomtom_ativa = tt_ativo and (config is None or bool(config['referencia_tomtom_ativa']))
 
-    # Recência (razao_lag1/delta_min_lag1 — LIA 2.1). Ausente em app.state se a
-    # API estiver rodando com um main.py anterior a essa mudança: nesse caso o
-    # comportamento cai para o fallback de montar_features() (perfil histórico),
-    # equivalente ao que a LIA 2.0 sempre fez.
+    # Recência (razao_lag1/delta_min_lag1 — LIA 2.1).
     recencia_cache_obj = getattr(request.app.state, 'recencia_cache', None)
     if recencia_cache_obj is not None:
-        recencia_cache_obj.refrescar_se_necessario(getattr(request.app.state, 'supabase', None))
-
-    # Curva de confiança do Knowledge Transfer, calibrada com dados reais
-    # (orientador, item 2). None (main.py anterior) cai no esquema fixo antigo.
+        recencia_cache_obj.refrescar_se_necessario(sb)
+    # Curva de confiança do Knowledge Transfer, calibrada com dados reais.
     transfer_confidence_obj = getattr(request.app.state, 'transfer_confidence', None)
 
-    # Contexto temporal atual (Brasília)
     now = datetime.now(tz=BRASILIA_TZ)
     hora = now.hour
     dia_semana = now.weekday()
+    origem = (body.origem.lat, body.origem.lon)
+    destino = (body.destino.lat, body.destino.lon)
 
-    # ⭐ PRIORITY 1.2: Encontra nós validando se são drivable
-    try:
-        # Em vez de nearest_nodes simples, usa validação drivable
-        orig_node = find_nearest_drivable_node(G, body.origem.lat, body.origem.lon)
-        dest_node = find_nearest_drivable_node(G, body.destino.lat, body.destino.lon)
+    orig_node, dist_orig = _snap(request, G, *origem)
+    dest_node, dist_dest = _snap(request, G, *destino)
+    fora_da_malha = max(dist_orig, dist_dest) > trajeto.LIMITE_SNAP_M
+    logger.info(f"Snap: origem {orig_node} a {dist_orig:.0f} m, destino {dest_node} a {dist_dest:.0f} m")
 
-        logger.info(
-            f"Nós encontrados: origem={orig_node} "
-            f"(lat={body.origem.lat:.4f}, lon={body.origem.lon:.4f}), "
-            f"destino={dest_node} "
-            f"(lat={body.destino.lat:.4f}, lon={body.destino.lon:.4f})"
-        )
-    except Exception as e:
-        raise HTTPException(status_code=422, detail=f"Erro ao processar coordenadas: {e}")
-
-    if orig_node == dest_node:
+    if not fora_da_malha and orig_node == dest_node:
         raise HTTPException(status_code=422, detail="Origem e destino são o mesmo ponto no grafo.")
 
-    # TomTom sob demanda: recência ao vivo nas vias velhas do corredor +
-    # interdições. Roda antes dos pesos para a LIA já usar a leitura fresca.
-    tt = getattr(request.app.state, 'tomtom', None)
-    tt_ativo = tt is not None and tt.ativo
+    # TomTom sob demanda, em paralelo: recência ao vivo nas vias velhas do
+    # corredor + interdições. A rota "de referência" (GET) só é pedida fora da
+    # malha ou a pedido explícito; dentro da malha a fusão reconstrói a nossa rota.
     vias_atualizadas, incidentes_tt, referencia_tt = 0, [], None
     if tt_ativo:
         vias_atualizadas, incidentes_tt, referencia_tt = await _consultar_tomtom(
-            tt, G, (body.origem.lat, body.origem.lon), (body.destino.lat, body.destino.lon),
-            recencia_cache_obj, body.referencia_tomtom,
+            tt, G, origem, destino, recencia_cache_obj,
+            fora_da_malha or (body.referencia_tomtom and not rota_tomtom_ativa),
+        )
+    ref = referencia_tt or {}
+    degradado = not tt_ativo or tt.pool.disponiveis('fluxo') == 0
+
+    def resumo_tomtom(polyline, interdicoes, referencia) -> TomTomResumo:
+        return TomTomResumo(
+            ativo=tt_ativo,
+            degradado=degradado,
+            vias_atualizadas=vias_atualizadas,
+            arestas_interditadas=len(bloqueadas),
+            interdicoes_na_rota=interdicoes,
+            incidentes=[IncidenteRota(**i) for i in tomtom.incidentes_na_rota(incidentes_tt, polyline)],
+            referencia_tempo_seg=referencia.get('tempo_seg'),
+            referencia_atraso_seg=referencia.get('atraso_seg'),
+            referencia_sem_transito_seg=referencia.get('sem_transito_seg'),
+            referencia_distancia_km=referencia.get('distancia_km'),
         )
 
-    # Daqui até o return não há await: pesos (gravados no grafo compartilhado),
-    # A* e resumo rodam sem intercalar com outra requisição.
-    stats = assign_lia_weights(
+    # --- Fora da malha: só a TomTom sabe traçar ---
+    if fora_da_malha:
+        bloqueadas = set()
+        if not ref.get('polyline') or not ref.get('tempo_seg'):
+            raise HTTPException(
+                status_code=422,
+                detail="Origem ou destino fora da área atendida pelo Routify (DF, raio de 38 km do Plano Piloto).",
+            )
+        resumo_tt = resumo_tomtom(ref['polyline'], 0, ref)
+        request.state.degradado = degradado
+        _registrar_rota(sb, user_id, body, version, hora, dia_semana, resumo_tt, inicio_req,
+                        distancia_km=ref.get('distancia_km'), tempo_lia=None, tempo_curta=None,
+                        rotas_diferentes=None, cobertura=0.0)
+        return RouteOutput(
+            polyline=ref['polyline'], tempo_total_seg=int(ref['tempo_seg']),
+            distancia_km=ref.get('distancia_km') or 0.0, via_principal="Rota TomTom",
+            modelo_utilizado=version, nos_visitados=0, lia_cobertura_pct=0.0,
+            hora_partida=hora, dia_semana=dia_semana, tomtom=resumo_tt,
+            fonte_rota='tomtom', fora_da_malha=True,
+        )
+
+    # Daqui até a chamada de fusão não há await: pesos (gravados no grafo
+    # compartilhado), A*, baseline e resumos leem o grafo sem intercalar com
+    # outra requisição. Depois do await, só valores já calculados.
+    assign_lia_weights(
         model, encoder, profiles, G, hora, dia_semana,
         recencia_cache_obj, transfer_confidence_obj,
     )
-    model_count = stats['model']
-    transfer_count = stats['transfer']
-    heuristic_count = stats['heuristic']
+    atraso_sem = float(G.graph.get('atraso_semaforo_s', 0.0))
 
-    # Heurística Haversine para A* (distância euclidiana como lower bound)
+    # Heurística Haversine para A* (limite inferior: 30 m/s ≈ 108 km/h)
     def heuristic(u, v):
-        u_data = G.nodes[u]
-        v_data = G.nodes[v]
-        return haversine_m(
-            u_data['y'], u_data['x'],
-            v_data['y'], v_data['x'],
-        ) / 30  # 30 m/s ≈ 108 km/h (upper bound de velocidade)
+        return haversine_m(G.nodes[u]['y'], G.nodes[u]['x'], G.nodes[v]['y'], G.nodes[v]['x']) / 30
 
-    # A* com peso LIA; via interditada (TomTom) sai do caminho
     bloqueadas = tomtom.arestas_interditadas(G, incidentes_tt) if incidentes_tt else set()
+    peso = (tomtom.peso_sem_interditadas(bloqueadas, PENALTY_NON_DRIVABLE_S, atraso_sem)
+            if bloqueadas or atraso_sem else 'travel_time_lia')
     try:
-        path_nodes = nx.astar_path(
-            G,
-            orig_node,
-            dest_node,
-            heuristic=heuristic,
-            weight=(tomtom.peso_sem_interditadas(bloqueadas, PENALTY_NON_DRIVABLE_S)
-                    if bloqueadas else 'travel_time_lia'),
-        )
+        path_nodes = nx.astar_path(G, orig_node, dest_node, heuristic=heuristic, weight=peso)
     except nx.NetworkXNoPath:
         raise HTTPException(status_code=422, detail="Sem rota disponível entre origem e destino.")
     except nx.NodeNotFound as e:
         raise HTTPException(status_code=422, detail=f"Nó não encontrado no grafo: {e}")
 
     polyline = montar_polyline(G, path_nodes)
+    tempo_lia, distancia_total, cobertura_pct = _resumir_caminho(G, path_nodes)
+    semaforos = trajeto.contar_semaforos(G, path_nodes)
+    tempo_lia += atraso_sem * semaforos  # mesmo critério na baseline abaixo
 
-    tempo_total, distancia_total, cobertura_pct = _resumir_caminho(G, path_nodes)
-
-    # --- Baseline: rota de menor distância, sob as mesmas condições ---
-    # É o "vetor estático" que o artigo afirma superar. Calculada aqui para que a
-    # comparação fique registrada em route_history a cada requisição real.
+    # --- Baseline da tese: rota de menor distância, sob as mesmas condições ---
     tempo_curta = dist_curta = None
     rotas_diferentes = None
     try:
         path_curta = nx.astar_path(
             G, orig_node, dest_node,
-            heuristic=lambda u, v: haversine_m(
-                G.nodes[u]['y'], G.nodes[u]['x'], G.nodes[v]['y'], G.nodes[v]['x']
-            ),
+            heuristic=lambda u, v: haversine_m(G.nodes[u]['y'], G.nodes[u]['x'], G.nodes[v]['y'], G.nodes[v]['x']),
             weight='length',
         )
         tempo_curta, dist_curta, _ = _resumir_caminho(G, path_curta)
+        tempo_curta += atraso_sem * trajeto.contar_semaforos(G, path_curta)
         rotas_diferentes = path_curta != path_nodes
     except (nx.NetworkXNoPath, nx.NodeNotFound, KeyError) as e:
-        # A rota principal já foi encontrada; falhar o baseline não deve
-        # derrubar a requisição — apenas fica sem comparação.
         logger.warning(f"Baseline de menor distância indisponível: {e}")
 
-    # Via principal = nome mais frequente no caminho
-    via_names = []
-    for u, v in zip(path_nodes[:10], path_nodes[1:11]):  # primeiros 10 arcos
-        via_names.append(get_edge_name(G, u, v))
-    via_principal = max(set(via_names), key=via_names.count) if via_names else "Rota Routify"
+    via_principal = _via_principal(G, path_nodes)
+    interdicoes = sum(
+        1 for u, v in zip(path_nodes[:-1], path_nodes[1:])
+        if any((u, v, k) in bloqueadas for k in G[u][v])
+    )
+
+    # --- Fusão: a TomTom reconstrói a rota da LIA e diz se há melhor ---
+    fonte_rota, alternativa, tempo_exibido = 'lia', None, tempo_lia
+    polyline_final, distancia_final, via_final = polyline, distancia_total, via_principal
+    fusao = await tt.rota_reconstruida(polyline, trajeto.pontos_apoio(polyline)) if rota_tomtom_ativa else None
+    nossa = (fusao or {}).get('nossa') or {}
+    melhor = (fusao or {}).get('melhor')
+    if nossa.get('tempo_seg'):
+        fonte_rota, tempo_exibido, tempo_outra = trajeto.escolher(
+            tempo_lia, cobertura_pct, float(nossa['tempo_seg']),
+            float(melhor['tempo_seg']) if melhor and melhor.get('tempo_seg') and melhor.get('polyline') else None,
+        )
+        if fonte_rota == 'tomtom':
+            alternativa = AlternativaRota(fonte='lia', polyline=polyline, tempo_seg=int(tempo_outra),
+                                          distancia_km=round(distancia_total / 1000, 2))
+            polyline_final, distancia_final = melhor['polyline'], melhor['distancia_km'] * 1000
+            via_final = "Rota sugerida pela TomTom"
+        elif tempo_outra is not None:
+            alternativa = AlternativaRota(fonte='tomtom', polyline=melhor['polyline'], tempo_seg=int(tempo_outra),
+                                          distancia_km=melhor['distancia_km'])
+        ref = nossa  # ETA TomTom da própria rota da LIA (mesmo trajeto)
 
     logger.info(
-        f"Rota calculada: {len(path_nodes)} nós, "
-        f"{tempo_total:.0f}s, {distancia_total/1000:.2f}km, "
+        f"Rota ({fonte_rota}): {len(path_nodes)} nós, exibido {tempo_exibido:.0f}s (LIA {tempo_lia:.0f}s, "
+        f"{semaforos} semáforos, TomTom {nossa.get('tempo_seg')}s), {distancia_final / 1000:.2f}km, "
         f"cobertura LIA {cobertura_pct:.0f}%"
-        + (
-            f" | menor distância: {tempo_curta:.0f}s, {dist_curta/1000:.2f}km"
-            f" ({'rotas diferentes' if rotas_diferentes else 'mesma rota'})"
-            if tempo_curta is not None else " | sem baseline"
-        )
+        + (f" | menor distância: {tempo_curta:.0f}s" if tempo_curta is not None else " | sem baseline")
     )
 
-    ref = referencia_tt or {}
-    resumo_tt = TomTomResumo(
-        ativo=tt_ativo,
-        degradado=not tt_ativo or tt.pool.disponiveis('fluxo') == 0,
-        vias_atualizadas=vias_atualizadas,
-        arestas_interditadas=len(bloqueadas),
-        interdicoes_na_rota=sum(
-            1 for u, v in zip(path_nodes[:-1], path_nodes[1:])
-            if any((u, v, k) in bloqueadas for k in G[u][v])
-        ),
-        incidentes=[IncidenteRota(**i) for i in tomtom.incidentes_na_rota(incidentes_tt, polyline)],
-        referencia_tempo_seg=ref.get('tempo_seg'),
-        referencia_atraso_seg=ref.get('atraso_seg'),
-        referencia_sem_transito_seg=ref.get('sem_transito_seg'),
-        referencia_distancia_km=ref.get('distancia_km'),
+    resumo_tt = resumo_tomtom(polyline_final, interdicoes, ref)
+    request.state.degradado = degradado
+    _registrar_rota(sb, user_id, body, version, hora, dia_semana, resumo_tt, inicio_req,
+                    distancia_km=round(distancia_final / 1000, 2), tempo_lia=tempo_lia,
+                    tempo_curta=tempo_curta, rotas_diferentes=rotas_diferentes, cobertura=cobertura_pct)
+
+    return RouteOutput(
+        polyline=polyline_final,
+        tempo_total_seg=int(tempo_exibido),
+        distancia_km=round(distancia_final / 1000, 2),
+        via_principal=via_final,
+        modelo_utilizado=version,
+        nos_visitados=len(path_nodes),
+        tempo_rota_curta_seg=int(tempo_curta) if tempo_curta is not None else None,
+        distancia_rota_curta_km=round(dist_curta / 1000, 2) if dist_curta is not None else None,
+        rotas_diferentes=rotas_diferentes,
+        lia_cobertura_pct=round(cobertura_pct, 2),
+        hora_partida=hora,
+        dia_semana=dia_semana,
+        tomtom=resumo_tt,
+        fonte_rota=fonte_rota,
+        tempo_lia_seg=int(tempo_lia),
+        semaforos_na_rota=semaforos,
+        alternativa=alternativa,
     )
 
-    # Captura de uso (escrita pelo servidor; coordenadas arredondadas — LGPD).
-    request.state.degradado = resumo_tt.degradado
+
+def _registrar_rota(sb, user_id, body, version, hora, dia_semana, resumo_tt, inicio_req, *,
+                    distancia_km, tempo_lia, tempo_curta, rotas_diferentes, cobertura) -> None:
+    """Captura de uso (escrita pelo servidor; coordenadas arredondadas — LGPD)."""
     usage.registrar(sb, 'rotas_calculadas', {
         'user_id': user_id,
         'origem_lat': usage.arredondar(body.origem.lat),
         'origem_lon': usage.arredondar(body.origem.lon),
         'destino_lat': usage.arredondar(body.destino.lat),
         'destino_lon': usage.arredondar(body.destino.lon),
-        'distancia_km': round(distancia_total / 1000, 2),
-        'tempo_lia_seg': int(tempo_total),
+        'distancia_km': distancia_km,
+        'tempo_lia_seg': int(tempo_lia) if tempo_lia is not None else None,
         'tempo_rota_curta_seg': int(tempo_curta) if tempo_curta is not None else None,
         'rotas_diferentes': rotas_diferentes,
-        'lia_cobertura_pct': round(cobertura_pct, 2),
+        'lia_cobertura_pct': round(cobertura, 2),
         'modelo_versao': version,
         'hora_partida': hora,
         'dia_semana': dia_semana,
@@ -808,19 +729,3 @@ async def calculate_route(body: RouteInput, request: Request):
         'referencia_atraso_seg': resumo_tt.referencia_atraso_seg,
         'latencia_ms': int((time.perf_counter() - inicio_req) * 1000),
     })
-
-    return RouteOutput(
-        polyline=polyline,
-        tempo_total_seg=int(tempo_total),
-        distancia_km=round(distancia_total / 1000, 2),
-        via_principal=via_principal,
-        modelo_utilizado=version,
-        nos_visitados=len(path_nodes),
-        tempo_rota_curta_seg=int(tempo_curta) if tempo_curta is not None else None,
-        distancia_rota_curta_km=round(dist_curta / 1000, 2) if dist_curta is not None else None,
-        rotas_diferentes=rotas_diferentes,
-        lia_cobertura_pct=round(cobertura_pct, 2),
-        hora_partida=hora,
-        dia_semana=dia_semana,
-        tomtom=resumo_tt,
-    )

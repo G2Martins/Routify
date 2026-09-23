@@ -7,7 +7,7 @@ Cadeia (cada etapa só roda se a anterior trouxe < 3 resultados):
   3. Nominatim (OSM) — último recurso. A política da OSMF proíbe autocomplete e
      exige cache e ≤ 1 req/s; por isso fica no fim, com cache e trava de 1 s.
 """
-import os
+import asyncio
 import time
 import logging
 from typing import List, Optional
@@ -15,32 +15,19 @@ from typing import List, Optional
 import httpx
 from fastapi import APIRouter, Query, Request, Security
 from pydantic import BaseModel, Field
-from supabase import create_client, Client
-from dotenv import load_dotenv
 
 import usage
+from seguranca import Limitador, ip_cliente, limitar
 from tomtom import CacheTTL
-
-ENV_PATH = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'services', 'collector', 'config', '.env')
-load_dotenv(ENV_PATH)
 
 router = APIRouter(prefix="/search", tags=["Autocomplete"], dependencies=[Security(usage.bearer)])
 logger = logging.getLogger(__name__)
 
-SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_KEY = os.getenv('SUPABASE_KEY')
-
-_supabase: Optional[Client] = None
-
 _cache_nominatim = CacheTTL(24 * 3600, max_itens=1024)
 _ultima_nominatim = 0.0
-
-
-def get_supabase() -> Optional[Client]:
-    global _supabase
-    if _supabase is None and SUPABASE_URL and SUPABASE_KEY:
-        _supabase = create_client(str(SUPABASE_URL), str(SUPABASE_KEY))
-    return _supabase
+# Autocomplete dispara a cada tecla (com debounce no app): folga para digitação
+# normal, corta robô queimando a cota de Search da TomTom.
+_limite_ip = Limitador(90)
 
 
 class PlaceSuggestion(BaseModel):
@@ -123,20 +110,26 @@ async def autocomplete(
     q: str = Query(..., min_length=2, max_length=120, description="Texto digitado", examples=["eptg"]),
     limit: int = Query(8, ge=1, le=15, description="Máximo de sugestões."),
 ):
+    limitar(_limite_ip, ip_cliente(request))
+    sb = getattr(request.app.state, 'supabase', None)
     # Só associa a requisição à conta (api_requisicoes); o texto digitado não é gravado.
-    request.state.user_id = await usage.usuario_do_token_async(
-        getattr(request.app.state, 'supabase', None), request.headers.get('authorization'))
+    request.state.user_id = await usage.usuario_do_token_async(sb, request.headers.get('authorization'))
+    tt = getattr(request.app.state, 'tomtom', None)
+    config = getattr(request.app.state, 'config', None)
+    if config is not None:
+        await config.atualizar(sb, tt)
     sugestoes: List[PlaceSuggestion] = []
     nomes_vistos: set = set()
 
     # 1. malha_completa (~38k vias locais — fonte primária)
-    sb = get_supabase()
     if sb is not None:
+        # Curingas do usuário viram texto literal (sem "%%%%" varrendo a tabela).
+        termo = q.replace('\\', '').replace('%', r'\%').replace('_', r'\_')
         try:
-            response = (
-                sb.table('malha_completa')
+            response = await asyncio.to_thread(
+                lambda: sb.table('malha_completa')
                 .select('id_via, nome_via, tipo_via, latitude, longitude')
-                .ilike('nome_via', f'%{q}%')
+                .ilike('nome_via', f'%{termo}%')
                 .limit(limit * 6)  # busca mais p/ deduplicar por nome
                 .execute()
             )
@@ -164,7 +157,6 @@ async def autocomplete(
             logger.warning(f"Falha ao consultar malha_completa: {e}")
 
     # 2. TomTom Search, 3. Nominatim — cada um só se ainda houver pouco (< 3)
-    tt = getattr(request.app.state, 'tomtom', None)
     fontes = []
     if tt is not None and tt.ativo:
         fontes.append(('tomtom', tt.buscar))

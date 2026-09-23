@@ -30,17 +30,24 @@ apps/api/
 ├── graph_enrichment.py  ← liga o grafo OSM às vias monitoradas (BallTree)
 ├── recency_cache.py    ← cache TTL da última observação real por via
 ├── tomtom.py            ← TomTom sob demanda: pool de chaves, clientes, geometria
+├── trajeto.py           ← snap (BallTree de nós), semáforos, fusão LIA × TomTom
 ├── usage.py             ← captura de uso: JWT opcional → user_id, gravação fire-and-forget
+├── seguranca.py         ← limitador (429 + Retry-After), IP do cliente, exigir_admin, auditoria
+├── config_runtime.py    ← flags do painel ADM (kill switch TomTom, orçamento, chaves pausadas…)
+├── openapi.py           ← textos do Swagger
 ├── tests/               ← pytest (rodar `pytest -q` nesta pasta)
 ├── routers/
 │   ├── predict.py      ← POST /predict (inferência por segmento)
-│   ├── route.py        ← POST /route (A* com pesos LIA)
+│   ├── route.py        ← POST /route (A* LIA + fusão TomTom)
 │   ├── search.py       ← GET /search/places (autocomplete de endereços)
-│   └── eventos.py      ← POST /eventos (eventos do app, JWT obrigatório)
+│   ├── eventos.py      ← POST /eventos (eventos do app, JWT obrigatório)
+│   └── admin.py        ← /admin/tomtom (estado do pool, testar chave) — só admin
 └── requirements.txt
 ```
 
-As versões em `requirements.txt` são as **mesmas que treinaram o modelo** (ver comentário no topo do arquivo) — os artefatos em `models/` são pickles sensíveis à versão de xgboost/scikit-learn/pandas que os serializou. Não atualizar sem retreinar.
+As versões em `requirements.txt` são as **mesmas que treinaram o modelo** (ver comentário no topo do arquivo): os `.pkl` em `ml/artifacts/` são sensíveis à versão de xgboost, scikit-learn e pandas que os serializou. Não atualizar sem retreinar.
+
+**Rode sempre no venv:** o Python global da máquina pode ter outras versões, e aí o modelo carrega diferente ou nem carrega. Isso já aconteceu: pandas 2.2 no global contra 3.0 no projeto.
 
 ---
 
@@ -48,9 +55,9 @@ As versões em `requirements.txt` são as **mesmas que treinaram o modelo** (ver
 
 ```bash
 cd apps/api
-pip install -r requirements.txt
-
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+python -m venv .venv                                     # primeira vez
+.venv/Scripts/python -m pip install --use-feature=truststore -r requirements.txt pytest
+.venv/Scripts/python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 **Pré-requisito:** modelo treinado existir em `../ml/artifacts/`:
@@ -73,7 +80,24 @@ Também depende de `../services/collector/config/.env` (`SUPABASE_URL`/`SUPABASE
 |---|---|---|
 | `CORS_ORIGINS` | `http://localhost:8081,http://localhost:19006,http://localhost:3000` | origens liberadas (app web + painel ADM), separadas por vírgula. Sem credenciais: o JWT vai no header `Authorization` |
 
-Testes: `pytest -q` (o HTTP da TomTom é simulado; nenhuma chamada real).
+Testes: `.venv/Scripts/python -m pytest -q` (o HTTP da TomTom é simulado; nenhuma chamada real).
+
+| Variável | Padrão | Uso |
+|---|---|---|
+| `TRUST_PROXY` | `0` | `1` só atrás de um proxy nosso (Caddy/ALB). Aí o IP do limite vem do `X-Forwarded-For`; sem proxy, o cliente forjaria o IP |
+| `GRAPH_RADIUS_KM` | `38` | raio do grafo. Entra no nome do cache (`brasilia_graph_38km.graphml`) |
+
+**Limites por janela deslizante (429 + `Retry-After`):**
+
+| Rota | Limite |
+|---|---|
+| `/route` | 20/min por IP |
+| `/search/places` | 90/min por IP |
+| `/eventos` | 60/min por usuário |
+| `/admin/tomtom` | 60/min por admin |
+| teste de chave | 6/min por admin |
+
+ponytail: os limites ficam em memória, 1 réplica.
 
 ### Captura de uso (LGPD)
 
@@ -155,7 +179,7 @@ Campos opcionais avançados (`razao_ultima_observacao` + `minutos_desde_ultima_o
 
 ### `POST /route`
 
-**Endpoint principal.** Roteamento A\* com pesos da LIA aplicados a cada aresta do grafo, numa única predição vetorizada (não aresta-por-aresta).
+**Endpoint principal.** Faz o A\* com os pesos da LIA em cada aresta do grafo, numa única predição vetorizada. A rota da LIA é **fundida com a TomTom**: a TomTom reconstrói o mesmo trajeto, dá o ETA dele ao vivo e sugere outra rota se achar uma melhor.
 
 **Request:**
 ```json
@@ -166,7 +190,7 @@ Campos opcionais avançados (`razao_ultima_observacao` + `minutos_desde_ultima_o
 }
 ```
 
-Campos extras são rejeitados (422). `referencia_tomtom: true` pede também o ETA da TomTom com trânsito ao vivo (gasta 1 chamada de Routing).
+Campos extras são rejeitados (422). O ETA da TomTom vem sempre pela fusão, então `referencia_tomtom` só tem efeito se o painel ADM desligar a fusão.
 
 **Response:**
 ```json
@@ -194,9 +218,21 @@ Campos extras são rejeitados (422). `referencia_tomtom: true` pede também o ET
     ],
     "referencia_tempo_seg": 1043, "referencia_atraso_seg": 163,
     "referencia_sem_transito_seg": 790, "referencia_distancia_km": 13.39
-  }
+  },
+
+  "fonte_rota": "lia",
+  "tempo_lia_seg": 1180,
+  "semaforos_na_rota": 9,
+  "fora_da_malha": false,
+  "alternativa": { "fonte": "tomtom", "polyline": [["..."]], "tempo_seg": 1302, "distancia_km": 9.1 }
 }
 ```
+
+**Fusão LIA × TomTom** (`trajeto.py`, 1 chamada de Routing por rota):
+- **Tempo exibido** (`tempo_total_seg`) = cobertura × LIA + (1 − cobertura) × TomTom no mesmo trajeto. A LIA vale onde tem histórico; a TomTom cobre as lacunas.
+- **Troca de rota:** a alternativa da TomTom só assume (`fonte_rota: "tomtom"`) se a própria TomTom a considerar ≥ 10% **e** ≥ 60 s mais rápida. A candidata não escolhida volta em `alternativa`, e o app a desenha tracejada.
+- **Fora da malha** (ponto a mais de 400 m do grafo de 38 km): a rota é só da TomTom (`fora_da_malha: true`).
+- **Semáforos:** `tempo_lia_seg` e `tempo_rota_curta_seg` somam o atraso médio por semáforo cruzado. Os semáforos são as tags do OSM encaixadas no cruzamento; o atraso vem calibrado em `ml/artifacts/semaforos_calibracao.json` (ver `ml/calibrate_signals.py`). A soma é igual nas duas rotas, então a comparação da tese não fica enviesada.
 
 `tempo_rota_curta_seg` … `dia_semana` são instrumentação da Fase 3 (validação da tese): a rota de
 menor distância é calculada na mesma requisição, sob as mesmas condições,
@@ -204,13 +240,27 @@ para permitir comparação direta. O bloco `tomtom` diz o que a TomTom acrescent
 `degradado: true` = rota só com a LIA (sem chave, cota esgotada ou TomTom fora do ar).
 
 **Pipeline interno:**
-1. `find_nearest_drivable_node` mapeia (lat,lon) ao nó navegável mais próximo
-2. **TomTom sob demanda** (`_consultar_tomtom`, em paralelo): Flow Segment Data nas até 8 vias monitoradas do corredor com recência > 10 min (a leitura entra no cache de recência) + Incident Details do corredor (cache 5 min) + ETA de referência, se pedido
-3. `assign_lia_weights` prevê a razão de congestionamento para **todas** as arestas do grafo numa única chamada ao modelo (perfis por via + recência + transferência de conhecimento calibrada para vias não monitoradas)
-4. `nx.astar_path` com heurística Haversine; arestas sob interdição da TomTom saem do caminho por uma função de peso (o grafo compartilhado não é alterado)
-5. `montar_polyline` traça a rota seguindo a geometria real das vias (não linha reta entre nós)
+1. **Snap** no nó mais próximo (`trajeto.ArvoreNos`: BallTree montada 1× na subida, não a cada chamada).
+2. **TomTom sob demanda, em paralelo** (`_consultar_tomtom`):
+   - Flow Segment Data em até 8 vias monitoradas do corredor com recência > 10 min; a leitura entra no cache de recência;
+   - Incident Details do corredor (cache de 5 min);
+   - fora da malha, também a rota da TomTom.
+3. `assign_lia_weights` prevê a razão de congestionamento de **todas** as arestas numa chamada só (perfis por via + recência + transferência calibrada).
+4. `nx.astar_path` com heurística Haversine. O peso soma o atraso de semáforo, e arestas interditadas pela TomTom saem do caminho por uma função de peso, sem mutar o grafo compartilhado.
+5. `montar_polyline` segue a geometria real das vias. Baseline de menor distância e resumos são calculados **antes** de qualquer `await`, porque os pesos estão no grafo compartilhado.
+6. **Fusão:** `tomtom.rota_reconstruida` com `supportingPoints` + `trajeto.escolher`.
 
 Política de chaves, cotas e modo degradado: [docs/core/architecture.md](../../docs/core/architecture.md).
+
+---
+
+### `GET /admin/tomtom` · `POST /admin/tomtom/chaves/{id}/testar`
+
+Só para admin: JWT validado a cada chamada, com `app_metadata.role = admin`.
+- **Estado do pool** por chave: pausada, chamadas, falhas e cooldown por serviço. Mostra só o id, nunca o valor.
+- **Teste de uma chave:** 1 chamada de Flow. É auditado.
+
+As outras ações do painel (papel, bloqueio, avisos, flags) são RPCs `admin_*` no Supabase (`supabase/migrations/20260923020000_admin_actions.sql`). A API lê as flags de `config_runtime` a cada 30 s.
 
 ---
 
