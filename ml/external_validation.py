@@ -51,7 +51,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 MODELS_DIR = os.path.join(os.path.dirname(__file__), 'artifacts')
 API_DIR = os.path.join(os.path.dirname(__file__), '..', 'apps', 'api')
-GRAPH_PATH = os.path.join(MODELS_DIR, 'brasilia_graph.graphml')
+# Mesmo grafo da API (raio no nome). Os corredores da Fase 3 (EPTG/EPNB) ficam
+# além dos ~15 km do brasilia_graph.graphml antigo.
+GRAPH_PATH = os.path.join(MODELS_DIR, f"brasilia_graph_{os.getenv('GRAPH_RADIUS_KM', '38')}km.graphml")
 TOMTOM_KEYS_PATH = os.path.join(
     os.path.dirname(__file__), '..', 'services', 'collector', 'config', 'tomtom_keys.json'
 )

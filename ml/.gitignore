@@ -15,3 +15,6 @@ __pycache__/
 # Dados intermediários
 *.csv
 *.parquet
+
+# Evidência da tese (validação externa Fase 3: corredores fixos, sem dado pessoal)
+!artifacts/fase3_comparacao.csv

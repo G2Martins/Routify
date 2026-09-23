@@ -57,6 +57,9 @@ o Parquet já gerado (mais rápido, útil em iteração).
 | `tune_hyperparams.py` | Busca bayesiana de hiperparâmetros (Optuna), reaproveitando a mesma validação de `train.py` |
 | `calibrate_transfer.py` | Calibra a confiança do Knowledge Transfer (vias sem monitoramento direto) por regressão isotônica sobre pares reais |
 | `external_validation.py` | Compara a rota da LIA, a de menor distância e a de uma referência externa (TomTom) para o mesmo par origem-destino |
+| `calibrate_signals.py` | Atraso médio por semáforo: resíduo "TomTom sem trânsito − LIA" no mesmo trajeto ~ δ·semáforos + β·km, em N rotas sorteadas → `artifacts/semaforos_calibracao.json` (a API aplica δ) |
+| `free_flow_speeds.py` | Mediana da velocidade livre da TomTom por ponto → `artifacts/velocidade_livre_tomtom.json` (experimento `VEL_LIVRE_TOMTOM=1` na API) |
+| `publish_metrics.py` | Publica as métricas versionadas de cada LIA no Supabase (`lia_treinos`/`lia_analises`) para o painel ADM |
 | `requirements.txt` | Dependências Python |
 | `artifacts/` | metadata JSON (versionado) + artefatos pesados (gitignored) |
 
@@ -64,9 +67,13 @@ o Parquet já gerado (mais rápido, útil em iteração).
 
 ## ⚙️ Setup
 
+Use o **venv da API** (`apps/api/.venv`), que tem as mesmas versões fixadas (pandas 3.0, scikit-learn 1.8, xgboost 3.2, numpy 2.4).
+- O Python global pode ter outras versões.
+- Um modelo treinado nelas não carrega no ambiente de produção, e vice-versa. Aconteceu em 22/09, e o retreino daquele dia foi descartado para a tese.
+
 ```bash
 cd ml
-pip install -r requirements.txt
+../apps/api/.venv/Scripts/python train.py --version lia_2.2 --skip-silver
 ```
 
 **Pré-requisito:** `.env` em `../services/collector/config/.env` (copie de `.env.example` e preencha):
@@ -99,7 +106,14 @@ python silver.py     # só atualiza Silver
 python calibrate_transfer.py                          # recalibra a confiança do Knowledge Transfer
 python tune_hyperparams.py --n-trials 60      # busca bayesiana de hiperparâmetros
 python external_validation.py                               # LIA vs. TomTom vs. menor distância
+python calibrate_signals.py --api http://127.0.0.1:8000     # atraso de semáforo (API rodando, sem calibração prévia)
+python free_flow_speeds.py                                  # velocidade livre TomTom por ponto
 ```
+
+**Artefatos da tese em `artifacts/`:**
+- `lia_2.1*` = modelo do Pedro (19/08), que bate com `lia_2.1_metadata.json`;
+- `lia_2.1_retreino_20260923*` = retreino com Optuna em ambiente divergente. **Não usar na tese.**
+- `fase3_comparacao.csv` (validação externa, 71 corridas) é versionado.
 
 ---
 
