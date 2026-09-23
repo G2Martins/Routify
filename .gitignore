@@ -148,3 +148,6 @@ docs/build/
 !CLAUDE.md
 !docs/**/*.md
 !.planning/**/*.md
+
+# SQL local (pode conter e-mails/dados pessoais) — nunca versionar
+supabase/.local/
