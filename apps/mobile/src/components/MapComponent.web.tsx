@@ -43,6 +43,26 @@ function criarTiles(map: any, style: keyof typeof MAP_TILE_URLS) {
 
 type Cores = ReturnType<typeof useTheme>['theme']['colors'];
 
+/** A linha "se desenha" do início ao fim (SVG stroke-dashoffset). Sem animação se o
+ * sistema pede menos movimento. Depois limpa o tracejado: o zoom redesenha o caminho. */
+function desenhar(camada: any, ms = 1100) {
+  const path: SVGPathElement | undefined = camada?.getElement?.();
+  if (!path || typeof path.getTotalLength !== 'function') return;
+  if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  const total = path.getTotalLength();
+  path.style.strokeDasharray = `${total}`;
+  path.style.strokeDashoffset = `${total}`;
+  path.getBoundingClientRect(); // força o estilo inicial antes da transição
+  path.style.transition = `stroke-dashoffset ${ms}ms cubic-bezier(0.16, 1, 0.3, 1)`;
+  path.style.strokeDashoffset = '0';
+  const limpar = () => {
+    path.style.transition = '';
+    path.style.strokeDasharray = '';
+    path.style.strokeDashoffset = '';
+  };
+  path.addEventListener('transitionend', limpar, { once: true });
+}
+
 // Marcadores em HTML de divIcon montado só com tokens do tema (nenhum dado do usuário entra aqui).
 function iconePonto(cor: string, c: Cores, halo?: string) {
   const sombra = `0 1px 4px ${c.shadowMedium}` + (halo ? `, 0 0 0 6px ${halo}` : '');
@@ -101,6 +121,8 @@ const MapComponent = forwardRef((_props, ref) => {
       }).setView([BRASILIA_LAT, BRASILIA_LON], 13);
 
       tileLayerRef.current = criarTiles(map, mapStyle);
+      // Crédito das fontes de dados exibidas (os termos da TomTom e a licença CC BY do Open-Meteo pedem).
+      map.attributionControl.addAttribution('Trânsito © TomTom · Tempo: Open-Meteo');
       mapInstanceRef.current = map;
       setMapLoaded(true);
     }
@@ -340,6 +362,16 @@ const MapComponent = forwardRef((_props, ref) => {
           ? { paddingTopLeft: [448, 48], paddingBottomRight: [72, 48] }
           : { paddingTopLeft: [32, 240], paddingBottomRight: [72, 260] }
       );
+      // Desenha depois do enquadramento (o zoom recalcula o caminho); fallback se o mapa não se mover.
+      let desenhou = false;
+      const animarLinha = () => {
+        if (desenhou) return;
+        desenhou = true;
+        desenhar(contornoRef.current);
+        desenhar(polylineRef.current);
+      };
+      mapInstanceRef.current.once('moveend', animarLinha);
+      setTimeout(animarLinha, 700);
 
       if (origemCoord) {
         if (markerOrigemRef.current) markerOrigemRef.current.remove();

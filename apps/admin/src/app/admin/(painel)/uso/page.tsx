@@ -1,4 +1,5 @@
-import { Cabecalho, Cartao, ErroConsulta, SeletorJanela, Selo, Tabela } from '@/components/ui';
+import { BarrasCombustivel } from '@/components/graficos';
+import { Cabecalho, Cartao, ErroConsulta, Kpi, SeletorJanela, Selo, Tabela } from '@/components/ui';
 import { exigirAdmin } from '@/lib/auth';
 import { fmtData, fmtDec, fmtDuracao, fmtInt } from '@/lib/formato';
 import type { AnalyticsUso } from '@/lib/tipos';
@@ -25,6 +26,25 @@ type Rota = {
 type Evento = { id: number; criado_em: string; tipo: string; plataforma: string | null; dados: Record<string, unknown> };
 type Requisicao = { id: number; criado_em: string; metodo: string; rota: string; status: number; latencia_ms: number; user_id: string | null; erro: string | null };
 
+type EconomiaCombustivel = {
+  rotas_com_estimativa: number;
+  rotas_otimizadas: number;
+  litros_economizados: number;
+  litros_consumidos: number;
+  serie_diaria: { dia: string; litros: number; rotas: number }[];
+};
+type ParamsCombustivel = { preco_litro_reais: number; co2_kg_por_litro: number; preco_fonte?: string; atualizado_em?: string };
+
+/** Preço e fator de CO₂ vêm da API (ml/artifacts/consumo_combustivel.json), com a fonte. */
+async function paramsCombustivel(): Promise<ParamsCombustivel | null> {
+  try {
+    const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/metrics`, { next: { revalidate: 3600 } });
+    return r.ok ? ((await r.json()).combustivel ?? null) : null;
+  } catch {
+    return null;
+  }
+}
+
 const coord = (lat: number, lon: number) => `${Number(lat).toFixed(3)}, ${Number(lon).toFixed(3)}`;
 const JANELAS = [7, 30, 90];
 
@@ -32,12 +52,16 @@ export default async function UsoPage({ searchParams }: { searchParams: Promise<
   const { dias: diasParam } = await searchParams;
   const dias = JANELAS.includes(Number(diasParam)) ? Number(diasParam) : 30;
   const { sb } = await exigirAdmin();
-  const [analytics, rotas, eventos, requisicoes] = await Promise.all([
+  const [analytics, rotas, eventos, requisicoes, economia, params] = await Promise.all([
     sb.rpc('admin_analytics_uso', { dias }),
     sb.from('rotas_calculadas').select('*').order('criado_em', { ascending: false }).limit(50),
     sb.from('eventos_app').select('id, criado_em, tipo, plataforma, dados').order('criado_em', { ascending: false }).limit(50),
     sb.from('api_requisicoes').select('*').order('criado_em', { ascending: false }).limit(50),
+    sb.rpc('admin_economia_combustivel', { dias }),
+    paramsCombustivel(),
   ]);
+  const eco = economia.data as EconomiaCombustivel | null;
+  const litros = Number(eco?.litros_economizados ?? 0);
 
   return (
     <>
@@ -50,6 +74,46 @@ export default async function UsoPage({ searchParams }: { searchParams: Promise<
         <ErroConsulta erro={analytics.error} acoes />
         {analytics.data ? <Analytics a={analytics.data as AnalyticsUso} /> : null}
       </div>
+      <h2 className="surgir mb-4 font-display text-2xl leading-none">Combustível economizado</h2>
+      <div className="mb-10 space-y-5">
+        <ErroConsulta erro={economia.error} acoes />
+        {eco ? (
+          <>
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <Kpi rotulo="Litros economizados" valor={fmtDec(litros, 2)} detalhe={`em ${dias} dias`} />
+              <Kpi
+                rotulo="Economia em gasolina"
+                valor={params ? `R$ ${fmtDec(litros * params.preco_litro_reais, 2)}` : '—'}
+                detalhe={params ? `a R$ ${fmtDec(params.preco_litro_reais, 2)}/L (ANP, DF)` : 'parâmetros indisponíveis'}
+                atraso={40}
+              />
+              <Kpi
+                rotulo="CO₂ evitado"
+                valor={params ? `${fmtDec(litros * params.co2_kg_por_litro, 1)} kg` : '—'}
+                detalhe="gasolina C (E30), parte fóssil"
+                atraso={80}
+              />
+              <Kpi
+                rotulo="Rotas que economizaram"
+                valor={`${fmtInt(eco.rotas_otimizadas)} de ${fmtInt(eco.rotas_com_estimativa)}`}
+                detalhe={eco.litros_consumidos > 0 ? `${fmtDec(eco.litros_consumidos, 1)} L estimados no total` : undefined}
+                atraso={120}
+              />
+            </div>
+            {eco.serie_diaria.length ? (
+              <Cartao titulo="Litros economizados por dia">
+                <BarrasCombustivel dados={eco.serie_diaria} />
+              </Cartao>
+            ) : null}
+            <p className="text-xs text-muted-foreground">
+              Estimativa por rota, feita pela API no momento do cálculo: litros = K1·km + K2·horas (Evans, Herman &amp; Lam,
+              1976), com a rota escolhida pela LIA contra o caminho mais curto no mesmo instante. Só a parte positiva entra
+              na soma. Parâmetros e fontes em <code>ml/artifacts/consumo_combustivel.json</code>.
+            </p>
+          </>
+        ) : null}
+      </div>
+
       <h2 className="surgir mb-4 font-display text-2xl leading-none">Últimos registros</h2>
       <ErroConsulta erro={rotas.error ?? eventos.error ?? requisicoes.error} />
       <div className="space-y-5">

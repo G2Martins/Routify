@@ -27,12 +27,10 @@ interface HistoryStats {
   rotas: number;
   km_total: number;
   min_total: number;
-  co2_kg_economizado: number;
+  litros_economizados: number; // soma só do que foi economia (rota mais rápida que gasta mais não desconta)
+  rotas_com_economia: number;
   vias_evitadas: number;
 }
-
-const CO2_BASELINE_KG_KM = 0.192; // emissão média carro a gasolina
-const CO2_LIA_KG_KM = 0.155;      // estimativa rota otimizada (~19% menos)
 
 interface Metrics {
   modelo_ativo: string;
@@ -43,11 +41,18 @@ interface Metrics {
   total_amostras_treino: number | null;
   feature_importance?: Record<string, number>;
   cv_rmse_seg_baseline?: number | null;
+  // Parâmetros da estimativa de combustível (ml/artifacts/consumo_combustivel.json)
+  combustivel?: { preco_litro_reais: number; co2_kg_por_litro: number; atualizado_em?: string } | null;
 }
 
 /** Nome legível das features da LIA (chaves de ml/features.py). */
 const ROTULO_FEATURE: Record<string, string> = {
   razao_lag1: 'Leitura mais recente da via',
+  vizinhos_razao: 'Trânsito das vias vizinhas',
+  vizinhos_n: 'Vizinhas com leitura recente',
+  chuva_mm: 'Chuva na última hora',
+  chuva_3h_mm: 'Chuva nas últimas 3 horas',
+  is_feriado: 'Feriado',
   delta_min_lag1: 'Minutos desde a última leitura',
   perfil_via_hora_dow: 'Perfil da via por hora e dia',
   perfil_via_hora: 'Perfil da via por hora',
@@ -131,13 +136,17 @@ export default function DashboardScreen() {
         (async () => {
           const { data, error } = await supabase
             .from('route_history')
-            .select('distancia_km, tempo_total_seg, via_principal')
+            .select('distancia_km, tempo_total_seg, via_principal, combustivel_economizado_l')
             .eq('user_id', user.id);
           if (cancelled || error || !data) return;
-          const rows = data as Pick<RouteHistoryRow, 'distancia_km' | 'tempo_total_seg' | 'via_principal'>[];
+          const rows = data as (Pick<RouteHistoryRow, 'distancia_km' | 'tempo_total_seg' | 'via_principal'> & {
+            combustivel_economizado_l: number | null;
+          })[];
           const km_total = rows.reduce((s, r) => s + Number(r.distancia_km || 0), 0);
           const min_total = rows.reduce((s, r) => s + Number(r.tempo_total_seg || 0), 0) / 60;
-          const co2_kg_economizado = km_total * (CO2_BASELINE_KG_KM - CO2_LIA_KG_KM);
+          const economias = rows.map((r) => Math.max(0, Number(r.combustivel_economizado_l || 0)));
+          const litros_economizados = economias.reduce((s, v) => s + v, 0);
+          const rotas_com_economia = economias.filter((v) => v >= 0.005).length;
           const vias_evitadas = new Set(
             rows.map((r) => (r.via_principal || '').trim()).filter(Boolean)
           ).size;
@@ -145,7 +154,8 @@ export default function DashboardScreen() {
             rotas: rows.length,
             km_total,
             min_total,
-            co2_kg_economizado,
+            litros_economizados,
+            rotas_com_economia,
             vias_evitadas,
           });
         })();
@@ -159,6 +169,7 @@ export default function DashboardScreen() {
 
   const nome = (profile?.nome || user?.email?.split('@')[0] || 'piloto').trim().split(/\s+/)[0];
   const online = apiOnline && metrics !== null;
+  const combustivel = metrics?.combustivel ?? null;
 
   return (
     <ScrollView
@@ -187,29 +198,40 @@ export default function DashboardScreen() {
               <Kpi
                 ordem={2}
                 destaque
-                icone="ion:leaf-outline"
-                valor={stats ? `${fmt(stats.co2_kg_economizado, 1)} kg` : '—'}
-                rotulo="CO₂ economizado"
+                icone="mdi:gas-station-outline"
+                valor={stats ? `${fmt(stats.litros_economizados, 2)} L` : '—'}
+                rotulo="Combustível economizado"
               />
               <Kpi
                 ordem={3}
-                icone="ion:navigate-outline"
-                valor={stats ? `${fmt(stats.km_total, stats.km_total < 100 ? 1 : 0)} km` : '—'}
-                rotulo="Distância otimizada"
+                icone="ion:cash-outline"
+                valor={stats && combustivel ? `R$ ${fmt(stats.litros_economizados * combustivel.preco_litro_reais, 2)}` : '—'}
+                rotulo="Economia em gasolina"
               />
-              <Kpi ordem={4} icone="ion:flag-outline" valor={stats ? fmt(stats.rotas) : '—'} rotulo="Rotas otimizadas" />
+              <Kpi
+                ordem={4}
+                icone="ion:leaf-outline"
+                valor={stats && combustivel ? `${fmt(stats.litros_economizados * combustivel.co2_kg_por_litro, 1)} kg` : '—'}
+                rotulo="CO₂ evitado"
+              />
               <Kpi
                 ordem={5}
-                icone="mdi:road-variant"
-                valor={stats ? fmt(stats.vias_evitadas) : '—'}
-                rotulo="Vias diferentes"
+                icone="ion:flag-outline"
+                valor={stats ? `${fmt(stats.rotas_com_economia)} de ${fmt(stats.rotas)}` : '—'}
+                rotulo="Rotas que economizaram"
               />
             </GradeKpi>
             {stats?.rotas === 0 ? (
               <Text style={[theme.typography.caption, { color: c.textMuted, marginTop: 8 }]}>
                 Calcule sua primeira rota na aba Mapa para ver seu impacto aqui.
               </Text>
-            ) : null}
+            ) : (
+              <Text style={[theme.typography.caption, { color: c.textSubtle, marginTop: 8, fontSize: 12 }]}>
+                Estimativa por rota: o caminho da LIA contra o caminho mais curto no mesmo horário (modelo de
+                Evans–Herman–Lam){combustivel ? ` · gasolina a R$ ${fmt(combustivel.preco_litro_reais, 2)}/L (ANP, DF)` : ''}.
+                Rotas calculadas antes desta versão não têm a estimativa.
+              </Text>
+            )}
 
             {online ? (
               <>

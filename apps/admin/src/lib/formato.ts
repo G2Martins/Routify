@@ -16,9 +16,10 @@ export const fmtInt = (v: unknown) => {
   return n === null ? '—' : inteiro.format(n);
 };
 
-export const fmtDec = (v: unknown) => {
+export const fmtDec = (v: unknown, casas = 1) => {
   const n = num(v);
-  return n === null ? '—' : decimal.format(n);
+  if (n === null) return '—';
+  return casas === 1 ? decimal.format(n) : n.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
 };
 
 export const fmtPct = (v: unknown) => {

@@ -67,6 +67,22 @@ export function SerieUso({ dados }: { dados: { dia: string; rotas: number; usuar
   );
 }
 
+/** Litros economizados por dia (rota da LIA × caminho mais curto). */
+export function BarrasCombustivel({ dados }: { dados: { dia: string; litros: number; rotas: number }[] }) {
+  const pontos = dados.map((d) => ({ ...d, litros: Number(d.litros), rotulo: d.dia.slice(5).split('-').reverse().join('/') }));
+  return (
+    <Moldura altura={220}>
+      <BarChart data={pontos} margin={{ top: 8, right: 12, bottom: 0, left: -12 }}>
+        <CartesianGrid vertical={false} stroke="var(--chart-grade)" />
+        <XAxis dataKey="rotulo" tick={TICK} tickLine={false} axisLine={false} />
+        <YAxis tick={TICK} tickLine={false} axisLine={false} />
+        <Tooltip {...DICA} formatter={(v) => [`${br(Number(v), 2)} L`, 'Economizado']} />
+        <Bar dataKey="litros" name="Litros economizados" fill="var(--chart-3)" radius={[4, 4, 0, 0]} />
+      </BarChart>
+    </Moldura>
+  );
+}
+
 export function BarrasHora({ dados }: { dados: { hora: number; rotas: number }[] }) {
   const porHora = new Map(dados.map((d) => [d.hora, d.rotas]));
   const pontos = Array.from({ length: 24 }, (_, h) => ({ hora: `${h}h`, rotas: porHora.get(h) ?? 0 }));

@@ -14,6 +14,7 @@ import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { AuthProvider } from './src/context/AuthContext';
 import RootNavigator from './src/navigation/MainNavigator';
 import AvisoApp from './src/components/AvisoApp';
+import { ToastProvider } from './src/components/Toast';
 
 // CSS global só da web: suavização de fonte, anel de foco visível por teclado,
 // scrollbar discreta e respeito a prefers-reduced-motion.
@@ -59,9 +60,11 @@ export default function App() {
     <SafeAreaProvider>
       <ThemeProvider>
         <AuthProvider>
-          <ThemedStatusBar />
-          <RootNavigator />
-          <AvisoApp />
+          <ToastProvider>
+            <ThemedStatusBar />
+            <RootNavigator />
+            <AvisoApp />
+          </ToastProvider>
         </AuthProvider>
       </ThemeProvider>
     </SafeAreaProvider>

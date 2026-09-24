@@ -16,7 +16,8 @@ import { useDesktopLayout } from '../lib/responsive';
 import { supabase } from '../lib/supabase';
 import { API_URL, apiHeaders, enviarEvento } from '../lib/api';
 import AddressAutocomplete, { PlaceSuggestion } from '../components/AddressAutocomplete';
-import NavigationPanel from '../components/NavigationPanel';
+import NavigationPanel, { Clima, Economia } from '../components/NavigationPanel';
+import { useToast } from '../components/Toast';
 import MapStyleToggle, { BotaoMapa } from '../components/MapStyleToggle';
 import LIAIndicator, { LIAStatus } from '../components/LIAIndicator';
 import { FaixaMarca, Surgir, useMenosMovimento } from '../components/ui';
@@ -71,7 +72,12 @@ interface RouteResult {
   semaforos_na_rota?: number | null;
   fora_da_malha?: boolean;
   alternativa?: { fonte: 'lia' | 'tomtom'; polyline: number[][]; tempo_seg: number; distancia_km: number } | null;
+  // Tempo em Brasília na partida e combustível contra o caminho mais curto (API ≥ 2026-09-24)
+  clima?: Clima | null;
+  economia?: Economia | null;
 }
+
+const litrosTxt = (v: number) => v.toFixed(2).replace('.', ',');
 
 /** POST /route com o JWT da sessão; erro da API vira Error com a mensagem dela. */
 async function pedirRota(origem: { lat: number; lon: number }, destino: { lat: number; lon: number }): Promise<RouteResult> {
@@ -128,6 +134,7 @@ export default function MapScreen() {
   const { theme } = useTheme();
   const c = theme.colors;
   const { user } = useAuth();
+  const avisar = useToast();
   const desktop = useDesktopLayout();
   const insets = useSafeAreaInsets();
   const [alturaPainel, setAlturaPainel] = useState(200);
@@ -192,6 +199,20 @@ export default function MapScreen() {
       setRoute(data);
       setLiaStatus('done');
       setTimeout(() => setLiaStatus('idle'), 2500);
+      const min = Math.max(1, Math.round(data.tempo_total_seg / 60));
+      const eco = data.economia;
+      avisar({
+        titulo: `Rota pronta · ${min} min`,
+        texto:
+          eco && eco.litros >= 0.01
+            ? `Economiza ${litrosTxt(eco.litros)} L contra o caminho mais curto`
+            : `via ${data.via_principal}`,
+        tom: 'ok',
+        icone: 'ion:navigate',
+      });
+      if (data.clima && (data.clima.chuva_agora_mm > 0 || data.clima.chuva_3h_mm > 0)) {
+        avisar({ titulo: 'Chuva em Brasília', texto: 'A LIA já considerou a chuva no tempo da rota.', tom: 'alerta', icone: 'ion:rainy-outline' });
+      }
 
       // Salva no histórico (Supabase)
       if (user?.id) {
@@ -218,6 +239,7 @@ export default function MapScreen() {
             lia_cobertura_pct: data.lia_cobertura_pct ?? null,
             hora_partida: data.hora_partida ?? null,
             dia_semana: data.dia_semana ?? null,
+            combustivel_economizado_l: data.economia?.litros ?? null,
           })
           .then((r: { error: { message: string } | null }) => {
             if (r.error) console.warn('[Routify] Falha ao salvar histórico:', r.error.message);
@@ -225,6 +247,7 @@ export default function MapScreen() {
       }
     } catch (e: any) {
       const msg = e?.message || 'Falha ao calcular rota.';
+      avisar({ titulo: 'Não deu para calcular a rota', texto: msg, tom: 'erro' });
       if (Platform.OS === 'web') setError(msg);
       else Alert.alert('Erro ao calcular rota', msg);
       setLiaStatus('idle');
@@ -269,7 +292,13 @@ export default function MapScreen() {
     try {
       const data = await pedirRota({ lat, lon }, { lat: dest.lat, lon: dest.lon });
       mapRef.current?.showRoute?.(data.polyline, [lat, lon], [dest.lat, dest.lon], data.alternativa?.polyline ?? null);
-      setRoute(data);
+      setRoute((antes) => {
+        // Só avisa quando o recálculo muda a previsão de verdade (≥ 1 min): sem spam a cada 30 s.
+        if (antes && Math.abs(antes.tempo_total_seg - data.tempo_total_seg) >= 60) {
+          avisar({ titulo: 'Rota recalculada', texto: `Chegada em ${Math.max(1, Math.round(data.tempo_total_seg / 60))} min`, tom: 'info' });
+        }
+        return data;
+      });
     } catch (e) {
       console.warn('[Routify] replan fail', e);
     } finally {
@@ -352,6 +381,7 @@ export default function MapScreen() {
               setOrigemPlace(p);
               setOrigemText(p.label);
             }}
+            perto={destinoPlace}
             zIndex={2}
             listaStyle={styles.listaLarga}
           />
@@ -366,6 +396,7 @@ export default function MapScreen() {
               setDestinoPlace(p);
               setDestinoText(p.label);
             }}
+            perto={origemPlace}
             zIndex={1}
             listaStyle={styles.listaLarga}
           />

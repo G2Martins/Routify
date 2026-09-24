@@ -35,6 +35,8 @@ export interface PlaceSuggestion {
   lat: number;
   lon: number;
   source: 'malha' | 'tomtom' | 'nominatim' | 'recente';
+  /** Categoria em português vinda da API (Shopping, Universidade, Via, Endereço…). */
+  categoria?: string | null;
   id_ponto?: number;
 }
 
@@ -51,12 +53,29 @@ const TRANSICAO_WEB = Platform.OS === 'web'
   : null;
 const SEM_OUTLINE_WEB = Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : null;
 
-const FONTE: Record<PlaceSuggestion['source'], { icone: string; tag?: string }> = {
-  malha: { icone: 'mdi:road-variant', tag: 'Brasília' },
-  tomtom: { icone: 'ion:location-outline', tag: 'TomTom' },
-  nominatim: { icone: 'ion:map-outline', tag: 'OSM' },
-  recente: { icone: 'ion:time-outline' },
+// Ícone por categoria (o selo mostra a categoria; o provedor da busca não aparece).
+const ICONE_CATEGORIA: Record<string, string> = {
+  Shopping: 'ion:bag-handle-outline',
+  Aeroporto: 'ion:airplane-outline',
+  Universidade: 'ion:school-outline',
+  Escola: 'ion:school-outline',
+  Hospital: 'ion:medkit-outline',
+  'Estação': 'ion:train-outline',
+  Parada: 'ion:bus-outline',
+  'Estádio': 'ion:football-outline',
+  'Órgão público': 'ion:business-outline',
+  Parque: 'ion:leaf-outline',
+  Restaurante: 'ion:restaurant-outline',
+  'Café': 'ion:cafe-outline',
+  Loja: 'ion:storefront-outline',
+  Posto: 'mdi:gas-station-outline',
+  'Farmácia': 'ion:medical-outline',
+  Hotel: 'ion:bed-outline',
+  Via: 'mdi:road-variant',
+  'Endereço': 'ion:home-outline',
 };
+// Marcos ganham o destaque azul (o que a pessoa costuma querer dizer).
+const MARCOS = new Set(['Shopping', 'Aeroporto', 'Universidade', 'Escola', 'Hospital', 'Estação', 'Estádio', 'Órgão público', 'Parque']);
 
 const semAcento = (s: string) =>
   (typeof s.normalize === 'function' ? s.normalize('NFD') : s).replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -117,11 +136,13 @@ interface Props {
   zIndex?: number;
   /** Ajuste da lista suspensa (ex.: alargar além do campo). */
   listaStyle?: StyleProp<ViewStyle>;
+  /** Onde a pessoa está indo/saindo: desempata lugares homônimos (ex.: dois "Park Shopping"). */
+  perto?: { lat: number; lon: number } | null;
 }
 
 type Linha = Pick<RouteHistoryRow, 'destino_label' | 'destino_lat' | 'destino_lon' | 'created_at'>;
 
-export default function AddressAutocomplete({ placeholder, value, onChangeText, onSelect, zIndex = 50, listaStyle }: Props) {
+export default function AddressAutocomplete({ placeholder, value, onChangeText, onSelect, zIndex = 50, listaStyle, perto }: Props) {
   const { theme } = useTheme();
   const c = theme.colors;
   const { user } = useAuth();
@@ -207,7 +228,9 @@ export default function AddressAutocomplete({ placeholder, value, onChangeText, 
       const ctrl = new AbortController();
       abortRef.current = ctrl;
       try {
-        const res = await fetch(`${API_URL}/search/places?q=${encodeURIComponent(q)}&limit=${LIMITE}`, {
+        // Viés com 3 casas (~110 m): basta para desempatar e não expõe a posição exata.
+        const vies = perto ? `&lat=${perto.lat.toFixed(3)}&lon=${perto.lon.toFixed(3)}` : '';
+        const res = await fetch(`${API_URL}/search/places?q=${encodeURIComponent(q)}&limit=${LIMITE}${vies}`, {
           headers: await apiHeaders(false),
           signal: ctrl.signal,
         });
@@ -311,9 +334,11 @@ export default function AddressAutocomplete({ placeholder, value, onChangeText, 
           <Text style={[theme.typography.micro, styles.cabecalho, { color: c.textSubtle }]}>RECENTES</Text>
         ) : null}
         {lista.map((item, i) => {
-          const meta = FONTE[item.source] ?? FONTE.nominatim;
+          const recente = item.source === 'recente';
+          const tag = recente ? undefined : item.categoria ?? undefined;
+          const icone = recente ? 'ion:time-outline' : ICONE_CATEGORIA[item.categoria ?? ''] ?? 'ion:location-outline';
           const selecionado = i === ativo;
-          const marca = item.source === 'malha';
+          const marca = !!tag && MARCOS.has(tag);
           return (
             <Aparecer key={`${item.source}:${item.lat},${item.lon}:${i}`} duracao={reduzir ? 0 : theme.motion.rapido}>
               <Pressable
@@ -321,14 +346,14 @@ export default function AddressAutocomplete({ placeholder, value, onChangeText, 
                 onHoverIn={() => setAtivo(i)}
                 accessibilityRole="button"
                 accessibilityState={{ selected: selecionado }}
-                accessibilityLabel={[item.label, item.sublabel, meta.tag].filter(Boolean).join(', ')}
+                accessibilityLabel={[item.label, item.sublabel, tag].filter(Boolean).join(', ')}
                 style={({ pressed }) => [
                   styles.linha,
                   { backgroundColor: pressed ? c.surfaceMuted : selecionado ? c.surfaceAlt : 'transparent' },
                 ]}
               >
                 <View style={[styles.iconeCaixa, { backgroundColor: marca ? c.accentSoft : c.surfaceAlt }]}>
-                  <Icon name={meta.icone} size={16} color={marca ? c.accent : c.textMuted} />
+                  <Icon name={icone} size={16} color={marca ? c.accent : c.textMuted} />
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={[theme.typography.bodyMd, { color: c.text, fontSize: 14, lineHeight: 20 }]} numberOfLines={1}>
@@ -346,9 +371,9 @@ export default function AddressAutocomplete({ placeholder, value, onChangeText, 
                     </Text>
                   ) : null}
                 </View>
-                {meta.tag ? (
+                {tag ? (
                   <View>
-                    <Selo tom={marca ? 'marca' : 'neutro'}>{meta.tag}</Selo>
+                    <Selo tom={marca ? 'marca' : 'neutro'}>{tag}</Selo>
                   </View>
                 ) : null}
               </Pressable>
