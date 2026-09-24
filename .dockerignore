@@ -10,14 +10,22 @@ docs
 services
 **/.venv
 **/.pytest_cache
-# Só o que a API usa em produção (lista de permissão): LIA ativa, calibrações,
-# grafo de 38 km e semáforos. Fica fora: grafo antigo, retreinos, LIA 1.0/2.0, parquet.
+# Só o que a API usa em produção (lista de permissão): LIA 2.2 (ativa) + 2.1 (rollback),
+# contexto, calibrações, grafo de 38 km e semáforos. Fica fora: grafo antigo, retreinos, LIA 1.0/2.0, parquet.
 ml/artifacts/*
+!ml/artifacts/lia_2.2.pkl
+!ml/artifacts/lia_2.2_encoder.pkl
+!ml/artifacts/lia_2.2_profiles.pkl
+!ml/artifacts/lia_2.2_metadata.json
+!ml/artifacts/lia_2.2_vizinhos.json
+!ml/artifacts/feriados.json
 !ml/artifacts/lia_2.1.pkl
 !ml/artifacts/lia_2.1_encoder.pkl
 !ml/artifacts/lia_2.1_profiles.pkl
 !ml/artifacts/lia_2.1_metadata.json
 !ml/artifacts/transfer_confidence_isotonic.pkl
 !ml/artifacts/brasilia_graph_38km.graphml
+!ml/artifacts/brasilia_graph_38km.pkl
 !ml/artifacts/semaforos_osm_38km.json
 !ml/artifacts/semaforos_calibracao.json
+!ml/artifacts/velocidade_livre_tomtom.json

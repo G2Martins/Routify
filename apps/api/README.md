@@ -61,7 +61,14 @@ python -m venv .venv                                     # primeira vez
 ```
 
 **Pré-requisito:** modelo treinado existir em `../ml/artifacts/`:
-`lia_2.1.pkl`, `lia_2.1_encoder.pkl`, `lia_2.1_profiles.pkl`, `lia_2.1_metadata.json`.
+`lia_2.2.pkl`, `_encoder.pkl`, `_profiles.pkl`, `_metadata.json` e `_vizinhos.json`, mais `feriados.json`.
+
+**Modelo (`LIA_VERSION`, padrão `lia_2.2`):** a 2.2 é a 2.1 + contexto (vizinhos, chuva,
+feriado; ver [ml/README](../../ml/README.md)). A tese cita a 2.1; rollback com
+`LIA_VERSION=lia_2.1`. A ordem das features vem do próprio modelo (`feature_names_in_`)
+e a subida faz uma predição de teste: contrato treino × API quebrado derruba o startup,
+não a primeira rota. Chuva ao vivo: previsão horária do [Open-Meteo](https://open-meteo.com)
+(CC BY 4.0), cache de 15 min, ≤ 96 chamadas/dia; fora do ar → chuva 0.
 
 Se não existirem, rode primeiro `cd ../../ml && python train.py`.
 
@@ -86,6 +93,7 @@ Testes: `.venv/Scripts/python -m pytest -q` (o HTTP da TomTom é simulado; nenhu
 |---|---|---|
 | `TRUST_PROXY` | `0` | `1` só atrás de um proxy nosso (Caddy/ALB). Aí o IP do limite vem do `X-Forwarded-For`; sem proxy, o cliente forjaria o IP |
 | `GRAPH_RADIUS_KM` | `38` | raio do grafo. Entra no nome do cache (`brasilia_graph_38km.graphml`) |
+| `REGISTRAR_USO` | `1` | `0` não grava `api_requisicoes`/`rotas_calculadas`: experimento local contra o banco de produção |
 
 **Limites por janela deslizante (429 + `Retry-After`):**
 
@@ -119,7 +127,17 @@ O `user_id` vem do JWT Supabase (`Authorization: Bearer`), validado em `sb.auth.
 
 Centro: Plano Piloto. Raio configurável via env `GRAPH_RADIUS_KM` (o grafo atual em uso cobre ~38km, incluindo cidades-satélite e corredores historicamente congestionados como EPTG/EPNB — um raio menor reduz tempo de download e uso de RAM, mas perde essa cobertura).
 
-Após o download, o grafo fica cacheado em `.graphml` em `ml/artifacts/` — próximas execuções carregam em segundos. **Atenção:** o grafo de 38km ocupa ~1,4GB de RAM quando carregado; em máquinas/VMs com pouca memória, considere um raio menor.
+Após o download, o grafo fica cacheado em `.graphml` em `ml/artifacts/`. Na primeira
+leitura a API gera `brasilia_graph_38km.pkl`, uma cópia **enxuta** (só `x`/`y` nos nós e
+`length`, `highway`, `name`, `geometry`, `maxspeed` nas arestas; o resto é metadado OSM
+que ninguém lê). Medido em 2026-09-23:
+
+| | GraphML | Pickle enxuto |
+|---|---|---|
+| leitura | 10,6 s | 1,3 s |
+| RAM da API inteira | 1,65 GB | **0,79 GB** |
+
+O pickle é refeito sozinho se o GraphML for mais novo ou se `ATRIBUTOS_ARESTA` (main.py) mudar.
 
 ---
 
@@ -130,7 +148,8 @@ Status básico da API e do modelo carregado, mais:
 - `tomtom` — chaves configuradas e disponíveis por serviço (só contagens);
 - `vias_monitoradas` — 0 significa Supabase indisponível na subida, rota em heurística;
 - `supabase_configurado`;
-- `recencia` — vias em cache e idade da última busca.
+- `recencia` — vias em cache e idade da última busca;
+- `contexto` — horas de chuva em cache e quando atualizou (só na LIA 2.2).
 
 O painel ADM usa esse endpoint para o status ao vivo.
 
@@ -293,7 +312,7 @@ docker run -p 8000:8000 --env-file services/collector/config/.env \
   routify-api
 ```
 
-O `Dockerfile` copia `../ml/artifacts/lia_*.pkl` para dentro da imagem — o modelo viaja embutido, sem dependência externa em runtime (além do Supabase, para enriquecimento do grafo e recência).
+O `Dockerfile` copia só os artefatos da lista de permissão do `.dockerignore` (LIA 2.2 + 2.1 de rollback, contexto, calibrações, grafo). Fora o Supabase (enriquecimento e recência), TomTom e Open-Meteo, não há dependência externa em runtime.
 
 ---
 

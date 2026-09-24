@@ -47,13 +47,34 @@ logging.basicConfig(
 
 MODELS_DIR = os.path.join(os.path.dirname(__file__), 'artifacts')
 
-XGB_PARAMS = {
-    # Otimizados via busca bayesiana (Optuna, 60 trials, TPE + poda por
-    # mediana) em 26/08/2026 — ver tune_hyperparams.py e
-    # models/hiperparametros_otimizados.json. Ganho de +2,2% no RMSE da razão
-    # sobre os valores manuais anteriores (n_estimators=600, max_depth=7,
-    # learning_rate=0.05, subsample=0.8, colsample_bytree=0.8,
-    # min_child_weight=10, reg_alpha=0.1, reg_lambda=1.0).
+_COMUNS = {
+    'objective': 'reg:squarederror',
+    'eval_metric': 'rmse',
+    'early_stopping_rounds': 40,
+    'tree_method': 'hist',   # 'gpu_hist' foi removido no XGBoost 3.x
+    'random_state': 42,
+    'verbosity': 0,
+}
+
+# Hiperparâmetros da LIA 2.1 da tese (modelo do Pedro, 19/08/2026 — bate com
+# lia_2.1_metadata.json: RMSE 40,69 s / MAE 14,62 s). Padrão do treino.
+XGB_PARAMS_MANUAL = {
+    'n_estimators': 600,
+    'max_depth': 7,
+    'learning_rate': 0.05,
+    'subsample': 0.8,
+    'colsample_bytree': 0.8,
+    'min_child_weight': 10,
+    'reg_alpha': 0.1,
+    'reg_lambda': 1.0,
+    **_COMUNS,
+}
+
+XGB_PARAMS_OPTUNA = {
+    # Busca bayesiana (Optuna, 60 trials, TPE + poda por mediana) em 26/08/2026 —
+    # ver tune_hyperparams.py. Ganhou +2,2% no RMSE da RAZÃO, mas no retreino de
+    # 22/09 ficou PIOR em segundos (MAE 15,03 × 14,62 s), a unidade da tese:
+    # testado e não adotado. Use --params optuna para reproduzir.
     'n_estimators': 750,
     'max_depth': 8,
     'learning_rate': 0.0706,
@@ -62,13 +83,11 @@ XGB_PARAMS = {
     'min_child_weight': 16,
     'reg_alpha': 0.2846,
     'reg_lambda': 3.0032,
-    'objective': 'reg:squarederror',
-    'eval_metric': 'rmse',
-    'early_stopping_rounds': 40,
-    'tree_method': 'hist',   # 'gpu_hist' foi removido no XGBoost 3.x
-    'random_state': 42,
-    'verbosity': 0,
+    **_COMUNS,
 }
+
+XGB_PARAMS = XGB_PARAMS_MANUAL  # nome antigo (benchmark_lstm_xgboost.py importa)
+PARAMS_POR_NOME = {'manual': XGB_PARAMS_MANUAL, 'optuna': XGB_PARAMS_OPTUNA}
 
 N_SPLITS = 5
 
@@ -119,8 +138,9 @@ def _metricas(y_true, y_pred, tempo_real_s, prefixo=''):
     }
 
 
-def evaluate_cv(df: pd.DataFrame, params: dict) -> dict:
+def evaluate_cv(df: pd.DataFrame, params: dict, cols: list = None) -> dict:
     """CV temporal. Cada fold recalcula os perfis só com o seu treino."""
+    cols = cols or feat.FEATURE_COLS
     tscv = TimeSeriesSplit(n_splits=N_SPLITS)
     resultados = {'modelo': [], 'baseline': []}
 
@@ -135,8 +155,8 @@ def evaluate_cv(df: pd.DataFrame, params: dict) -> dict:
         tr = feat.apply_profiles(df_tr.copy(), perfis)
         val = feat.apply_profiles(df_val.copy(), perfis)
 
-        X_tr, y_tr = tr[feat.FEATURE_COLS], tr[feat.TARGET_COL]
-        X_val, y_val = val[feat.FEATURE_COLS], val[feat.TARGET_COL]
+        X_tr, y_tr = tr[cols], tr[feat.TARGET_COL]
+        X_val, y_val = val[cols], val[feat.TARGET_COL]
         tempo_val = val['tempo_viagem_segundos'].values
 
         t0 = time.time()
@@ -200,17 +220,22 @@ def evaluate_cv(df: pd.DataFrame, params: dict) -> dict:
             f"O XGBoost não está agregando valor sobre a média histórica."
         )
 
+    # Por fold, para comparação pareada entre versões (mesmos folds nas duas).
+    resumo['folds'] = [{'rmse_seg': round(m['rmse_seg'], 4), 'mae_seg': round(m['mae_seg'], 4),
+                        'baseline_rmse_seg': round(b['rmse_seg'], 4)}
+                       for m, b in zip(resultados['modelo'], resultados['baseline'])]
     return resumo
 
 
-def train_final(df: pd.DataFrame, params: dict):
+def train_final(df: pd.DataFrame, params: dict, cols: list = None):
     """Modelo final: perfis sobre 100% dos dados (viram artefato para a API)."""
     logging.info("Treinando modelo final com 100% dos dados...")
+    cols = cols or feat.FEATURE_COLS
 
     perfis = feat.build_profiles(df)
     full = feat.apply_profiles(df.copy(), perfis)
 
-    X, y = full[feat.FEATURE_COLS], full[feat.TARGET_COL]
+    X, y = full[cols], full[feat.TARGET_COL]
 
     final_params = {k: v for k, v in params.items() if k != 'early_stopping_rounds'}
     model = xgb.XGBRegressor(**final_params)
@@ -219,14 +244,16 @@ def train_final(df: pd.DataFrame, params: dict):
     return model, perfis, X
 
 
-def run(version: str = 'lia_2.0', use_gpu: bool = True, skip_silver: bool = False):
+def run(version: str = 'lia_2.0', use_gpu: bool = True, skip_silver: bool = False,
+        params_nome: str = 'manual', com_contexto: bool = False):
     os.makedirs(MODELS_DIR, exist_ok=True)
+    params = dict(PARAMS_POR_NOME[params_nome])
+    cols = feat.feature_cols(com_contexto)
+    logging.info(f"Hiperparâmetros: {params_nome} | contexto (LIA 2.2): {com_contexto} | {len(cols)} features")
 
     logging.info("=== Hardware ===")
     if check_gpu_availability(force_cpu=not use_gpu):
-        XGB_PARAMS['device'] = 'cuda'
-    else:
-        XGB_PARAMS.pop('device', None)
+        params['device'] = 'cuda'
 
     if skip_silver:
         logging.info("=== Passo 1: Silver reaproveitado (--skip-silver) ===")
@@ -235,7 +262,7 @@ def run(version: str = 'lia_2.0', use_gpu: bool = True, skip_silver: bool = Fals
         silver.run()
 
     logging.info("=== Passo 2: Preparando features ===")
-    df, _ = feat.run(version=version)
+    df, _ = feat.run(version=version, com_contexto=com_contexto)
 
     mlruns_path = Path(MODELS_DIR) / 'mlruns'
     mlruns_path.mkdir(parents=True, exist_ok=True)
@@ -243,10 +270,11 @@ def run(version: str = 'lia_2.0', use_gpu: bool = True, skip_silver: bool = Fals
     mlflow.set_experiment("LIA")
 
     logging.info("=== Passo 3: Validação cruzada temporal ===")
-    resumo = evaluate_cv(df, XGB_PARAMS)
+    resumo = evaluate_cv(df, params, cols)
+    folds = resumo.pop('folds')
 
     logging.info("=== Passo 4: Modelo final ===")
-    model, perfis, X_full = train_final(df, XGB_PARAMS)
+    model, perfis, X_full = train_final(df, params, cols)
 
     importance = dict(zip(X_full.columns, model.feature_importances_))
     logging.info("Importância das features:")
@@ -276,6 +304,10 @@ def run(version: str = 'lia_2.0', use_gpu: bool = True, skip_silver: bool = Fals
         'periodo_fim': str(df['data_hora_brasilia'].max()),
         'n_pontos_monitorados': int(df['id_ponto'].nunique()),
         'feature_importance': {k: round(float(v), 4) for k, v in importance.items()},
+        'hiperparametros': {'nome': params_nome,
+                            **{k: v for k, v in params.items() if k not in ('verbosity', 'device')}},
+        'com_contexto': com_contexto,
+        'cv_folds': folds,
         'formula_inferencia': 'tempo_s = comprimento_m / (velocidade_livre_kmh * razao_prevista / 3.6)',
     })
     with open(meta_path, 'w', encoding='utf-8') as f:
@@ -284,10 +316,10 @@ def run(version: str = 'lia_2.0', use_gpu: bool = True, skip_silver: bool = Fals
 
     try:
         with mlflow.start_run(run_name=version.upper().replace('_', ' ')):
-            mlflow.log_params({k: v for k, v in XGB_PARAMS.items()})
+            mlflow.log_params({k: v for k, v in params.items()})
             mlflow.log_param('n_splits_cv', N_SPLITS)
             mlflow.log_param('total_amostras', len(df))
-            mlflow.log_param('n_features', len(feat.FEATURE_COLS))
+            mlflow.log_param('n_features', len(cols))
             mlflow.log_param('n_pontos', df['id_ponto'].nunique())
             mlflow.log_param('alvo', feat.TARGET_COL)
             for k, v in resumo.items():
@@ -320,6 +352,10 @@ if __name__ == '__main__':
                         help='Força treino em CPU')
     parser.add_argument('--skip-silver', action='store_true',
                         help='Reaproveita o Silver existente (pula o Supabase)')
+    parser.add_argument('--params', choices=sorted(PARAMS_POR_NOME), default='manual',
+                        help='manual = LIA 2.1 da tese (padrão); optuna = testado e não adotado')
+    parser.add_argument('--contexto', action='store_true',
+                        help='LIA 2.2: vizinhos, chuva e feriado (apps/api/contexto.py)')
     args = parser.parse_args()
 
     t0 = time.time()
@@ -327,7 +363,8 @@ if __name__ == '__main__':
     logging.info("ROUTIFY — TREINAMENTO LIA 2.0")
     logging.info("=" * 70)
 
-    run(version=args.version, use_gpu=not args.cpu, skip_silver=args.skip_silver)
+    run(version=args.version, use_gpu=not args.cpu, skip_silver=args.skip_silver,
+        params_nome=args.params, com_contexto=args.contexto)
 
     logging.info("=" * 70)
     logging.info(f"Concluído em {time.time() - t0:.1f}s")

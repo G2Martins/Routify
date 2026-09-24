@@ -123,10 +123,17 @@ async def predict(body: PredictInput, request: Request):
         else:
             recencia = None
 
+    contexto_obj = getattr(request.app.state, 'contexto', None)
+    contexto = None
+    if contexto_obj is not None:
+        await contexto_obj.atualizar_chuva()
+        contexto = contexto_obj.para_requisicao(
+            dt, getattr(request.app.state, 'recencia_cache', None))(body.id_ponto)
+
     razao = lia_inf.prever_razao(
         model, encoder, profiles,
         body.id_ponto, hora, dia_semana, body.velocidade_livre,
-        recencia,
+        recencia, contexto,
     )
 
     vel_prevista = body.velocidade_livre * razao

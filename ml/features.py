@@ -39,9 +39,11 @@ O train.py chama build_profiles() DENTRO de cada fold, só com dados de treino.
 As tabelas do modelo final são salvas em models/{versao}_profiles.pkl para a API.
 """
 import os
+import sys
 import glob
 import logging
 import json
+import warnings
 import numpy as np
 import pandas as pd
 import joblib
@@ -98,6 +100,18 @@ RECENCY_FEATURES = [
 ]
 
 FEATURE_COLS = BASE_FEATURES + PROFILE_FEATURES + RECENCY_FEATURES
+
+# LIA 2.2 — contexto (vizinhos, chuva, feriado). As regras moram em
+# apps/api/contexto.py, o MESMO módulo que a API usa na inferência.
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'apps', 'api'))
+import contexto as ctx  # noqa: E402
+
+CONTEXT_FEATURES = ctx.CONTEXT_FEATURES
+
+
+def feature_cols(com_contexto: bool = False) -> list:
+    return FEATURE_COLS + (CONTEXT_FEATURES if com_contexto else [])
+
 
 TARGET_COL = 'razao_congestionamento'
 
@@ -182,6 +196,69 @@ def add_recency_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def carregar_coords_vias() -> dict:
+    """Coordenadas das vias monitoradas (backup local de vias_monitoradas)."""
+    arquivos = sorted(glob.glob(os.path.join(MODELS_DIR, 'backup_*_vias_monitoradas.parquet')), reverse=True)
+    if not arquivos:
+        raise FileNotFoundError('backup_*_vias_monitoradas.parquet ausente em ml/artifacts '
+                                '(exporte vias_monitoradas do Supabase antes de treinar com contexto).')
+    v = pd.read_parquet(arquivos[0], columns=['id_ponto', 'latitude', 'longitude']).dropna()
+    return {int(r.id_ponto): (float(r.latitude), float(r.longitude)) for r in v.itertuples()}
+
+
+def add_context_features(df: pd.DataFrame, vizinhos: dict) -> pd.DataFrame:
+    """LIA 2.2: vizinhos, chuva e feriado (regras em apps/api/contexto.py).
+
+    Vizinhos: para cada leitura de uma via, a última razão de cada uma das k vias
+    vizinhas observada ESTRITAMENTE antes, até 60 min (merge_asof backward,
+    allow_exact_matches=False) — causal por construção, como a recência.
+    Chuva: rótulo da hora cheia (chuva de H-1 a H) + soma dos 3 últimos rótulos.
+    """
+    logging.info("Adicionando features de contexto (vizinhos, chuva, feriado)...")
+    df = df.sort_values('data_hora_brasilia').reset_index(drop=True)
+    t = df['data_hora_brasilia']
+    janela = pd.Timedelta(minutes=ctx.JANELA_VIZINHOS_MIN)
+
+    series = {p: g[['data_hora_brasilia', TARGET_COL]].rename(columns={TARGET_COL: 'r'})
+              for p, g in df.groupby('id_ponto', sort=False)}
+    k = ctx.K_VIZINHOS
+    valores = np.full((len(df), k), np.nan)
+    for p, idx in df.groupby('id_ponto', sort=False).indices.items():
+        # .reset_index mantém o fuso (.values viraria UTC ingênuo e quebraria o merge).
+        esquerda = pd.DataFrame({'data_hora_brasilia': t.iloc[idx].reset_index(drop=True), 'pos': idx})
+        for j, q in enumerate(vizinhos.get(int(p), [])[:k]):
+            direita = series.get(q)
+            if direita is None:
+                continue
+            m = pd.merge_asof(esquerda, direita, on='data_hora_brasilia', direction='backward',
+                              allow_exact_matches=False, tolerance=janela)
+            valores[m['pos'].values, j] = m['r'].values
+    n = np.sum(~np.isnan(valores), axis=1)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', RuntimeWarning)  # linha sem vizinho → NaN (média vazia)
+        df['vizinhos_razao'] = np.nanmean(valores, axis=1)
+    df['vizinhos_n'] = n.astype(float)
+
+    # Chuva: série horária local (rótulo H = chuva de H-1 a H).
+    with open(os.path.join(MODELS_DIR, 'chuva_brasilia.json'), encoding='utf-8') as f:
+        horaria = ctx.carregar_chuva_openmeteo(json.load(f))
+    s = pd.Series(horaria).sort_index()
+    s = s.reindex(pd.date_range(s.index.min(), s.index.max(), freq='h'))
+    s3 = s.rolling(3, min_periods=1).sum()
+    hora_cheia = t.dt.tz_localize(None).dt.floor('h') if t.dt.tz is not None else t.dt.floor('h')
+    df['chuva_mm'] = hora_cheia.map(s).astype(float)
+    df['chuva_3h_mm'] = hora_cheia.map(s3).astype(float)
+
+    feriados = ctx.carregar_feriados(os.path.join(MODELS_DIR, 'feriados.json'))
+    df['is_feriado'] = hora_cheia.dt.date.map(lambda d: ctx.is_feriado(d, feriados)).astype(int)
+
+    logging.info(
+        f"  vizinhos com leitura recente: {(n > 0).mean() * 100:.1f}% das linhas (média {n[n > 0].mean():.1f}) | "
+        f"chuva > 0 em {(df['chuva_mm'] > 0).mean() * 100:.1f}% | feriado em {df['is_feriado'].mean() * 100:.2f}%"
+    )
+    return df
+
+
 def build_profiles(df_train: pd.DataFrame) -> dict:
     """Monta as tabelas de perfil histórico a partir de dados de TREINO apenas.
 
@@ -262,11 +339,13 @@ def razao_para_segundos(tempo_real_s, razao_real, razao_pred):
     return tempo_real_s * (razao_real / razao_pred)
 
 
-def run(version: str = 'lia_2.0') -> tuple[pd.DataFrame, pd.Series]:
+def run(version: str = 'lia_2.0', com_contexto: bool = False) -> tuple[pd.DataFrame, pd.Series]:
     """Prepara o dataset. Devolve (df completo, alvo).
 
     NÃO devolve X pronto: as features de perfil dependem do fold e são anexadas
     pelo train.py via build_profiles/apply_profiles.
+    com_contexto: LIA 2.2 — também salva {version}_vizinhos.json, que a API usa
+    para montar a MESMA feature de vizinhos na inferência.
     """
     os.makedirs(MODELS_DIR, exist_ok=True)
     encoder_path = os.path.join(MODELS_DIR, f'{version}_encoder.pkl')
@@ -277,6 +356,13 @@ def run(version: str = 'lia_2.0') -> tuple[pd.DataFrame, pd.Series]:
     df, enc = encode_id_ponto(df, encoder_path)
     df = build_base(df)
     df = add_recency_features(df)
+    if com_contexto:
+        vizinhos = ctx.vizinhos_monitorados(carregar_coords_vias())
+        with open(os.path.join(MODELS_DIR, f'{version}_vizinhos.json'), 'w', encoding='utf-8') as f:
+            json.dump({'k': ctx.K_VIZINHOS, 'raio_m': ctx.RAIO_VIZINHOS_M,
+                       'janela_min': ctx.JANELA_VIZINHOS_MIN,
+                       'vizinhos': {str(p): vs for p, vs in vizinhos.items()}}, f)
+        df = add_context_features(df, vizinhos)
 
     if len(df) == 0:
         raise ValueError("Dataset vazio após preparação. Verifique o Silver.")
@@ -305,8 +391,9 @@ def run(version: str = 'lia_2.0') -> tuple[pd.DataFrame, pd.Series]:
         'versao': version.upper().replace('_', ' '),
         'alvo': TARGET_COL,
         'alvo_descricao': 'velocidade_atual / velocidade_livre (adimensional, 0.05–1.0)',
-        'features': FEATURE_COLS,
+        'features': feature_cols(com_contexto),
         'features_recencia': RECENCY_FEATURES,
+        'features_contexto': CONTEXT_FEATURES if com_contexto else [],
         'total_amostras': int(len(df)),
         'registros_silver': int(n_silver),
         'aproveitamento_pct': round(len(df) / n_silver * 100, 1),

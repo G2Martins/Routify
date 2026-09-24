@@ -235,7 +235,7 @@ DIST_VIA_PROPRIA_M = 50.0
 
 def assign_lia_weights(model, encoder, profiles, G: nx.MultiDiGraph,
                        hora: int, dia_semana: int, recencia_cache=None,
-                       transfer_confidence=None) -> dict:
+                       transfer_confidence=None, contexto=None) -> dict:
     """Atribui `travel_time_lia` a todas as arestas, em uma única predição.
 
     Substitui o laço que chamava o modelo aresta por aresta. Como `hora` e
@@ -251,13 +251,15 @@ def assign_lia_weights(model, encoder, profiles, G: nx.MultiDiGraph,
     recencia_cache: instância de recencia_cache.RecenciaCache, ou None. Se None
     (modelo sem essa feature, ou cache indisponível), cada via cai no fallback
     de lia_inference.montar_features() — equivalente ao comportamento da LIA 2.0.
+    contexto: via → features da LIA 2.2 (ContextoAoVivo.para_requisicao), ou None.
     """
     arestas = list(G.edges(keys=True, data=True))
     if not arestas:
         return {'model': 0, 'transfer': 0, 'heuristic': 0, 'blocked': 0}
 
     conhecidas = set(encoder.classes_.tolist())
-    IDX_VEL_LIVRE = lia_inf.LIA_FEATURE_ORDER.index('velocidade_livre')
+    ordem = lia_inf.ordem_features(model)
+    IDX_VEL_LIVRE = ordem.index('velocidade_livre')
 
     # Razão de congestionamento de referência para arestas SEM via monitorada
     # em 500 m. Vem do nível global da cascata de perfis — a mediana observada
@@ -289,7 +291,8 @@ def assign_lia_weights(model, encoder, profiles, G: nx.MultiDiGraph,
             perfis = lia_inf.lookup_perfis(profiles, via, hora, dia_semana)
             recencia = recencia_cache.get(via) if recencia_cache is not None else None
             templates[via] = np.asarray(
-                lia_inf.montar_features(int(enc), hora, dia_semana, 0.0, perfis, recencia),
+                lia_inf.montar_features(int(enc), hora, dia_semana, 0.0, perfis, recencia,
+                                        contexto(via) if contexto else None, ordem),
                 dtype=float,
             )
 
@@ -535,6 +538,10 @@ async def calculate_route(body: RouteInput, request: Request):
     recencia_cache_obj = getattr(request.app.state, 'recencia_cache', None)
     if recencia_cache_obj is not None:
         recencia_cache_obj.refrescar_se_necessario(sb)
+    # Contexto da LIA 2.2 (chuva/vizinhos/feriado); None com a LIA 2.1.
+    contexto_obj = getattr(request.app.state, 'contexto', None)
+    if contexto_obj is not None:
+        await contexto_obj.atualizar_chuva()
     # Curva de confiança do Knowledge Transfer, calibrada com dados reais.
     transfer_confidence_obj = getattr(request.app.state, 'transfer_confidence', None)
 
@@ -605,6 +612,7 @@ async def calculate_route(body: RouteInput, request: Request):
     assign_lia_weights(
         model, encoder, profiles, G, hora, dia_semana,
         recencia_cache_obj, transfer_confidence_obj,
+        contexto_obj.para_requisicao(now, recencia_cache_obj) if contexto_obj is not None else None,
     )
     atraso_sem = float(G.graph.get('atraso_semaforo_s', 0.0))
 

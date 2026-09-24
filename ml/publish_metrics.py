@@ -74,6 +74,14 @@ def linhas_treinos():
     if v21:
         linhas.append(_linha_cv('lia_2.1', 'lia_2.1_metadata.json › cv', v21, cv21))
 
+    # Ablação do contexto: mesma receita no mesmo ambiente, com e sem as 5 features.
+    for versao, nota in (('lia_2.1_repro', '2.1 refeita no pipeline atual — base justa da ablação.'),
+                         ('lia_2.2', '2.1 + contexto (vizinhos, chuva, feriado). Padrão da API.')):
+        meta = _json(f'{versao}_metadata.json')
+        if meta:
+            linhas.append(_linha_cv(versao, f'{versao}_metadata.json › cv', meta, meta.get('cv', {}), {
+                'nota': nota, 'pct_congestionado': meta.get('pct_congestionado'), 'cv_folds': meta.get('cv_folds')}))
+
     for nome in sorted(os.listdir(ARTEFATOS)):
         if '_retreino_' in nome and nome.endswith('_metadata.json'):
             meta = _json(nome)
@@ -93,6 +101,7 @@ def main():
     analises = [{'chave': chave_analise, 'dados': dados} for chave_analise, dados in (
         ('calibracao_transfer', _json('calibracao_transfer.json')),
         ('benchmark_lstm_xgboost', _json('benchmark_lstm_vs_xgboost.json')),
+        ('estresse_lia22', _json('lia_2.2_estresse.json')),
     ) if dados]
     sb.table('lia_analises').upsert(analises, on_conflict='chave').execute()
     print(f"Publicado: {len(treinos)} versões ({', '.join(t['versao'] for t in treinos)}) e {len(analises)} análises.")

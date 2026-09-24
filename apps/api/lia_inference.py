@@ -1,5 +1,5 @@
 """
-Contrato de inferência da LIA 2.0 — fonte única de verdade.
+Contrato de inferência da LIA (2.0 → 2.2) — fonte única de verdade.
 
 Espelha ml/features.py. Qualquer mudança na ordem das
 features, na cascata de perfis ou na fórmula de conversão precisa acontecer nos
@@ -30,7 +30,7 @@ mudança.
 """
 import math
 from datetime import timedelta, timezone
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence
 
 # Brasília não tem horário de verão desde 2019: UTC-3 fixo.
 BRASILIA_TZ = timezone(timedelta(hours=-3))
@@ -46,6 +46,15 @@ LIA_FEATURE_ORDER = [
     'perfil_via_hora_dow_std', 'perfil_via_hora_dow_n',
     'razao_lag1', 'delta_min_lag1',
 ]
+
+
+
+def ordem_features(model) -> List[str]:
+    """Colunas na ordem do fit (o modelo guarda os nomes): LIA 2.1 = 16, LIA 2.2 = 21
+    (+ contexto.CONTEXT_FEATURES). Modelo antigo sem nomes cai na ordem fixa."""
+    nomes = getattr(model, 'feature_names_in_', None)
+    return [str(n) for n in nomes] if nomes is not None else LIA_FEATURE_ORDER
+
 
 RAZAO_MIN = 0.05
 RAZAO_MAX = 1.0
@@ -147,9 +156,11 @@ def lookup_perfis(profiles: dict, id_ponto, hora: int, dia_semana: int) -> dict:
 
 def montar_features(id_ponto_enc: int, hora: int, dia_semana: int,
                     vel_livre: float, perfis_linha: dict,
-                    recencia: Optional[dict] = None) -> List[float]:
+                    recencia: Optional[dict] = None, contexto: Optional[dict] = None,
+                    ordem: Sequence[str] = LIA_FEATURE_ORDER) -> List[float]:
     """recencia: {'razao_lag1':.., 'delta_min_lag1':..} já transformada (ver
     delta_min_para_feature). Se None, usa recencia_fallback(perfis_linha).
+    contexto: features da LIA 2.2 (contexto.ContextoAoVivo); ordem: ordem_features(model).
     """
     linha = {
         'id_ponto_enc': id_ponto_enc,
@@ -162,8 +173,9 @@ def montar_features(id_ponto_enc: int, hora: int, dia_semana: int,
         'velocidade_livre': vel_livre,
         **perfis_linha,
         **(recencia if recencia is not None else recencia_fallback(perfis_linha)),
+        **(contexto or {}),
     }
-    return [float(linha[c]) for c in LIA_FEATURE_ORDER]
+    return [float(linha[c]) for c in ordem]
 
 
 def clamp_razao(razao: float) -> float:
@@ -183,7 +195,7 @@ def tempo_de_razao(length_m: float, vel_livre: float, razao: float) -> float:
 
 def prever_razao(model, encoder, profiles, id_ponto, hora: int,
                  dia_semana: int, vel_livre: float,
-                 recencia: Optional[dict] = None) -> float:
+                 recencia: Optional[dict] = None, contexto: Optional[dict] = None) -> float:
     """Prediz a razão de congestionamento para (via, horário, dia).
 
     recencia: ver montar_features(). Omitir cai no fallback conservador —
@@ -197,5 +209,6 @@ def prever_razao(model, encoder, profiles, id_ponto, hora: int,
         id_ponto = None
 
     perfis_linha = lookup_perfis(profiles, id_ponto, hora, dia_semana)
-    features = montar_features(id_ponto_enc, hora, dia_semana, vel_livre, perfis_linha, recencia)
+    features = montar_features(id_ponto_enc, hora, dia_semana, vel_livre, perfis_linha,
+                               recencia, contexto, ordem_features(model))
     return clamp_razao(float(model.predict([features])[0]))

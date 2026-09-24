@@ -4,8 +4,11 @@ textos em openapi.py.
 """
 import os
 import json
+import pickle
+import sys
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 import time
 import traceback
@@ -24,7 +27,9 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', 'services', 'collector', 'config', '.env'))
 
 import config_runtime  # noqa: E402
+import contexto  # noqa: E402
 import graph_enrichment  # noqa: E402
+import lia_inference  # noqa: E402
 import openapi  # noqa: E402
 import recency_cache  # noqa: E402
 import tomtom  # noqa: E402
@@ -43,10 +48,17 @@ ox.settings.use_cache = True
 ox.settings.timeout = 300  # 5min por request Overpass
 
 MODELS_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'ml', 'artifacts')
-MODEL_VERSION = os.getenv('LIA_VERSION', 'lia_2.1')
+# lia_2.2 = 2.1 + contexto (vizinhos, chuva, feriado); a tese cita a 2.1. Rollback: LIA_VERSION=lia_2.1.
+MODEL_VERSION = os.getenv('LIA_VERSION', 'lia_2.2')
 # O raio entra no nome: trocar GRAPH_RADIUS_KM não reaproveita um grafo menor em
 # silêncio (o brasilia_graph.graphml antigo tinha ~15 km e não cobria Ceilândia).
 GRAPH_CACHE = os.path.join(MODELS_DIR, f"brasilia_graph_{os.getenv('GRAPH_RADIUS_KM', '38')}km.graphml")
+# Cópia enxuta em pickle: sobe em ~1 s (o GraphML leva ~11 s) e ocupa ~0,26 GB de RAM
+# em vez de ~1,3 GB — é o que faz a API caber numa instância de 2 GB.
+GRAPH_PICKLE = GRAPH_CACHE.replace('.graphml', '.pkl')
+# Únicos atributos que a API lê (maxspeed alimenta add_edge_speeds). Mudou a lista →
+# o pickle antigo é descartado sozinho (ver load_graph).
+ATRIBUTOS_ARESTA = ('length', 'highway', 'name', 'geometry', 'maxspeed')
 
 # ⭐ PRIORITY 1.1: Controle de Cache do Grafo (6 meses)
 GRAPH_CACHE_MAX_DAYS = 180
@@ -154,6 +166,20 @@ def filter_drivable(G: nx.MultiDiGraph) -> nx.MultiDiGraph:
     return G
 
 
+def enxugar_grafo(G: nx.MultiDiGraph) -> None:
+    """Descarta metadado OSM que a API nunca lê (osmid, lanes, ref, oneway…)."""
+    for _, _, d in G.edges(data=True):
+        for k in [k for k in d if k not in ATRIBUTOS_ARESTA]:
+            del d[k]
+        for k in ('highway', 'name'):
+            if isinstance(d.get(k), str):
+                d[k] = sys.intern(d[k])
+    for _, d in G.nodes(data=True):
+        for k in [k for k in d if k not in ('x', 'y')]:
+            del d[k]
+    G.graph['atributos_aresta'] = ATRIBUTOS_ARESTA
+
+
 def load_graph() -> nx.MultiDiGraph:
     """Carrega o grafo OSM do cache (ou baixa na primeira vez e salva).
 
@@ -163,6 +189,17 @@ def load_graph() -> nx.MultiDiGraph:
     # Grafo velho só gera aviso (is_cache_outdated loga): apagar sozinho trocaria
     # em silêncio o grafo das métricas da tese. Para atualizar, apague o arquivo.
     is_cache_outdated(GRAPH_CACHE, GRAPH_CACHE_MAX_DAYS)
+
+    if os.path.exists(GRAPH_PICKLE) and (not os.path.exists(GRAPH_CACHE)
+                                         or os.path.getmtime(GRAPH_PICKLE) >= os.path.getmtime(GRAPH_CACHE)):
+        t0 = time.time()
+        with open(GRAPH_PICKLE, 'rb') as f:
+            G = pickle.load(f)  # artefato gerado aqui mesmo, nunca entrada de usuário
+        if G.graph.get('atributos_aresta') == ATRIBUTOS_ARESTA:
+            logging.info(f"Grafo enxuto lido em {time.time()-t0:.1f}s: {G.number_of_nodes()} nós, "
+                         f"{G.number_of_edges()} arestas")
+            return G
+        logging.warning("Pickle do grafo com outra lista de atributos; refazendo a partir do GraphML")
 
     if os.path.exists(GRAPH_CACHE):
         logging.info(f"Carregando grafo em cache: {GRAPH_CACHE}")
@@ -198,6 +235,13 @@ def load_graph() -> nx.MultiDiGraph:
 
     logging.info(f"Grafo carregado: {G.number_of_nodes()} nós, {G.number_of_edges()} arestas")
     G = filter_drivable(G)
+    enxugar_grafo(G)
+    try:
+        with open(GRAPH_PICKLE, 'wb') as f:
+            pickle.dump(G, f, protocol=pickle.HIGHEST_PROTOCOL)
+        logging.info(f"Grafo enxuto salvo em {GRAPH_PICKLE}")
+    except OSError as e:
+        logging.warning(f"Não salvei o pickle do grafo ({e}); a próxima subida relê o GraphML")
     return G
 
 
@@ -208,6 +252,17 @@ async def lifespan(app: FastAPI):
         t0 = time.time()
         model, encoder, profiles, metadata = load_model_artifacts()
         transfer_confidence = load_transfer_confidence()
+        # LIA 2.2: vizinhos do treino + feriados + chuva ao vivo (contexto.py).
+        contexto_vivo = None
+        if contexto.precisa_contexto(lia_inference.ordem_features(model)):
+            contexto_vivo = contexto.ContextoAoVivo(
+                os.path.join(MODELS_DIR, f'{MODEL_VERSION}_vizinhos.json'),
+                os.path.join(MODELS_DIR, 'feriados.json'))
+            await contexto_vivo.atualizar_chuva()
+        # Contrato treino × API: uma predição na subida quebra aqui, não na 1ª rota.
+        via_teste = encoder.classes_[0]
+        lia_inference.prever_razao(model, encoder, profiles, via_teste, 8, 0, 50.0, None,
+                                   contexto_vivo.para_requisicao(datetime.now(lia_inference.BRASILIA_TZ))(via_teste) if contexto_vivo else None)
         logging.info(f"Artefatos carregados em {time.time()-t0:.1f}s")
 
         logging.info("=== Startup: preparando grafo OSM ===")
@@ -271,6 +326,7 @@ async def lifespan(app: FastAPI):
         app.state.model_version = MODEL_VERSION
         app.state.supabase = sb
         app.state.recencia_cache = recencia
+        app.state.contexto = contexto_vivo
         app.state.transfer_confidence = transfer_confidence
         # TomTom sob demanda (tomtom.py): sem chave, a API segue só com a LIA.
         app.state.tomtom = tomtom.criar_cliente()
@@ -380,7 +436,7 @@ def _cv_metric(meta: dict, nome_2_0: str, nome_1_0: str | None = None):
         "O painel ADM consulta este endpoint para o status ao vivo."
     ),
     responses={200: {"content": {"application/json": {"example": {
-        "status": "ok", "modelo_ativo": "lia_2.1", "cv_rmse_seg": 40.6942,
+        "status": "ok", "modelo_ativo": "lia_2.2", "cv_rmse_seg": 40.2734,
         "dados_treino": None, "total_amostras_treino": 1513194,
         "tomtom": {"ativo": True, "chaves": 39,
                    "disponiveis": {"fluxo": 39, "incidentes": 39, "busca": 39, "rota": 39}},
@@ -403,6 +459,7 @@ async def health():
         "recencia": app.state.recencia_cache.resumo(),
         "semaforos": {"atraso_s": app.state.graph.graph.get('atraso_semaforo_s', 0.0)},
         "velocidade_livre": "tomtom" if app.state.graph.graph.get('vel_livre_tomtom') else "osm",
+        "contexto": app.state.contexto.resumo() if app.state.contexto else None,
     }
 
 

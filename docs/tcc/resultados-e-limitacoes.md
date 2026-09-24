@@ -27,6 +27,8 @@ Reportar as duas métricas mostra se um ganho vem de reduzir erros típicos (MAE
 | Baseline histórico | temporal | 17,3 | 57,2 | — | `lia_2.1_metadata.json` › `cv.baseline_mae_seg`, `cv.baseline_rmse_seg` |
 | LIA 2.0 | temporal | 18,6 | 51,4 | −10,1% | `benchmark_lstm_vs_xgboost.json` › `xgboost.mae_seg_media`, `rmse_seg_media` |
 | LIA 2.1 | temporal | 14,6 | 40,7 | **−28,8%** | `lia_2.1_metadata.json` › `cv.modelo_mae_seg`, `cv.modelo_rmse_seg` |
+| LIA 2.1 (reprodução) | temporal | 14,5 | 40,9 | −28,5% | `lia_2.1_repro_metadata.json` › `cv.modelo_mae_seg`, `cv.modelo_rmse_seg` |
+| LIA 2.2 (+ contexto) | temporal | 14,4 | 40,3 | **−29,6%** | `lia_2.2_metadata.json` › `cv.modelo_mae_seg`, `cv.modelo_rmse_seg` |
 
 ![Figura 1](../figuras/fig1_erro_versoes.png)
 
@@ -36,6 +38,14 @@ Reportar as duas métricas mostra se um ganho vem de reduzir erros típicos (MAE
 - **LIA 1.0 não é comparável.** A validação cruzada separava vias, e não períodos. Além disso, o alvo era o tempo de um trecho de comprimento fixo, e as features de defasagem eram fabricadas em produção.
 - **LIA 2.0 reduz o RMSE em 10,1%, mas tem MAE 8,0% pior que o baseline.** Ela diminui os erros grandes sem melhorar o erro típico.
 - **LIA 2.1 melhora as duas métricas** (MAE −15,3%, RMSE −28,8%). O ganho vem da feature de recência: a última observação real da via e o tempo decorrido desde ela.
+
+**LIA 2.2 — ablação das features de contexto** *(2026-09-23)*.
+- A 2.2 é a receita da 2.1 (mesmos hiperparâmetros manuais, mesmos folds) com 5 features a mais: congestionamento recente das 5 vias monitoradas mais próximas (≤ 3 km, janela de 60 min antes do instante), chuva da hora anterior e das 3 últimas horas (Open-Meteo) e feriado (BrasilAPI + distritais do DF). Regras em `apps/api/contexto.py`, o mesmo código no treino e na API.
+- A comparação justa é com a **reprodução** da 2.1 no mesmo ambiente (`lia_2.1_repro`), não com o modelo original: a reprodução difere do original em +0,2 s no RMSE e −0,1 s no MAE, dentro do desvio entre folds (±5,5 s).
+- **RMSE:** 40,88 → 40,27 s (−1,5%), menor nos **5 de 5 folds** (`cv_folds` dos dois metadados). RMSE no congestionado: 88,14 → 86,74 s.
+- **MAE:** 14,51 → 14,44 s, mas menor em só 3 de 5 folds. Leitura: o contexto reduz os **erros grandes** (episódios de congestionamento), não o erro típico.
+- **Estresse treino × produção** (`lia_2.2_estresse.json`, fold 5): sem coleta contínua, a API nem sempre tem vizinhos com leitura recente. Com leitura da via e dos vizinhos, a 2.2 ganha (RMSE 33,73 × 34,55 s). Com tudo velho (fora do corredor consultado na TomTom), também ganha (42,99 × 43,43 s). Com a via lida agora e **nenhum** vizinho recente, perde por pouco (34,88 × 34,55 s). Com chuva ausente enviada como NaN, perde (34,18 s); por isso a API manda 0.
+- Decisão: a 2.2 é o padrão da API (reversível com `LIA_VERSION=lia_2.1`). A tese continua citando a 2.1 como modelo principal e reporta a 2.2 como ablação.
 
 **Cuidados antes da versão final:**
 - Os números da LIA 2.0 vêm do benchmark (XGBoost sem recência, mesmos cortes temporais), porque o `lia_2.0_metadata.json` não persistiu o CV.
@@ -132,16 +142,19 @@ A Fase 3 compara, para o mesmo par origem-destino e no mesmo instante:
    - A coleta teve lacunas e foi encerrada em 19/07/2026.
    - O projeto Supabase gratuito foi pausado por inatividade depois disso.
    - Os perfis históricos refletem o período coletado (março a julho de 2026) e não capturam sazonalidade anual.
-4. **Proveniência das métricas.** A LIA 2.0 é reportada pelo benchmark, e o CV da LIA 2.1 é anterior ao Optuna (seção 2).
-5. **Knowledge Transfer.**
+4. **Proveniência das métricas.** A LIA 2.0 é reportada pelo benchmark. A 2.1 oficial é o modelo de 19/08 (hiperparâmetros manuais; o Optuna foi testado e não adotado) e a reprodução no ambiente atual fica a 0,2 s dela (seção 2).
+5. **Contexto em produção (LIA 2.2).**
+   - A chuva do treino vem da reanálise histórica do Open-Meteo e a da API vem da previsão para as horas passadas: fontes parecidas, não idênticas.
+   - Sem coleta contínua, a feature de vizinhos só está fresca no corredor consultado sob demanda. No resto do grafo ela vai ausente, cenário em que a 2.2 empata ou perde por pouco (seção 2).
+6. **Knowledge Transfer.**
    - Limitado a 500 m.
    - A curva calibrada tem o viés de recorte descrito na seção 4.
    - Vias além do raio usam só a mediana global do horário.
-6. **Dependência de API comercial.**
+7. **Dependência de API comercial.**
    - A cota gratuita da TomTom é mensal e por API (Flow 20 mil, Incidents 2,5 mil, Search 2,5 mil, Routing 20 mil).
    - O sistema usa um pool de chaves com rotação automática. Os termos da TomTom (§14.2) permitem suspender contas criadas para obter requisições gratuitas adicionais, então o pool é um risco declarado, adequado apenas a um protótipo acadêmico.
-7. **Cobertura.** O grafo cobre um raio de 38 km, e os 630 pontos monitorados concentram-se em vias arteriais (motorway, trunk e primary).
-8. **Sem modo offline** (cache local de rota) neste ciclo.
+8. **Cobertura.** O grafo cobre um raio de 38 km, e os 630 pontos monitorados concentram-se em vias arteriais (motorway, trunk e primary).
+9. **Sem modo offline** (cache local de rota) neste ciclo.
 
 ![Figura 4](../figuras/fig4_erro_congestionamento.png)
 
@@ -152,7 +165,7 @@ A Fase 3 compara, para o mesmo par origem-destino e no mesmo instante:
 - **Semáforos:** implementado em 2026-09-23 (ver limitação 1). Falta repetir a calibração de dia, por região, e com a velocidade livre corrigida.
 - **Velocidade livre na inferência:** usar a velocidade livre da TomTom (a do treino) também nas arestas por transferência, e calibrar a do OSM por classe de via.
 - **Fusão LIA × TomTom:** implementada. A TomTom reconstrói a rota da LIA e mede o ETA ao vivo do mesmo trajeto, e o tempo exibido mistura as duas fontes pela cobertura da LIA. Avaliar o erro dessa estimativa contra o tempo real informado pelos usuários.
-- **Features de contexto:** vizinhos monitorados em t−1, chuva (Open-Meteo), feriados (BrasilAPI) e incidente ativo por perto.
+- **Features de contexto:** vizinhos, chuva e feriado implementados na LIA 2.2 (seção 2). Falta incidente ativo por perto, que não tem histórico no período do dataset.
 - **Cauda de congestionamento:** ponderação das amostras congestionadas, perda quantílica (P90) ou modelo específico para razão < 0,5.
 - **Coleta orientada por demanda:** persistir as leituras ao vivo da TomTom feitas durante o uso (com a fonte identificada) para re-treino, sem varredura contínua.
 - **Incidentes como sinal calibrado:** hoje só a interdição bloqueia arestas; acidentes e obras poderiam virar penalidade aprendida.

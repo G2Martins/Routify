@@ -93,8 +93,12 @@ python train.py
 
 ### Versão customizada / reaproveitando o Silver já baixado
 ```bash
-python train.py --version lia_2.2 --skip-silver
+python train.py --version lia_2.1_repro --skip-silver --cpu            # 2.1 no pipeline atual (base da ablação)
+python fetch_contexto.py                                               # chuva (Open-Meteo) + feriados (BrasilAPI)
+python train.py --version lia_2.2 --skip-silver --cpu --contexto       # 2.1 + vizinhos, chuva, feriado
+python context_stress_test.py                                          # 2.1 × 2.2 com entradas degradadas
 ```
+`--params manual` (padrão, hiperparâmetros do Pedro) ou `--params optuna` (testado, não adotado).
 
 ### Etapas isoladas (debug)
 ```bash
@@ -111,13 +115,15 @@ python free_flow_speeds.py                                  # velocidade livre T
 ```
 
 **Artefatos da tese em `artifacts/`:**
-- `lia_2.1*` = modelo do Pedro (19/08), que bate com `lia_2.1_metadata.json`;
+- `lia_2.1*` = modelo do Pedro (19/08), que bate com `lia_2.1_metadata.json` — **número oficial da 2.1**;
+- `lia_2.1_repro_metadata.json` = mesma receita no pipeline/ambiente atual (RMSE 40,88 s × 40,69 s do Pedro: diferença dentro do desvio entre folds) — é a base justa da ablação;
+- `lia_2.2*` = 2.1 + contexto (**padrão da API**); `lia_2.2_vizinhos.json` (vizinhos usados no treino e na API), `lia_2.2_estresse.json` (estresse treino × produção), `chuva_brasilia.json` e `feriados.json` (fontes versionadas);
 - `lia_2.1_retreino_20260923*` = retreino com Optuna em ambiente divergente. **Não usar na tese.**
 - `fase3_comparacao.csv` (validação externa, 71 corridas) é versionado.
 
 ---
 
-## 🔢 Features (16)
+## 🔢 Features (16 na LIA 2.1, +5 de contexto na 2.2)
 
 | Feature | Origem | Por quê |
 |---|---|---|
@@ -145,6 +151,21 @@ python free_flow_speeds.py                                  # velocidade livre T
 > dataset de treino — reproduzível na inferência, diferente dos `lag_*` da
 > LIA 1.0, que só existiam no treino.
 
+### Contexto (LIA 2.2) — `apps/api/contexto.py`, o mesmo código no treino e na API
+
+| Feature | Origem | Regra (igual no treino e na inferência) |
+|---|---|---|
+| `vizinhos_razao` | 5 vias monitoradas mais próximas (≤ 3 km) | média da última leitura de cada uma nos 60 min **antes** do instante |
+| `vizinhos_n` | idem | quantos vizinhos tinham leitura (0 → razão NaN, ramo aprendido) |
+| `chuva_mm` | Open-Meteo (histórico no treino, previsão na API) | rótulo da hora cheia anterior (H cobre H-1→H): nada do futuro |
+| `chuva_3h_mm` | idem | soma dos 3 últimos rótulos |
+| `is_feriado` | BrasilAPI + distritais do DF (21/04, 30/11) | 0/1 |
+
+Sem chuva disponível a API manda **0** (seco, a moda): o treino nunca viu chuva
+ausente e NaN piora o erro (`lia_2.2_estresse.json`, cenário `chuva_nan`).
+Incidentes da TomTom **não** viram feature: não há histórico deles no período do
+dataset (entram só no roteamento, como interdição).
+
 > Sem lags de série temporal (`shift`/`rolling`) como na LIA 1.0 — a
 > arquitetura de perfis históricos não depende de espaçamento regular entre
 > coletas, então não sofre com os buracos de coleta que quebravam os lags.
@@ -153,28 +174,15 @@ python free_flow_speeds.py                                  # velocidade livre T
 
 ## 🏋️ Hiperparâmetros XGBoost
 
-```python
-XGB_PARAMS = {
-    'n_estimators': 750,
-    'max_depth': 8,
-    'learning_rate': 0.0706,
-    'subsample': 0.5207,
-    'colsample_bytree': 0.5292,
-    'min_child_weight': 16,
-    'reg_alpha': 0.2846,
-    'reg_lambda': 3.0032,
-    'objective': 'reg:squarederror',
-    'eval_metric': 'rmse',
-    'early_stopping_rounds': 40,  # só durante CV
-    'tree_method': 'hist',
-    'random_state': 42,
-}
-```
+Padrão = `XGB_PARAMS_MANUAL` em `train.py` (os do modelo do Pedro): 600 árvores,
+profundidade 7, `learning_rate` 0,05, `subsample`/`colsample_bytree` 0,8,
+`min_child_weight` 10, `reg_alpha` 0,1, `reg_lambda` 1,0, `hist`, `random_state` 42,
+`early_stopping_rounds` 40 só no CV.
 
-Determinados por `tune_hyperparams.py` (Optuna, amostrador TPE, poda
-por mediana, 60 trials) — ganho de +2,2% no RMSE da razão de congestionamento
-sobre os valores manuais anteriores. Para buscar de novo (ex. após acumular
-mais dados), rode o script e confira se o ganho justifica atualizar aqui.
+`XGB_PARAMS_OPTUNA` (`tune_hyperparams.py`, TPE, 60 trials) foi **testado e não
+adotado**: o ganho medido veio de um ambiente divergente e a 2.1 citada na tese
+usa os manuais. A 2.2 usa os mesmos manuais, então a ablação isola o contexto.
+Cada treino grava `cv_folds` no metadata (RMSE/MAE por fold) para comparação pareada.
 
 **Validação:** `TimeSeriesSplit(n_splits=5)` — sem vazamento de dados
 futuros; os perfis históricos são recalculados dentro de cada fold, só com
@@ -189,6 +197,10 @@ Visualizar runs:
 ```bash
 mlflow ui --backend-store-uri "file:///<caminho-absoluto>/artifacts/mlruns"
 ```
+
+> O `mlflow` 3.12 pede `pandas<3`; o venv fixa `pandas==3.0.0` (o pip avisa do
+> conflito, o treino funciona). "MLflow falhou: Run … not found" vem do store
+> antigo em `artifacts/mlruns` e não afeta os artefatos — eles já foram salvos.
 
 Métricas logadas por run: RMSE/MAE (em razão e em segundos, geral e só no
 subconjunto congestionado), importância de cada feature, hiperparâmetros,

@@ -12,7 +12,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY apps/api/ .
 COPY ml/artifacts/ /app/ml/artifacts/
 
-ENV LIA_VERSION=lia_2.1
+# LIA_VERSION: default único no main.py (lia_2.2); rollback com -e LIA_VERSION=lia_2.1.
+ENV TZ=America/Sao_Paulo
 
 EXPOSE 8000
 

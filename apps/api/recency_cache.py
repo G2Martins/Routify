@@ -138,6 +138,11 @@ class RecenciaCache:
             return None
         return max((_agora_utc() - entrada[1]).total_seconds() / 60.0, 0.0)
 
+    def razao_recente(self, id_ponto, janela_min: float) -> Optional[float]:
+        """Razão da via se observada nos últimos `janela_min` minutos (vizinhos da LIA 2.2)."""
+        idade = self.idade_min(id_ponto)
+        return self._dados[id_ponto][0] if idade is not None and idade <= janela_min else None
+
     def get(self, id_ponto) -> Optional[Dict[str, float]]:
         """Devolve {'razao_lag1':.., 'delta_min_lag1':..} já no formato de
         feature (delta já em log1p), ou None se a via não está no cache — via

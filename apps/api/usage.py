@@ -12,6 +12,7 @@ nunca espera o log, e banco fora do ar só vira aviso (com trava de 60 s).
 import asyncio
 import hashlib
 import logging
+import os
 import time
 from typing import Optional
 
@@ -31,6 +32,8 @@ TTL_TOKEN_S = 300
 MAX_TOKENS_CACHE = 5000
 _cache_tokens: dict = {}  # sha256(token) -> (user_id | None, expira_em)
 _ultimo_aviso = 0.0
+# Experimento local contra o banco de produção: REGISTRAR_USO=0 não suja o painel ADM.
+REGISTRAR_USO = os.getenv('REGISTRAR_USO', '1') != '0'
 
 
 def arredondar(coord: float) -> float:
@@ -83,7 +86,7 @@ def _inserir(sb, tabela: str, linha: dict) -> None:
 
 def registrar(sb, tabela: str, linha: dict) -> None:
     """Grava em segundo plano; nunca levanta nem atrasa a resposta."""
-    if sb is None:
+    if sb is None or not REGISTRAR_USO:
         return
     try:
         asyncio.get_running_loop().run_in_executor(None, _inserir, sb, tabela, linha)
