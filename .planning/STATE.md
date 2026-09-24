@@ -14,7 +14,7 @@ Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) 
 | F7 Plataforma unificada + design | **feita no código**: paleta da logo + linguagem Valerium nos dois apps, login refeito, sessão única (cookie) app ↔ `/admin`, item "Painel ADM" por role, auto-sugestão nova. Falta validação visual do dono |
 | F8 Ações ADM | feita; migration 4 (`admin_actions`) aplicada via MCP em 2026-09-23 |
 | F9 Segurança | parcial: rate limit por IP, auditoria append-only, anti-corrida, `extra=forbid` em todos os corpos, feedback único. Falta: CSP/headers no deploy, suíte `tests/security/`, trava de login por (e-mail, IP), sessão ociosa |
-| F10 Deploy (AWS + Hostinger + Actions) | **front no ar** (Hostinger, SSL ativo); EC2 t3.small provisionada (Caddy + Let's Encrypt, ufw, systemd); API sobe sozinha quando o dono copiar o `.env` ([deploy.md](../docs/core/deploy.md)). Falta: GitHub Actions |
+| F10 Deploy (AWS + Hostinger + Actions) | **no ar em 2026-09-23**: front na Hostinger (SSL ativo) + API na EC2 t3.small (Caddy/Let's Encrypt, ufw, systemd sem root, LIA 2.2). Validado de fora: CORS só do front, rota e busca pelo HTTPS público ([deploy.md](../docs/core/deploy.md)). Falta: GitHub Actions |
 | F12 LIA 2.2 (contexto) | **feita**: vizinhos + chuva + feriado, mesmo código no treino e na API; padrão da API; estresse treino × produção versionado |
 | F11 Traçado + fusão LIA × TomTom | **feita e validada ao vivo**: grafo 38 km, conector tracejado, `entryPoints`, fusão por `supportingPoints`, semáforos OSM (271 cruzamentos) + calibração |
 
@@ -56,7 +56,7 @@ Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) 
 
 ## Próximos passos
 
-- [ ] Deploy: EC2 t3.small (IP elástico) → Caddy + systemd; DNS `api-routify` → IP; site `routify` na Hostinger (`scripts/empacotar-front.sh`); Supabase Auth com a URL de produção; `CORS_ORIGINS`.
+- [ ] Deploy contínuo (GitHub Actions): build do front em runner Linux + deploy da API por SSH.
 - [ ] Dono: validar visualmente app + painel em produção.
 - [ ] Recalibrar semáforo em horário comercial (a calibração atual foi de madrugada).
 - [ ] Velocidade livre por classe de via (viés β ≈ 22,9 s/km) e depois recalibrar δ.
