@@ -41,6 +41,8 @@ cat > /etc/systemd/system/routify-api.service <<EOF
 Description=Routify API (FastAPI + LIA)
 After=network-online.target
 Wants=network-online.target
+# Sem as credenciais o serviço nem tenta subir (evita loop de restart recarregando o grafo).
+ConditionPathExists=$RAIZ/services/collector/config/.env
 
 [Service]
 User=routify
