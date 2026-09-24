@@ -68,7 +68,27 @@ Pegadinhas já resolvidas:
 
 **Supabase Auth** (dono, no painel): *URL Configuration* → Site URL `https://<app>` e Redirect `https://<app>/**`.
 
-## 3. Rollback e desligamento
+## 3. E-mails de autenticação (cadastro, senha, troca de e-mail)
+
+O SMTP padrão do Supabase **só entrega para quem é da equipe do projeto**, com limite de poucos
+e-mails por hora. Qualquer outro usuário fica sem o e-mail de confirmação. Por isso usamos SMTP próprio:
+Resend, grátis até 3 mil e-mails por mês, com o domínio já verificado.
+
+1. **Resend** → *API Keys* → *Create API key*: permissão **Sending access**, domínio do projeto. A chave
+   aparece uma vez só e vai direto para o passo 2: não colar em chat nem em arquivo.
+2. **Supabase** → *Authentication* → *Emails* → *SMTP Settings* → *Enable custom SMTP*:
+   remetente `nao-responda@<domínio>`, nome `Routify`, host `smtp.resend.com`, porta `465`,
+   usuário `resend`, senha = a chave do passo 1.
+3. **Supabase** → *Authentication* → *Emails* → *Templates*: colar o HTML e o assunto de cada arquivo de
+   `supabase/templates/`. O assunto está no comentário do topo de cada arquivo.
+   - `confirmacao.html` → *Confirm signup*
+   - `recuperacao.html` → *Reset password*
+   - `troca-email.html` → *Change email address*
+
+   O logo vem de `{{ .SiteURL }}/email/routify.png` (servido pelo site, de `apps/mobile/public/email/`),
+   então a *Site URL* precisa ser o domínio de produção.
+
+## 4. Rollback e desligamento
 
 - API: `LIA_VERSION=lia_2.1` num drop-in do systemd → `systemctl restart routify-api`.
 - Front: republicar o pacote anterior pelo mesmo MCP.
