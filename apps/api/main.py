@@ -193,8 +193,12 @@ def load_graph() -> nx.MultiDiGraph:
     if os.path.exists(GRAPH_PICKLE) and (not os.path.exists(GRAPH_CACHE)
                                          or os.path.getmtime(GRAPH_PICKLE) >= os.path.getmtime(GRAPH_CACHE)):
         t0 = time.time()
-        with open(GRAPH_PICKLE, 'rb') as f:
-            G = pickle.load(f)  # artefato gerado aqui mesmo, nunca entrada de usuário
+        try:
+            with open(GRAPH_PICKLE, 'rb') as f:
+                G = pickle.load(f)  # artefato gerado aqui mesmo, nunca entrada de usuário
+        except Exception as e:  # pickle de outra versão de lib: refaz a partir do GraphML
+            logging.warning(f"Pickle do grafo ilegível ({type(e).__name__}); refazendo a partir do GraphML")
+            G = nx.MultiDiGraph()
         if G.graph.get('atributos_aresta') == ATRIBUTOS_ARESTA:
             logging.info(f"Grafo enxuto lido em {time.time()-t0:.1f}s: {G.number_of_nodes()} nós, "
                          f"{G.number_of_edges()} arestas")
