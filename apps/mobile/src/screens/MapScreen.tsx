@@ -240,6 +240,7 @@ export default function MapScreen() {
             hora_partida: data.hora_partida ?? null,
             dia_semana: data.dia_semana ?? null,
             combustivel_economizado_l: data.economia?.litros ?? null,
+            minutos_economizados: data.economia?.minutos ?? null,
           })
           .then((r: { error: { message: string } | null }) => {
             if (r.error) console.warn('[Routify] Falha ao salvar histórico:', r.error.message);

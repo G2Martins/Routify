@@ -31,6 +31,7 @@ type EconomiaCombustivel = {
   rotas_otimizadas: number;
   litros_economizados: number;
   litros_consumidos: number;
+  minutos_economizados?: number;
   serie_diaria: { dia: string; litros: number; rotas: number }[];
 };
 type ParamsCombustivel = { preco_litro_reais: number; co2_kg_por_litro: number; preco_fonte?: string; atualizado_em?: string };
@@ -79,8 +80,9 @@ export default async function UsoPage({ searchParams }: { searchParams: Promise<
         <ErroConsulta erro={economia.error} acoes />
         {eco ? (
           <>
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <Kpi rotulo="Litros economizados" valor={fmtDec(litros, 2)} detalhe={`em ${dias} dias`} />
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+              <Kpi rotulo="Tempo economizado" valor={`${fmtInt(eco.minutos_economizados ?? 0)} min`} detalhe="contra o caminho mais curto" />
+              <Kpi rotulo="Litros economizados" valor={fmtDec(litros, 2)} detalhe={`em ${dias} dias`} atraso={20} />
               <Kpi
                 rotulo="Economia em gasolina"
                 valor={params ? `R$ ${fmtDec(litros * params.preco_litro_reais, 2)}` : '—'}

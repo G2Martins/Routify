@@ -1,0 +1,69 @@
+<!-- Routify · Supabase → Authentication → Emails → Templates → "Change email address"
+     Assunto: Confirme seu novo e-mail · Routify
+     Variáveis: .ConfirmationURL .SiteURL .Email .NewEmail .Data.nome (html/template escapa tudo) -->
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>Confirme seu novo e-mail · Routify</title>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body style="margin:0;padding:0;background-color:#F6F8FB;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#F6F8FB;">Confirme o novo e-mail da sua conta no Routify.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F6F8FB;">
+  <tr>
+    <td align="center" style="padding:32px 16px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;">
+        <tr>
+          <td style="padding:0 4px 20px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="vertical-align:middle;"><img src="{{ .SiteURL }}/email/routify.png" width="40" height="40" alt="Routify" style="display:block;border:0;border-radius:10px;"></td>
+                <td style="vertical-align:middle;padding-left:10px;font-family:Geist,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;font-weight:700;letter-spacing:-0.3px;color:#0F1F44;">Routify</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="background-color:#FFFFFF;border:1px solid #E3E8F0;border-radius:16px;overflow:hidden;">
+            <div style="height:4px;line-height:4px;font-size:0;background-color:#026BF8;background-image:linear-gradient(90deg,#026BF8,#059BC2,#09C6A4);">&nbsp;</div>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="padding:32px 32px 28px;font-family:Geist,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0F1F44;">
+                  <p style="margin:0 0 8px;font-size:12px;line-height:16px;letter-spacing:1.6px;text-transform:uppercase;font-weight:600;color:#059BC2;">Troca de e-mail</p>
+                  <h1 style="margin:0 0 16px;font-size:26px;line-height:32px;font-weight:700;letter-spacing:-0.4px;">Confirme seu novo e-mail</h1>
+                  <p style="margin:0 0 24px;font-size:15px;line-height:24px;color:#33415C;">Você pediu para trocar o e-mail da sua conta de <strong style="color:#0F1F44;">{{ .Email }}</strong> para <strong style="color:#0F1F44;">{{ .NewEmail }}</strong>. Confirme para concluir a troca.</p>
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td bgcolor="#026BF8" style="border-radius:10px;">
+                        <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:14px 28px;font-family:Geist,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:20px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:10px;">Confirmar novo e-mail</a>
+                      </td>
+                    </tr>
+                  </table>
+                  <p style="margin:24px 0 6px;font-size:13px;line-height:20px;color:#5B6B86;">Se o botão não abrir, copie e cole este endereço no navegador:</p>
+                  <p style="margin:0;font-size:12px;line-height:18px;word-break:break-all;"><a href="{{ .ConfirmationURL }}" style="color:#026BF8;text-decoration:underline;">{{ .ConfirmationURL }}</a></p>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:16px 32px;background-color:#F6F8FB;border-top:1px solid #E3E8F0;font-family:Geist,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;color:#5B6B86;">
+                  O link funciona uma vez e expira. Se não foi você, ignore este e-mail e troque sua senha no app.
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:20px 8px 0;text-align:center;font-family:Geist,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;color:#8A97AD;">
+            Routify · Roteamento preditivo para Brasília/DF · Projeto acadêmico (TCC 2026)<br>
+            E-mail automático, não precisa responder. <a href="{{ .SiteURL }}" style="color:#5B6B86;text-decoration:underline;">Abrir o Routify</a>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>
