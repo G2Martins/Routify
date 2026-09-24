@@ -696,7 +696,7 @@ async def calculate_route(body: RouteInput, request: Request):
     )
 
     # --- Fusão: a TomTom reconstrói a rota da LIA e diz se há melhor ---
-    fonte_rota, alternativa, tempo_exibido = 'lia', None, tempo_lia
+    fonte_rota, alternativa, tempo_exibido, tempo_outra = 'lia', None, tempo_lia, None
     polyline_final, distancia_final, via_final = polyline, distancia_total, via_principal
     fusao = await tt.rota_reconstruida(polyline, trajeto.pontos_apoio(polyline)) if rota_tomtom_ativa else None
     nossa = (fusao or {}).get('nossa') or {}
@@ -725,9 +725,12 @@ async def calculate_route(body: RouteInput, request: Request):
 
     resumo_tt = resumo_tomtom(polyline_final, interdicoes, ref)
     request.state.degradado = degradado
+    # Os dois lados na escala do tempo exibido (ver combustivel.base_na_escala).
+    misto_nossa = tempo_exibido if fonte_rota == 'lia' or tempo_outra is None else tempo_outra
     economia = combustivel.economia(
         getattr(request.app.state, 'combustivel', None), distancia_final / 1000, tempo_exibido,
-        dist_curta / 1000 if dist_curta is not None else None, tempo_curta)
+        dist_curta / 1000 if dist_curta is not None else None,
+        combustivel.base_na_escala(tempo_curta, tempo_lia, misto_nossa))
     _registrar_rota(sb, user_id, body, version, hora, dia_semana, resumo_tt, inicio_req,
                     distancia_km=round(distancia_final / 1000, 2), tempo_lia=tempo_lia,
                     tempo_curta=tempo_curta, rotas_diferentes=rotas_diferentes, cobertura=cobertura_pct,
@@ -785,4 +788,5 @@ def _registrar_rota(sb, user_id, body, version, hora, dia_semana, resumo_tt, ini
         'distancia_rota_curta_km': round(dist_curta / 1000, 2) if dist_curta is not None else None,
         'combustivel_rota_l': economia['litros_rota'] if economia else None,
         'combustivel_economizado_l': economia['litros'] if economia else None,
+        'minutos_economizados': economia['minutos'] if economia else None,
     })

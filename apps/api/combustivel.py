@@ -23,6 +23,17 @@ def litros(p: dict, km: float, seg: float) -> float:
     return p['k1_litros_por_km'] * km + p['k2_litros_por_hora'] * seg / 3600.0
 
 
+def base_na_escala(seg_curta_lia: Optional[float], seg_lia: float, seg_misto: float) -> Optional[float]:
+    """Tempo do caminho mais curto na MESMA escala do tempo exibido. O exibido mistura a
+    LIA com o trânsito ao vivo (mais realista, maior); o do caminho mais curto sai só da
+    LIA. Comparar os dois direto fazia a rota da LIA parecer mais lenta e mais gastona.
+    O fator misto/LIA observado na própria rota vale para o caminho mais curto (mesma
+    hora, mesma região)."""
+    if seg_curta_lia is None:
+        return None
+    return seg_curta_lia * (seg_misto / seg_lia) if seg_lia > 0 else seg_curta_lia
+
+
 def economia(p: Optional[dict], km_rota: float, seg_rota: float,
              km_base: Optional[float], seg_base: Optional[float]) -> Optional[dict]:
     """Rota escolhida × caminho mais curto. Negativo = gasta mais para chegar antes."""

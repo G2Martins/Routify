@@ -28,3 +28,10 @@ def test_sem_baseline_nao_inventa_numero():
 
 def test_mais_longa_sem_ganho_de_tempo_aparece_negativa():
     assert combustivel.economia(P, km_rota=12, seg_rota=900, km_base=10, seg_base=900)['litros'] < 0
+
+
+def test_caminho_curto_vai_para_a_escala_do_tempo_exibido():
+    # LIA previu 1000 s na rota e 1100 s no caminho curto; o trânsito ao vivo levou a rota a 1300 s.
+    assert combustivel.base_na_escala(1100, 1000, 1300) == pytest.approx(1430)
+    assert combustivel.base_na_escala(None, 1000, 1300) is None
+    assert combustivel.base_na_escala(900, 0, 1300) == 900
