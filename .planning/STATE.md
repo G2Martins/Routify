@@ -30,6 +30,11 @@ Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) 
 
 ## Decisões tomadas (2026-09-23)
 
+- **Rota "pela LIA"** (pedido do dono): o app não mostra provedor; quando a rota do trânsito ao vivo vence, o selo é "Trânsito ao vivo" e a via é o nome real. O crédito "Trânsito © TomTom · Tempo: Open-Meteo" fica no rodapé do mapa (termos da TomTom e licença CC BY do Open-Meteo).
+- Busca ranqueada na API (marco, aglomeração, distância, casamento de nome) + bairro no rótulo; categoria em português no selo.
+- Combustível economizado por rota (Evans–Herman–Lam) no card, no Painel do usuário e no painel ADM (RPC `admin_economia_combustivel`).
+- Contramão: checagem por trecho das duas rotas IESB → Elétrica Lara contra as arestas dirigidas do OSM não achou violação; aguardando print do trecho visto pelo dono.
+
 - **Custo zero** (projeto acadêmico; termina em dez/2026): Hostinger com 1 site Node (Expo export em `/` + painel em `/admin`) e API na AWS plano Free, t3.small us-east-1, crédito de CPU Standard (~US$ 67 de US$ 100 até 31/12). HF Spaces fora (Docker exige PRO), Render/Koyeb fora (512 MB).
 - **LIA 2.1 da tese = modelo do Pedro** (manual). Optuna testado e não adotado. **LIA 2.2** (2.1 + contexto) = padrão da API: RMSE 40,88 → 40,27 s (5/5 folds), MAE 14,51 → 14,44 s (3/5), estresse em `lia_2.2_estresse.json`. Chuva ausente → 0; incidente não vira feature (sem histórico).
 - Grafo enxuto em pickle: API de 1,65 GB para 0,79 GB de RAM, sem mudar a rota (mesma via e distância no teste).

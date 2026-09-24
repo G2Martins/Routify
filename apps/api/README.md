@@ -198,6 +198,13 @@ Campos opcionais avançados (`razao_ultima_observacao` + `minutos_desde_ultima_o
 
 ### `POST /route`
 
+Além da rota, a resposta traz `clima` (tempo em Brasília na partida — mesma chamada do Open-Meteo
+que a LIA 2.2 já faz a cada 15 min — com o que ela considerou: chuva das 3 últimas horas e feriado) e
+`economia` (combustível da rota e economia contra o caminho mais curto: litros = K1·km + K2·horas,
+Evans–Herman–Lam; parâmetros e fontes em `ml/artifacts/consumo_combustivel.json`, que o `/metrics`
+também expõe em `combustivel`). Quando a rota do trânsito ao vivo vence, `via_principal` é o nome real
+da via (a polyline vai ao grafo) — nenhum rótulo de provedor chega ao app.
+
 **Endpoint principal.** Faz o A\* com os pesos da LIA em cada aresta do grafo, numa única predição vetorizada. A rota da LIA é **fundida com a TomTom**: a TomTom reconstrói o mesmo trajeto, dá o ETA dele ao vivo e sugere outra rota se achar uma melhor.
 
 **Request:**
@@ -283,18 +290,26 @@ As outras ações do painel (papel, bloqueio, avisos, flags) são RPCs `admin_*`
 
 ---
 
-### `GET /search/places?q=...&limit=8`
+### `GET /search/places?q=...&limit=8[&lat=..&lon=..]`
 
-Autocomplete de endereços, em cadeia (cada etapa só roda se a anterior trouxe < 3 resultados):
+Autocomplete: a malha local (~38 mil vias do DF, bairro pelo lugar OSM mais próximo em
+`ml/artifacts/bairros_df.json`) e a TomTom Search (typeahead, 20 resultados, cache 24 h) são
+**juntadas e ranqueadas numa lista só** (`ranquear()` em `routers/search.py`). O Nominatim só
+entra com menos de 3 resultados (a política da OSMF proíbe autocomplete).
 
-1. `malha_completa` (~38 mil vias do DF) no Supabase — `source: "malha"`
-2. TomTom Search v2 (typeahead, viés para Brasília, cache 24 h) — `source: "tomtom"`
-3. Nominatim (OSM) — `source: "nominatim"`, último recurso, com cache e trava de 1 req/s (a política da OSMF proíbe autocomplete)
+Por que ranquear na API: a TomTom dá nota ~0,99 para tudo que contém o texto — em "park shopping"
+vinha primeiro uma loja de São Sebastião. Sinais usados:
+- casamento de nome: igual > começa com > termos no nome > termos só no endereço (sem termo nenhum = fora);
+- marco (shopping, aeroporto, universidade, hospital…) sobe; a categoria em português conta como nome
+  (a TomTom devolve o aeroporto sem a palavra "Aeroporto");
+- aglomeração: vários resultados com o nome no mesmo ponto = o lugar de verdade;
+- distância de `lat`/`lon` (quem busca; o app manda o outro ponto da rota) ou do centro;
+- corte relativo (ruído muito atrás do melhor sai) e deduplicação (mesmo lugar, sub-ponto, mesma via no mesmo bairro).
 
 **Response:**
 ```json
 [
-  { "label": "EPTG", "sublabel": "Via arterial", "lat": -15.83, "lon": -48.05, "source": "malha", "id_ponto": 123 }
+  { "label": "Park Shopping", "sublabel": "Guará", "lat": -15.834, "lon": -47.956, "source": "tomtom", "categoria": "Shopping" }
 ]
 ```
 
