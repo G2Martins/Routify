@@ -44,6 +44,8 @@ const csp = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // A Hostinger roda o servidor pronto (sem build lá): ver scripts/montar-front-linux.sh.
+  output: 'standalone',
   async rewrites() {
     return comApp ? { beforeFiles: [{ source: '/', destination: '/index.html' }], afterFiles: [], fallback: [] } : [];
   },

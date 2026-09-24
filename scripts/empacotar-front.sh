@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Empacota o front para UM site Node na Hostinger: o painel Next (apps/admin) com o
-# export web do Expo (apps/mobile) no public/ — a raiz serve o app, /admin o painel
-# (mesmo domínio, um cookie de sessão; ver apps/admin/next.config.ts).
+# Passo local do deploy do front (UM site Node na Hostinger: app em /, painel em /admin,
+# mesmo domínio e um cookie de sessão). Gera o código do painel Next (apps/admin) com o
+# export web do Expo (apps/mobile) em public/. O build do Next vem depois, em Linux:
+# scripts/montar-front-linux.sh.
 #
-# Uso:  API_URL=https://api.seu-dominio scripts/empacotar-front.sh /caminho/front.tar.gz
+# Uso:  API_URL=https://api.seu-dominio scripts/empacotar-front.sh /caminho/front-src.tar.gz
 #
 # Supabase: o Expo lê apps/mobile/.env (URL + chave publishable, públicas por natureza).
-# No Next, NEXT_PUBLIC_* vêm das variáveis do site na Hostinger (valem no build de lá).
 # Nunca entra no pacote: .env*, node_modules, .next.
 set -euo pipefail
 : "${API_URL:?defina API_URL, ex.: https://api-routify.exemplo.com}"
@@ -30,5 +30,6 @@ tar -C "$raiz/apps/admin" --exclude=./node_modules --exclude=./.next --exclude='
 mkdir -p "$stage/public"
 cp -r dist/. "$stage/public/"
 rm -rf dist
-tar -C "$stage" -czf "$saida" .
+cp "$raiz/scripts/montar-front-linux.sh" "$stage/"
+(cd "$stage" && tar -czf "$saida" $(ls -A))
 echo "Pacote: $saida ($(du -h "$saida" | cut -f1))"
