@@ -9,6 +9,9 @@
 # Supabase: o Expo lê apps/mobile/.env (URL + chave publishable, públicas por natureza).
 # Nunca entra no pacote: .env*, node_modules, .next.
 set -euo pipefail
+# Git Bash (Windows) converte valores que começam com "/" em caminho do Windows ao passar
+# para o Node: "/admin" virava "C:/Program Files/Git/admin" dentro do bundle.
+export MSYS_NO_PATHCONV=1
 : "${API_URL:?defina API_URL, ex.: https://api-routify.exemplo.com}"
 : "${1:?informe o arquivo de saída .tar.gz (fora do repo)}"
 raiz="$(cd "$(dirname "$0")/.." && pwd)"
@@ -20,8 +23,9 @@ cd "$raiz/apps/mobile"
 rm -rf dist
 # --clear: o cache do Metro guarda os EXPO_PUBLIC_* já inlinados do dev (localhost).
 EXPO_PUBLIC_API_URL="$API_URL" EXPO_PUBLIC_ADMIN_URL=/admin npx expo export --platform web --clear
-if ! grep -rqsF "$API_URL" dist/_expo || grep -rqs "localhost:8000\|localhost:3000" dist/_expo; then
-  echo "ERRO: o bundle ainda aponta para localhost (API_URL não entrou)" >&2
+if ! grep -rqsF "$API_URL" dist/_expo || ! grep -rqsE "[\"']/admin[\"']" dist/_expo \
+   || grep -rqs "localhost:8000\|localhost:3000\|Program Files" dist/_expo; then
+  echo "ERRO: API_URL/ADMIN_URL não entraram certos no bundle" >&2
   exit 1
 fi
 
