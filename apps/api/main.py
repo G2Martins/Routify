@@ -26,6 +26,7 @@ from dotenv import load_dotenv
 # Credenciais locais (em produção vêm do ambiente). Antes dos imports que leem env.
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', 'services', 'collector', 'config', '.env'))
 
+import combustivel  # noqa: E402
 import config_runtime  # noqa: E402
 import contexto  # noqa: E402
 import graph_enrichment  # noqa: E402
@@ -331,6 +332,8 @@ async def lifespan(app: FastAPI):
         app.state.supabase = sb
         app.state.recencia_cache = recencia
         app.state.contexto = contexto_vivo
+        # Parâmetros da estimativa de combustível (versionados, com fontes) — combustivel.py
+        app.state.combustivel = combustivel.carregar(os.path.join(MODELS_DIR, 'consumo_combustivel.json'))
         app.state.transfer_confidence = transfer_confidence
         # TomTom sob demanda (tomtom.py): sem chave, a API segue só com a LIA.
         app.state.tomtom = tomtom.criar_cliente()
@@ -491,4 +494,7 @@ async def metrics():
         # LIA 2.0: contexto novo que o dashboard pode exibir
         "cv_rmse_seg_baseline": _cv_metric(meta, "baseline_rmse_seg"),
         "pct_congestionado": meta.get("pct_congestionado"),
+        # Para converter litros economizados em R$ e CO2 (app e painel ADM), com a fonte.
+        "combustivel": {k: v for k, v in (app.state.combustivel or {}).items()
+                        if k in ('modelo', 'preco_litro_reais', 'preco_fonte', 'co2_kg_por_litro', 'comparacao', 'atualizado_em')},
     }

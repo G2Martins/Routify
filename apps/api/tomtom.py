@@ -381,16 +381,21 @@ class TomTomClient:
             }
         return {'nossa': extrair(rotas[0]), 'melhor': extrair(rotas[1]) if len(rotas) > 1 else None}
 
-    async def buscar(self, q: str, limite: int) -> List[dict]:
+    async def buscar(self, q: str, limite: int = 10,
+                     perto: Optional[Tuple[float, float]] = None) -> List[dict]:
+        """Busca com viés de posição (quem digita, ou o centro de Brasília). Devolve
+        também tipo, nota, categoria e bairro: o ranking final é do routers/search.py,
+        porque a nota da TomTom sai quase igual para tudo que contém o texto."""
+        lat, lon = perto or CENTRO_BRASILIA
         norma = ' '.join(q.lower().split())
-        em_cache = self._cache_busca.get((norma, limite))
+        chave = (norma, limite, round(lat, 2), round(lon, 2))  # ~1 km: o cache segue útil
+        em_cache = self._cache_busca.get(chave)
         if em_cache is not None:
             return em_cache
         # safe='' codifica '/', '?' e '#': texto do usuário nunca vira caminho.
         dados = await self._get('busca', f'/search/2/search/{quote(norma, safe="")}.json', {
             'typeahead': 'true', 'limit': limite, 'countrySet': 'BR',
-            'lat': CENTRO_BRASILIA[0], 'lon': CENTRO_BRASILIA[1], 'radius': 40_000,
-            'language': 'pt-BR',
+            'lat': lat, 'lon': lon, 'radius': 40_000, 'language': 'pt-BR',
         })
         if dados is None:
             return []
@@ -401,15 +406,31 @@ class TomTomClient:
             entradas = r.get('entryPoints') or []
             pos = (entradas[0].get('position') if entradas else None) or r.get('position') or {}
             end = r.get('address') or {}
+            poi = r.get('poi') or {}
             if pos.get('lat') is None or pos.get('lon') is None:
                 continue
-            nome = (r.get('poi') or {}).get('name') or end.get('streetName') or end.get('freeformAddress')
+            nome = poi.get('name') or end.get('streetName') or end.get('freeformAddress')
             if not nome:
                 continue
-            resultados.append({'label': str(nome)[:120], 'sublabel': str(end.get('freeformAddress') or '')[:120],
-                               'lat': float(pos['lat']), 'lon': float(pos['lon'])})
-        self._cache_busca.set((norma, limite), resultados)
+            codigos = [c.get('code') for c in poi.get('classifications') or [] if c.get('code')]
+            codigos.sort(key=lambda c: c not in CODIGOS_MARCO)  # marco primeiro (estável)
+            bairro = end.get('municipalitySubdivision') or end.get('municipality')
+            rua = ' '.join(x for x in (end.get('streetName'), end.get('streetNumber')) if x)
+            resultados.append({
+                'label': str(nome)[:120],
+                'sublabel': (' · '.join(x for x in (bairro, rua) if x and x != nome)
+                             or str(end.get('freeformAddress') or ''))[:120],
+                'lat': float(pos['lat']), 'lon': float(pos['lon']),
+                'tipo': r.get('type'), 'score': float(r.get('score') or 0.0),
+                'categoria_codigo': codigos[0] if codigos else None, 'bairro': bairro,
+            })
+        self._cache_busca.set(chave, resultados)
         return resultados
+
+
+# Classificações que definem o lugar (a TomTom lista várias por POI).
+CODIGOS_MARCO = {'SHOPPING_CENTER', 'AIRPORT', 'COLLEGE_UNIVERSITY', 'SCHOOL', 'HOSPITAL_POLYCLINIC',
+                 'RAILWAY_STATION', 'PUBLIC_TRANSPORT_STOP', 'STADIUM', 'GOVERNMENT_OFFICE', 'MUSEUM'}
 
 
 def criar_cliente() -> TomTomClient:

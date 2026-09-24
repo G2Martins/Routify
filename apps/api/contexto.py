@@ -114,6 +114,12 @@ def precisa_contexto(ordem_features: Sequence[str]) -> bool:
 
 # --- Ao vivo (API) ---------------------------------------------------------
 URL_PREVISAO = 'https://api.open-meteo.com/v1/forecast'
+# Códigos WMO do Open-Meteo → texto do card da rota.
+CONDICOES = {0: 'Céu limpo', 1: 'Poucas nuvens', 2: 'Parcialmente nublado', 3: 'Nublado',
+             45: 'Neblina', 48: 'Neblina', 51: 'Garoa fraca', 53: 'Garoa', 55: 'Garoa forte',
+             61: 'Chuva fraca', 63: 'Chuva', 65: 'Chuva forte', 80: 'Pancadas fracas',
+             81: 'Pancadas de chuva', 82: 'Pancadas fortes', 95: 'Trovoada', 96: 'Trovoada com granizo',
+             99: 'Trovoada com granizo'}
 TTL_CHUVA_S = 15 * 60  # ≤ 96 chamadas/dia: longe do limite free do Open-Meteo (10 mil/dia)
 
 
@@ -130,6 +136,7 @@ class ContextoAoVivo:
         self.feriados = carregar_feriados(caminho_feriados)
         self.chuva: Dict[datetime, float] = {}
         self.chuva_em: Optional[float] = None
+        self.atual: Dict[str, float] = {}  # tempo agora (card da rota), da mesma chamada
         self._proxima = 0.0
 
     async def atualizar_chuva(self) -> None:
@@ -142,9 +149,12 @@ class ContextoAoVivo:
             async with httpx.AsyncClient(timeout=4) as cli:
                 r = await cli.get(URL_PREVISAO, params={
                     'latitude': CENTRO_CHUVA[0], 'longitude': CENTRO_CHUVA[1], 'hourly': 'precipitation',
+                    'current': 'temperature_2m,weather_code,precipitation,is_day,wind_speed_10m',
                     'past_days': 1, 'forecast_days': 1, 'timezone': 'America/Sao_Paulo'})
                 r.raise_for_status()
-                self.chuva = carregar_chuva_openmeteo(r.json())
+                dados = r.json()
+                self.chuva = carregar_chuva_openmeteo(dados)
+                self.atual = dados.get('current') or {}
                 self.chuva_em = agora
         except Exception as e:
             logging.warning(f"Open-Meteo indisponível ({type(e).__name__}); chuva vai como 0")
@@ -162,6 +172,23 @@ class ContextoAoVivo:
             m, n = media_vizinhos(razoes)
             return {**base, 'vizinhos_razao': m, 'vizinhos_n': n}
         return da_via
+
+    def clima(self, instante_local: datetime) -> Optional[Dict[str, object]]:
+        """Tempo em Brasília na partida + o que a LIA 2.2 considerou (chuva e feriado)."""
+        if not self.atual:
+            return None
+        base = self.para_requisicao(instante_local)(0)
+        codigo = self.atual.get('weather_code')
+        return {
+            'temperatura_c': self.atual.get('temperature_2m'),
+            'condicao': CONDICOES.get(codigo, 'Tempo estável'),
+            'codigo_wmo': codigo,
+            'de_dia': bool(self.atual.get('is_day', 1)),
+            'vento_kmh': self.atual.get('wind_speed_10m'),
+            'chuva_agora_mm': self.atual.get('precipitation') or 0.0,
+            'chuva_3h_mm': base['chuva_3h_mm'],
+            'feriado': bool(base['is_feriado']),
+        }
 
     def resumo(self) -> Dict[str, object]:
         return {

@@ -163,7 +163,8 @@ def test_busca_codifica_texto_do_usuario_no_caminho():
         }]})
 
     res = _rodar(_cliente(handler), lambda c: c.buscar('../a/b?x#y', 3))
-    assert res == [{'label': 'Igrejinha', 'sublabel': 'SQS 308, Brasília', 'lat': -15.8, 'lon': -47.9}]
+    assert [{k: r[k] for k in ('label', 'sublabel', 'lat', 'lon')} for r in res] == [
+        {'label': 'Igrejinha', 'sublabel': 'SQS 308, Brasília', 'lat': -15.8, 'lon': -47.9}]
     assert caminhos[0].startswith('/search/2/search/..%2Fa%2Fb%3Fx%23y.json')
 
 

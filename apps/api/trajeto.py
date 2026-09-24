@@ -40,6 +40,11 @@ class ArvoreNos:
         dist, idx = self._arvore.query(np.radians([[lat, lon]]), k=1)
         return int(self.nos[idx[0][0]]), float(dist[0][0] * RAIO_TERRA_M)
 
+    def snap_varios(self, pontos: Sequence[Sequence[float]]) -> Tuple[List[int], List[float]]:
+        """snap() de uma polyline inteira numa consulta só: (nós, distâncias em m)."""
+        dist, idx = self._arvore.query(np.radians(np.asarray(pontos, dtype=float)[:, :2]), k=1)
+        return [int(n) for n in self.nos[idx[:, 0]]], [float(d) * RAIO_TERRA_M for d in dist[:, 0]]
+
 
 def _haversine_m(a: Sequence[float], b: Sequence[float]) -> float:
     la1, lo1, la2, lo2 = map(np.radians, (a[0], a[1], b[0], b[1]))

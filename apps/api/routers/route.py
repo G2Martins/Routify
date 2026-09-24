@@ -15,6 +15,7 @@ import numpy as np
 from fastapi import APIRouter, Request, HTTPException, Security
 from pydantic import BaseModel, ConfigDict, Field
 
+import combustivel
 import tomtom
 import trajeto
 import usage
@@ -81,6 +82,26 @@ class AlternativaRota(BaseModel):
     distancia_km: float
 
 
+class Clima(BaseModel):
+    temperatura_c: Optional[float] = None
+    condicao: str = Field(..., examples=["Parcialmente nublado"])
+    codigo_wmo: Optional[int] = Field(None, description="Código WMO do Open-Meteo (ícone no app).")
+    de_dia: bool = True
+    vento_kmh: Optional[float] = None
+    chuva_agora_mm: float = 0.0
+    chuva_3h_mm: float = Field(0.0, description="Chuva das 3 últimas horas — feature da LIA 2.2.")
+    feriado: bool = Field(False, description="Feriado hoje — feature da LIA 2.2.")
+
+
+class Economia(BaseModel):
+    litros_rota: float = Field(..., description="Combustível estimado da rota exibida (L).")
+    litros: float = Field(..., description="Economia contra o caminho mais curto (L); negativo = gasta mais para chegar antes.")
+    reais: float
+    co2_kg: float
+    minutos: float = Field(..., description="Minutos ganhos contra o caminho mais curto.")
+    preco_litro_reais: float
+
+
 class RouteOutput(BaseModel):
     polyline: List[List[float]] = Field(..., description="Pontos [lat, lon] seguindo a geometria real das vias.")
     tempo_total_seg: int = Field(..., description="Tempo estimado da rota exibida: LIA onde há cobertura, TomTom nas lacunas (ver fusão).")
@@ -113,6 +134,9 @@ class RouteOutput(BaseModel):
     semaforos_na_rota: Optional[int] = Field(
         None, description="Cruzamentos com semáforo (OSM traffic_signals) na rota da LIA; entram no tempo com o atraso médio calibrado.")
     alternativa: Optional[AlternativaRota] = Field(None, description="A candidata não escolhida, para desenho tracejado.")
+    clima: Optional[Clima] = Field(None, description="Tempo em Brasília na partida (Open-Meteo) e o contexto que a LIA 2.2 usou.")
+    economia: Optional[Economia] = Field(
+        None, description="Combustível (Evans–Herman–Lam, ml/artifacts/consumo_combustivel.json) contra o caminho mais curto.")
 
 
 def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -478,12 +502,25 @@ def _via_principal(G: nx.MultiDiGraph, nos: List[int]) -> str:
     """Nome com mais metros na rota (não só nos primeiros trechos)."""
     metros: dict = {}
     for u, v in zip(nos[:-1], nos[1:]):
+        if u == v or v not in G[u]:  # nós do snap de uma polyline: só pares ligados contam
+            continue
         dados = min(G[u][v].values(), key=lambda d: d.get('length', 0))
         nome = dados.get('name')
         nome = nome[0] if isinstance(nome, list) and nome else nome
         if isinstance(nome, str) and nome:
             metros[nome] = metros.get(nome, 0.0) + float(dados.get('length', 0) or 0)
     return max(metros, key=metros.get) if metros else "Via sem nome"
+
+
+def _via_da_polyline(request: Request, G: nx.MultiDiGraph, polyline: List[List[float]]) -> Optional[str]:
+    """Nome real da via principal de uma rota que não saiu do A* (trânsito ao vivo):
+    cada ponto vai ao nó mais próximo e os trechos ligados somam metros por nome."""
+    arvore = getattr(request.app.state, 'arvore_nos', None)
+    if arvore is None or len(polyline) < 2:
+        return None
+    nos = [n for n, d in zip(*arvore.snap_varios(polyline)) if d <= trajeto.LIMITE_SNAP_M]
+    nome = _via_principal(G, nos)
+    return None if nome == "Via sem nome" else nome
 
 
 def _snap(request: Request, G: nx.MultiDiGraph, lat: float, lon: float) -> Tuple[int, float]:
@@ -546,6 +583,7 @@ async def calculate_route(body: RouteInput, request: Request):
     transfer_confidence_obj = getattr(request.app.state, 'transfer_confidence', None)
 
     now = datetime.now(tz=BRASILIA_TZ)
+    clima = contexto_obj.clima(now) if contexto_obj is not None else None
     hora = now.hour
     dia_semana = now.weekday()
     origem = (body.origem.lat, body.origem.lon)
@@ -600,10 +638,11 @@ async def calculate_route(body: RouteInput, request: Request):
                         rotas_diferentes=None, cobertura=0.0)
         return RouteOutput(
             polyline=ref['polyline'], tempo_total_seg=int(ref['tempo_seg']),
-            distancia_km=ref.get('distancia_km') or 0.0, via_principal="Rota TomTom",
+            distancia_km=ref.get('distancia_km') or 0.0,
+            via_principal=_via_da_polyline(request, G, ref['polyline']) or "Fora da área mapeada",
             modelo_utilizado=version, nos_visitados=0, lia_cobertura_pct=0.0,
             hora_partida=hora, dia_semana=dia_semana, tomtom=resumo_tt,
-            fonte_rota='tomtom', fora_da_malha=True,
+            fonte_rota='tomtom', fora_da_malha=True, clima=clima,
         )
 
     # Daqui até a chamada de fusão não há await: pesos (gravados no grafo
@@ -671,7 +710,7 @@ async def calculate_route(body: RouteInput, request: Request):
             alternativa = AlternativaRota(fonte='lia', polyline=polyline, tempo_seg=int(tempo_outra),
                                           distancia_km=round(distancia_total / 1000, 2))
             polyline_final, distancia_final = melhor['polyline'], melhor['distancia_km'] * 1000
-            via_final = "Rota sugerida pela TomTom"
+            via_final = _via_da_polyline(request, G, melhor['polyline']) or via_principal
         elif tempo_outra is not None:
             alternativa = AlternativaRota(fonte='tomtom', polyline=melhor['polyline'], tempo_seg=int(tempo_outra),
                                           distancia_km=melhor['distancia_km'])
@@ -686,9 +725,13 @@ async def calculate_route(body: RouteInput, request: Request):
 
     resumo_tt = resumo_tomtom(polyline_final, interdicoes, ref)
     request.state.degradado = degradado
+    economia = combustivel.economia(
+        getattr(request.app.state, 'combustivel', None), distancia_final / 1000, tempo_exibido,
+        dist_curta / 1000 if dist_curta is not None else None, tempo_curta)
     _registrar_rota(sb, user_id, body, version, hora, dia_semana, resumo_tt, inicio_req,
                     distancia_km=round(distancia_final / 1000, 2), tempo_lia=tempo_lia,
-                    tempo_curta=tempo_curta, rotas_diferentes=rotas_diferentes, cobertura=cobertura_pct)
+                    tempo_curta=tempo_curta, rotas_diferentes=rotas_diferentes, cobertura=cobertura_pct,
+                    dist_curta=dist_curta, economia=economia)
 
     return RouteOutput(
         polyline=polyline_final,
@@ -708,11 +751,14 @@ async def calculate_route(body: RouteInput, request: Request):
         tempo_lia_seg=int(tempo_lia),
         semaforos_na_rota=semaforos,
         alternativa=alternativa,
+        clima=clima,
+        economia=economia,
     )
 
 
 def _registrar_rota(sb, user_id, body, version, hora, dia_semana, resumo_tt, inicio_req, *,
-                    distancia_km, tempo_lia, tempo_curta, rotas_diferentes, cobertura) -> None:
+                    distancia_km, tempo_lia, tempo_curta, rotas_diferentes, cobertura,
+                    dist_curta=None, economia=None) -> None:
     """Captura de uso (escrita pelo servidor; coordenadas arredondadas — LGPD)."""
     usage.registrar(sb, 'rotas_calculadas', {
         'user_id': user_id,
@@ -736,4 +782,7 @@ def _registrar_rota(sb, user_id, body, version, hora, dia_semana, resumo_tt, ini
         'referencia_tomtom_seg': resumo_tt.referencia_tempo_seg,
         'referencia_atraso_seg': resumo_tt.referencia_atraso_seg,
         'latencia_ms': int((time.perf_counter() - inicio_req) * 1000),
+        'distancia_rota_curta_km': round(dist_curta / 1000, 2) if dist_curta is not None else None,
+        'combustivel_rota_l': economia['litros_rota'] if economia else None,
+        'combustivel_economizado_l': economia['litros'] if economia else None,
     })
