@@ -25,7 +25,7 @@ cd apps/api && .venv/Scripts/python -m uvicorn main:app --reload --host 0.0.0.0 
 cd apps/api && .venv/Scripts/python -m pytest -q                       # testes da API (HTTP da TomTom simulado)
 cd ml && ../apps/api/.venv/Scripts/python calibrate_signals.py --api http://127.0.0.1:8000   # atraso de semáforo
 cd services/collector && python main.py                                     # coletor TomTom (8 min) — será pausado
-cd ml && ../apps/api/.venv/Scripts/python train.py --version lia_2.1 --skip-silver   # treino (sem --skip-silver puxa do Supabase)
+cd ml && ../apps/api/.venv/Scripts/python train.py --version lia_2.2 --skip-silver --contexto   # treino (sem --skip-silver puxa do Supabase)
 cd ml && ../apps/api/.venv/Scripts/python thesis_figures.py                        # figuras do texto → docs/figuras/
 cd ml && ../apps/api/.venv/Scripts/python publish_metrics.py                       # métricas da LIA → lia_treinos/lia_analises (painel ADM)
 cd apps/mobile && npm run web                                             # ou android | ios (:8081)
@@ -43,9 +43,9 @@ CI (`.github/workflows/`):
 
 | Módulo | O quê | Doc |
 |---|---|---|
-| [apps/api/](apps/api/) | `GET /health`, `GET /metrics`, `POST /predict`, `POST /route` (A* por `travel_time_lia` + baseline de menor distância + bloco `tomtom`), `GET /search/places` (malha local → TomTom Search → Nominatim). `tomtom.py` (TomTom sob demanda: pool de chaves, recência ao vivo no corredor, interdições, ETA de referência). (tcc2) `recency_cache.py` (TTL 300 s, merge com a leitura ao vivo), `graph_enrichment.py` (BallTree, transfer ≤ 500 m), `lia_inference.py`; confiança calibrada em runtime = `transfer_confidence_isotonic.pkl`. **Captura de uso** (`usage.py`): middleware grava `api_requisicoes`; `/route` grava `rotas_calculadas` (coords arredondadas em 3 casas); `POST /eventos` (JWT obrigatório, 60/min por usuário) grava `eventos_app`; tudo fire-and-forget com service_role. CORS por allowlist (`CORS_ORIGINS`). **Fusão LIA × TomTom** (`trajeto.py`): a TomTom reconstrói a rota da LIA via `supportingPoints` (ETA ao vivo do mesmo trajeto + alternativa só se melhor); tempo = cobertura·LIA + resto·TomTom; fora da malha (snap > 600 m) a rota é da TomTom; atraso de semáforo calibrado (`semaforos_calibracao.json`). `seguranca.py` (limitador 429/Retry-After, `exigir_admin`), `config_runtime.py` (flags do painel), `routers/admin.py` (pool TomTom) | [README](apps/api/README.md), [architecture](docs/core/architecture.md) |
+| [apps/api/](apps/api/) | `GET /health`, `GET /metrics`, `POST /predict`, `POST /route` (A* por `travel_time_lia` + baseline de menor distância + bloco `tomtom`), `GET /search/places` (malha local → TomTom Search → Nominatim). `tomtom.py` (TomTom sob demanda: pool de chaves, recência ao vivo no corredor, interdições, ETA de referência). (tcc2) `recency_cache.py` (TTL 300 s, merge com a leitura ao vivo), `graph_enrichment.py` (BallTree, transfer ≤ 500 m), `lia_inference.py` (ordem das features vem do modelo); `contexto.py` (LIA 2.2: vizinhos, chuva Open-Meteo, feriados — mesmo código no treino e na API); grafo enxuto em pickle (`ATRIBUTOS_ARESTA`, API ~0,79 GB de RAM); confiança calibrada em runtime = `transfer_confidence_isotonic.pkl`. **Captura de uso** (`usage.py`): middleware grava `api_requisicoes`; `/route` grava `rotas_calculadas` (coords arredondadas em 3 casas); `POST /eventos` (JWT obrigatório, 60/min por usuário) grava `eventos_app`; tudo fire-and-forget com service_role. CORS por allowlist (`CORS_ORIGINS`). **Fusão LIA × TomTom** (`trajeto.py`): a TomTom reconstrói a rota da LIA via `supportingPoints` (ETA ao vivo do mesmo trajeto + alternativa só se melhor); tempo = cobertura·LIA + resto·TomTom; fora da malha (snap > 600 m) a rota é da TomTom; atraso de semáforo calibrado (`semaforos_calibracao.json`). `seguranca.py` (limitador 429/Retry-After, `exigir_admin`), `config_runtime.py` (flags do painel), `routers/admin.py` (pool TomTom) | [README](apps/api/README.md), [architecture](docs/core/architecture.md) |
 | [services/collector/](services/collector/) | Coletor TomTom Flow Segment Data v4 → `historico_trafego`; bootstrap de `malha_completa`/`vias_monitoradas`; rotação de chaves. (tcc2) job Fase 3 4×/dia + `deploy/` (systemd) | [README](services/collector/README.md) |
-| [ml/](ml/) | `silver.py` (Supabase → parquet, **único** acesso ao banco) → `features.py` → `train.py` (TimeSeriesSplit, 5 folds). (tcc2) `tune_hyperparams.py` (Optuna), `calibrate_transfer.py`, `benchmark_lstm_xgboost.py`, `external_validation.py`. Artefatos em `models/` (`.pkl` gitignored, `.json` versionado) | [README](ml/README.md) |
+| [ml/](ml/) | `silver.py` (Supabase → parquet, **único** acesso ao banco) → `features.py` → `train.py` (TimeSeriesSplit, 5 folds). (tcc2) `tune_hyperparams.py` (Optuna, não adotado), `calibrate_transfer.py`, `benchmark_lstm_xgboost.py`, `external_validation.py`. LIA 2.2: `fetch_contexto.py` (chuva/feriados versionados), `train.py --contexto`, `context_stress_test.py`. Artefatos em `models/` (`.pkl` gitignored, `.json` versionado) | [README](ml/README.md) |
 | [supabase/migrations/](supabase/migrations/) | Única DDL versionada, em ordem: `20260427…_route_history` (`route_history`, `profiles`, trigger `handle_new_user`), (tcc2) `20260907…_thesis_validation`, `20260923000000_security_hardening` (RLS do dataset), `20260923010000_usage_tracking_admin` (uso, `is_admin()`, RPCs de leitura, views de qualidade no schema `painel`, `pg_cron`), `20260923020000_admin_actions` (RPCs de ação com trava anti-corrida + auditoria na mesma transação, `config_runtime`, `avisos_app`, feedback outlier, analytics k-anônimo) | [rodar-local §1](docs/core/rodar-local.md) |
 | [apps/admin/](apps/admin/) | Painel ADM Next.js 16: visão geral, LIA (benchmarks), arquitetura viva (React Flow), uso, qualidade dos dados, usuários. Só chave publishable; acesso garantido no banco (RLS + RPC com `is_admin()`) | [README](apps/admin/README.md) |
 | [apps/mobile/](apps/mobile/) | Expo: Login/Register → abas Mapa/Painel/Histórico/Perfil (EditProfile, Privacy); na web desktop usa `SideRail`. Auth, `profiles` e `route_history` vão **direto no Supabase**; rotas vão pela API (`EXPO_PUBLIC_API_URL`). Mapas: `react-native-maps` (nativo) / `leaflet` (web). Tema claro/escuro via `ThemeContext` | [README](apps/mobile/README.md) |
@@ -148,8 +148,8 @@ CI (`.github/workflows/`):
 - **Modelos em `ml/artifacts/`:**
   - `lia_2.1*` = o modelo do Pedro (19/08, hiperparâmetros manuais), que bate com o `lia_2.1_metadata.json` versionado (RMSE 40,69 / MAE 14,62).
   - `lia_2.1_retreino_20260923*` = retreino com Optuna. Ficou pior em segundos (MAE 15,03) e foi feito no ambiente errado: **não usar na tese**.
-  - Qual modelo a tese chama de "LIA 2.1" é decisão do grupo. Re-rodar `train.py` no venv antes dos números finais.
-- **Grafo = `brasilia_graph_38km.graphml`** (97.739 nós; o raio vai no nome).
+  - **Decidido 2026-09-23:** a tese chama de LIA 2.1 o modelo do Pedro. `lia_2.1_repro` = mesma receita no venv (RMSE 40,88 × 40,69 s, dentro do desvio entre folds) e é a base da ablação da **LIA 2.2** (2.1 + contexto; RMSE 40,27 s, melhor nos 5 folds; MAE melhor em 3 de 5). A 2.2 é o padrão da API (default único no `main.py`; o `Dockerfile` não define `LIA_VERSION`); rollback `LIA_VERSION=lia_2.1`.
+- **Grafo = `brasilia_graph_38km.graphml`** (97.739 nós; o raio vai no nome). A API lê a cópia enxuta `brasilia_graph_38km.pkl` (gerada sozinha; refeita se o GraphML for mais novo ou `ATRIBUTOS_ARESTA` mudar): 1,3 s e ~0,26 GB contra 10,6 s e ~1,3 GB.
   - O `brasilia_graph.graphml` antigo tinha ~15 km e não cobria Ceilândia/Samambaia: o destino grudava na borda e o app ligava com linha reta ("rota por cima da parede").
   - Cache com mais de 180 dias só gera aviso; nunca é apagado sozinho, pra não trocar o grafo da tese.
 - **Semáforos:** o OSMnx simplificado guarda só 114 de 423 semáforos do DF (os demais ficam na linha de retenção).
@@ -164,13 +164,17 @@ CI (`.github/workflows/`):
 - **Fase 3 do Pedro:** `ml/artifacts/fase3_comparacao.csv` (71 linhas, corredores fixos) agora é versionado. Mostra a LIA subestimando de dia (ex.: 682 s × TomTom 1.136 s).
 - **Métricas pros gráficos da banca:**
   - A LIA 2.0 não tem CV persistido (proxy: `benchmark_lstm_vs_xgboost.json` → `xgboost.*`).
-  - O `cv` da LIA 2.1 é anterior aos hiperparâmetros Optuna adotados, então re-rodar `train.py` antes dos números finais.
+  - Optuna foi testado e **não** adotado (`XGB_PARAMS_MANUAL` é o padrão). Todo treino grava `cv_folds` no metadata (comparação pareada).
   - O "Erro médio" do resumo técnico (74,7 / 51,3 / 40,7 s) é **RMSE**, não MAE (MAE = 50,8 / 18,6 / 14,6).
 - **Em runtime, a confiança do transfer vem de `transfer_confidence_isotonic.pkl`**, não do `.json` (que é só a saída legível). Sem o pkl, cai no fallback em degrau 1,0/0,8/0,6 (`route.py`).
   - A isotônica foi ajustada sobre a confiança **por par já recortada em [0, 1]**, e fica acima da confiança do erro médio das faixas (≈0,36 × 0 além de 600 m; ≈0,6–0,7 × 0,53 entre 100 e 500 m).
   - Está documentado como limitação em [docs/tcc/resultados-e-limitacoes.md](docs/tcc/resultados-e-limitacoes.md) §4. Não "corrigir" sem re-calibrar e re-treinar.
 - **O job Fase 3** (`external_validation.py`, 07/12/18/22 h) usa o horário do processo, então o host precisa de `TZ=America/Sao_Paulo`. Pico de ~1,4 GB de RAM por execução.
-- **Hospedagem (decidido 2026-09-22: dividir).** O plano Hostinger Business roda Node.js via Passenger, **sem Python**.
+- **Custo ZERO é requisito (2026-09-23).** Projeto acadêmico, não comercial; depois de dez/2026 ficam só o código e o aprendizado.
+  - **Hostinger: 1 site só** (Node): o Next do painel com o export web do Expo no `public/` (`/` = app, `/admin` = painel). Pacote: `scripts/empacotar-front.sh` (usa `expo export --clear`, porque sem ele o cache do Metro reaproveita o `localhost` do dev).
+  - **API: AWS plano Free** (crédito de US$ 100; o plano Free não cobra e encerra quando o crédito ou os 6 meses acabam, em 23/03/2027). **t3.small** (2 GB) em **us-east-1**, crédito de CPU **Standard**: ~US$ 20/mês, ~US$ 67 até 31/12. Não usar AWS Organizations nem AMI do Marketplace (a conta vira plano pago).
+  - Descartados: Hugging Face Spaces (Docker exige PRO desde 2026), Render/Koyeb (512 MB não cabem nem com o grafo enxuto), c7i-flex.large (queimaria o crédito em ~6 semanas) e sa-east-1 (estoura o crédito).
+- **Hospedagem (histórico de 2026-09-22, antes do requisito de custo zero).** O plano Hostinger Business roda Node.js via Passenger, **sem Python**.
   - **Hostinger:** front web estático (Expo export) + admin Next.js.
   - **API FastAPI:** em host grátis com RAM suficiente. O grafo de 38 km + o modelo chegam a ~1,4 GB de pico. Render e Koyeb grátis têm só 512 MB, então só servem com o grafo enxugado. Candidatos (pesquisa de 2026-09-22):
     1. **Google Cloud Run** — memória configurável, escala a zero, cota grátis cobre uma demo; exige conta de faturamento. Cold start = carga do grafo, então pré-serializar o grafo em pickle.
@@ -178,7 +182,7 @@ CI (`.github/workflows/`):
     3. **Azure for Students** — US$ 100 sem cartão.
     4. **Hugging Face Spaces** — 16 GB grátis, mas Docker no plano free está ambíguo na documentação: testar criando um Space.
 
-    Medir o RSS real da API antes de escolher.
+    Medido em 2026-09-23: 1,65 GB com o GraphML e **0,79 GB** com o grafo enxuto em pickle.
   - O deploy do Valerium é feito como 2 apps Node separados (API + dashboard), não 1 processo.
 
 ## 7. Antes de fechar qualquer fase

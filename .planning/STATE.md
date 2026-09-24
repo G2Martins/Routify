@@ -1,6 +1,6 @@
 # STATE — Routify
 
-**Última revisão:** 2026-09-23 (madrugada)
+**Última revisão:** 2026-09-23 (noite)
 
 Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) · Pesquisa de traçado/contexto/APIs: [research/2026-09-23-tracado-contexto-apis.md](research/2026-09-23-tracado-contexto-apis.md)
 
@@ -12,9 +12,10 @@ Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) 
 | F2 TomTom sob demanda | feita |
 | F3 Captura de uso | feita; migrations 1–3 aplicadas pelo dono em 2026-09-23 |
 | F7 Plataforma unificada + design | **feita no código**: paleta da logo + linguagem Valerium nos dois apps, login refeito, sessão única (cookie) app ↔ `/admin`, item "Painel ADM" por role, auto-sugestão nova. Falta validação visual do dono |
-| F8 Ações ADM | backend feito (RPCs + API `/admin`); UI em construção (agente); **migration 4 pendente** |
+| F8 Ações ADM | feita; migration 4 (`admin_actions`) aplicada via MCP em 2026-09-23 |
 | F9 Segurança | parcial: rate limit por IP, auditoria append-only, anti-corrida, `extra=forbid` em todos os corpos, feedback único. Falta: CSP/headers no deploy, suíte `tests/security/`, trava de login por (e-mail, IP), sessão ociosa |
-| F10 Deploy (AWS + Hostinger + Actions) | não iniciado — precisa de domínio + conta AWS |
+| F10 Deploy (AWS + Hostinger + Actions) | **em andamento**: custo zero (Hostinger 1 site + AWS Free t3.small); conta AWS criada; API enxuta (0,79 GB); empacotador do front pronto. Falta: EC2 + DNS + site Hostinger |
+| F12 LIA 2.2 (contexto) | **feita**: vizinhos + chuva + feriado, mesmo código no treino e na API; padrão da API; estresse treino × produção versionado |
 | F11 Traçado + fusão LIA × TomTom | **feita e validada ao vivo**: grafo 38 km, conector tracejado, `entryPoints`, fusão por `supportingPoints`, semáforos OSM (271 cruzamentos) + calibração |
 
 ## Verificado nesta sessão
@@ -28,6 +29,12 @@ Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) 
 - Varredura de segredos (arquivos versionáveis + histórico): limpa. `.gitignore` passou a cobrir `*.pem`, `*.key`, `.aws/`, tfstate.
 
 ## Decisões tomadas (2026-09-23)
+
+- **Custo zero** (projeto acadêmico; termina em dez/2026): Hostinger com 1 site Node (Expo export em `/` + painel em `/admin`) e API na AWS plano Free, t3.small us-east-1, crédito de CPU Standard (~US$ 67 de US$ 100 até 31/12). HF Spaces fora (Docker exige PRO), Render/Koyeb fora (512 MB).
+- **LIA 2.1 da tese = modelo do Pedro** (manual). Optuna testado e não adotado. **LIA 2.2** (2.1 + contexto) = padrão da API: RMSE 40,88 → 40,27 s (5/5 folds), MAE 14,51 → 14,44 s (3/5), estresse em `lia_2.2_estresse.json`. Chuva ausente → 0; incidente não vira feature (sem histórico).
+- Grafo enxuto em pickle: API de 1,65 GB para 0,79 GB de RAM, sem mudar a rota (mesma via e distância no teste).
+- Isotônica do transfer regravada com sklearn 1.8 (mesma curva, diferença 0,0 numa grade de 1 m): sumiu o `InconsistentVersionWarning`.
+- Senha vazada (HIBP) do Supabase é só no plano Pro: mitigar com política de senha + checagem k-anônima no cadastro (backlog).
 
 - Mesmo domínio e login único; admin via `app_metadata.role`; Google em backlog; sem magic link.
 - **Paleta = logo; forma/tipografia/motion = Valerium** (Geist, Kalam só em títulos).
@@ -44,16 +51,16 @@ Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) 
 
 ## Decisões abertas (do dono / grupo)
 
-1. Qual modelo é a "LIA 2.1" da tese: hiperparâmetros manuais (Pedro) × Optuna. Re-rodar `train.py` no venv antes dos números finais.
-2. Domínio do Routify (bloqueia deploy, Resend e Google OAuth).
-3. Host da API: AWS (créditos) — criar a conta.
-4. Pool de 39 chaves × ToS §14.2 — declarar na tese.
+1. Pool de 39 chaves × ToS §14.2 — declarar na tese.
+2. 473 rotas anônimas de teste da calibração (2026-09-23 04:12–05:15 UTC) em `rotas_calculadas`: apagar? (aguarda OK).
 
 ## Próximos passos
 
-- [ ] Dono: aplicar `20260923020000_admin_actions.sql`; validar visualmente app + painel (roteiro em [docs/core/rodar-local.md](../docs/core/rodar-local.md)).
+- [ ] Deploy: EC2 t3.small (IP elástico) → Caddy + systemd; DNS `api-routify` → IP; site `routify` na Hostinger (`scripts/empacotar-front.sh`); Supabase Auth com a URL de produção; `CORS_ORIGINS`.
+- [ ] Dono: validar visualmente app + painel em produção.
 - [ ] Recalibrar semáforo em horário comercial (a calibração atual foi de madrugada).
-- [ ] Features de contexto na LIA (vizinhos t−1, Open-Meteo, BrasilAPI) + harness de avaliação + teste de contrato de features.
+- [ ] Velocidade livre por classe de via (viés β ≈ 22,9 s/km) e depois recalibrar δ.
+- [ ] Figura 1 com a LIA 2.2 (opcional: a tese cita a 2.1).
 - [ ] Snap na aresta (em vez do nó) para eliminar o conector.
 - [ ] F9 restante (CSP, suíte de segurança, trava de login, sessão ociosa) → F10 deploy.
 
