@@ -14,7 +14,7 @@ Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) 
 | F7 Plataforma unificada + design | **feita no código**: paleta da logo + linguagem Valerium nos dois apps, login refeito, sessão única (cookie) app ↔ `/admin`, item "Painel ADM" por role, auto-sugestão nova. Falta validação visual do dono |
 | F8 Ações ADM | feita; migration 4 (`admin_actions`) aplicada via MCP em 2026-09-23 |
 | F9 Segurança | parcial: rate limit por IP, auditoria append-only, anti-corrida, `extra=forbid` em todos os corpos, feedback único. Falta: CSP/headers no deploy, suíte `tests/security/`, trava de login por (e-mail, IP), sessão ociosa |
-| F10 Deploy (AWS + Hostinger + Actions) | **em andamento**: custo zero (Hostinger 1 site + AWS Free t3.small); conta AWS criada; API enxuta (0,79 GB); empacotador do front pronto. Falta: EC2 + DNS + site Hostinger |
+| F10 Deploy (AWS + Hostinger + Actions) | **front no ar** (Hostinger, SSL ativo); EC2 t3.small provisionada (Caddy + Let's Encrypt, ufw, systemd); API sobe sozinha quando o dono copiar o `.env` ([deploy.md](../docs/core/deploy.md)). Falta: GitHub Actions |
 | F12 LIA 2.2 (contexto) | **feita**: vizinhos + chuva + feriado, mesmo código no treino e na API; padrão da API; estresse treino × produção versionado |
 | F11 Traçado + fusão LIA × TomTom | **feita e validada ao vivo**: grafo 38 km, conector tracejado, `entryPoints`, fusão por `supportingPoints`, semáforos OSM (271 cruzamentos) + calibração |
 

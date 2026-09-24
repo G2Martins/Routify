@@ -67,6 +67,18 @@ ReadWritePaths=$RAIZ/ml/artifacts
 WantedBy=multi-user.target
 EOF
 
+# Sobe a API sozinha quando o .env chegar (o dono copia depois do provisionamento).
+cat > /etc/systemd/system/routify-api.path <<EOF
+[Unit]
+Description=Sobe a API do Routify quando as credenciais chegarem
+
+[Path]
+PathExists=$RAIZ/services/collector/config/.env
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
 cat > /etc/caddy/Caddyfile <<EOF
 $API_DOMAIN {
 	encode zstd gzip
@@ -85,6 +97,7 @@ ufw allow OpenSSH >/dev/null && ufw allow 80/tcp >/dev/null && ufw allow 443/tcp
 ufw --force enable >/dev/null
 
 systemctl daemon-reload
-systemctl enable --now routify-api >/dev/null
+systemctl enable --now routify-api.path >/dev/null
+systemctl enable routify-api >/dev/null
 systemctl restart routify-api caddy
 echo "ok: acompanhe com  journalctl -u routify-api -f"

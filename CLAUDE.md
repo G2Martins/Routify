@@ -17,7 +17,7 @@ TCC 2026 — **roteamento preditivo para Brasília/DF**. Um coletor puxou TomTom
 
 Python (API/Coletor/Treino) · FastAPI 0.136 · XGBoost 3.2 · OSMnx 1.9.3 · supabase-py 2.13 · httpx · Expo SDK 54 / RN 0.81 / React 19.1 / react-native-web · Next.js 16 + Recharts + React Flow (admin) · Supabase (Postgres + Auth + RLS + pg_cron) · TomTom (sob demanda). Ainda **sem** workspace JS (npm separado em `apps/mobile` e `apps/admin`) e **sem** lint.
 
-Passo a passo pra subir tudo e testar as visões de usuário e ADM: [docs/core/rodar-local.md](docs/core/rodar-local.md).
+Passo a passo pra subir tudo e testar as visões de usuário e ADM: [docs/core/rodar-local.md](docs/core/rodar-local.md). Produção (Hostinger + EC2, custo zero): [docs/core/deploy.md](docs/core/deploy.md).
 
 ```bash
 # Python da API e do ml/ = SEMPRE o venv apps/api/.venv (versões fixadas; os .pkl dependem delas)
@@ -199,6 +199,7 @@ CI (`.github/workflows/`):
 - **Estado / decisões / próximos passos** → [.planning/STATE.md](.planning/STATE.md)
 - **Análise da plataforma + roadmap** → [.planning/research/2026-09-22-analise-plataforma.md](.planning/research/2026-09-22-analise-plataforma.md)
 - **Arquitetura (diagramas, rotação de chaves, busca)** → [docs/core/architecture.md](docs/core/architecture.md)
+- **Deploy em produção (custo zero)** → [docs/core/deploy.md](docs/core/deploy.md)
 - **Texto do TCC — resultados, calibração, limitações (rascunho)** → [docs/tcc/resultados-e-limitacoes.md](docs/tcc/resultados-e-limitacoes.md) · figuras em [docs/figuras/](docs/figuras/)
 - **READMEs** → [README.md](README.md) · [API](apps/api/README.md) · [Coletor](services/collector/README.md) · [ML](ml/README.md) · [App](apps/mobile/README.md)
 - **Plano de trabalho do TCC** → [docs/](docs/) (PDFs)
