@@ -1,0 +1,140 @@
+{
+  "versao": "LIA 2.2",
+  "alvo": "razao_congestionamento",
+  "alvo_descricao": "velocidade_atual / velocidade_livre (adimensional, 0.05–1.0)",
+  "features": [
+    "id_ponto_enc",
+    "hora",
+    "dia_semana",
+    "hora_sin",
+    "hora_cos",
+    "is_fim_semana",
+    "is_horario_pico",
+    "velocidade_livre",
+    "perfil_via_hora_dow",
+    "perfil_via_hora",
+    "perfil_via",
+    "perfil_hora_dow",
+    "perfil_via_hora_dow_std",
+    "perfil_via_hora_dow_n",
+    "razao_lag1",
+    "delta_min_lag1",
+    "vizinhos_razao",
+    "vizinhos_n",
+    "chuva_mm",
+    "chuva_3h_mm",
+    "is_feriado"
+  ],
+  "features_recencia": [
+    "razao_lag1",
+    "delta_min_lag1"
+  ],
+  "features_contexto": [
+    "vizinhos_razao",
+    "vizinhos_n",
+    "chuva_mm",
+    "chuva_3h_mm",
+    "is_feriado"
+  ],
+  "total_amostras": 1513194,
+  "registros_silver": 1513824,
+  "aproveitamento_pct": 100.0,
+  "pct_congestionado": 17.1,
+  "cv": {
+    "modelo_rmse_razao": 0.0448,
+    "modelo_rmse_razao_std": 0.0041,
+    "modelo_mae_razao": 0.0169,
+    "modelo_mae_razao_std": 0.0018,
+    "modelo_rmse_seg": 40.2734,
+    "modelo_rmse_seg_std": 5.3063,
+    "modelo_mae_seg": 14.4427,
+    "modelo_mae_seg_std": 1.819,
+    "modelo_rmse_razao_congestionado": 0.0913,
+    "modelo_rmse_razao_congestionado_std": 0.0058,
+    "modelo_rmse_seg_congestionado": 86.7442,
+    "modelo_rmse_seg_congestionado_std": 8.1246,
+    "baseline_rmse_razao": 0.0581,
+    "baseline_rmse_razao_std": 0.0045,
+    "baseline_mae_razao": 0.0184,
+    "baseline_mae_razao_std": 0.0029,
+    "baseline_rmse_seg": 57.1699,
+    "baseline_rmse_seg_std": 6.9476,
+    "baseline_mae_seg": 17.2555,
+    "baseline_mae_seg_std": 3.1069,
+    "baseline_rmse_razao_congestionado": 0.1208,
+    "baseline_rmse_razao_congestionado_std": 0.0065,
+    "baseline_rmse_seg_congestionado": 123.6586,
+    "baseline_rmse_seg_congestionado_std": 7.9082
+  },
+  "periodo_inicio": "2026-03-07 19:26:09.540211-03:00",
+  "periodo_fim": "2026-07-19 21:33:24.384683-03:00",
+  "n_pontos_monitorados": 630,
+  "feature_importance": {
+    "id_ponto_enc": 0.0103,
+    "hora": 0.007,
+    "dia_semana": 0.0073,
+    "hora_sin": 0.0066,
+    "hora_cos": 0.017,
+    "is_fim_semana": 0.0197,
+    "is_horario_pico": 0.0099,
+    "velocidade_livre": 0.0122,
+    "perfil_via_hora_dow": 0.2949,
+    "perfil_via_hora": 0.206,
+    "perfil_via": 0.012,
+    "perfil_hora_dow": 0.004,
+    "perfil_via_hora_dow_std": 0.0246,
+    "perfil_via_hora_dow_n": 0.0066,
+    "razao_lag1": 0.3132,
+    "delta_min_lag1": 0.0054,
+    "vizinhos_razao": 0.009,
+    "vizinhos_n": 0.0203,
+    "chuva_mm": 0.0043,
+    "chuva_3h_mm": 0.0043,
+    "is_feriado": 0.0054
+  },
+  "hiperparametros": {
+    "nome": "manual",
+    "n_estimators": 600,
+    "max_depth": 7,
+    "learning_rate": 0.05,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "min_child_weight": 10,
+    "reg_alpha": 0.1,
+    "reg_lambda": 1.0,
+    "objective": "reg:squarederror",
+    "eval_metric": "rmse",
+    "early_stopping_rounds": 40,
+    "tree_method": "hist",
+    "random_state": 42
+  },
+  "com_contexto": true,
+  "cv_folds": [
+    {
+      "rmse_seg": 49.7143,
+      "mae_seg": 17.1909,
+      "baseline_rmse_seg": 61.6238
+    },
+    {
+      "rmse_seg": 40.2748,
+      "mae_seg": 14.905,
+      "baseline_rmse_seg": 65.9502
+    },
+    {
+      "rmse_seg": 40.3415,
+      "mae_seg": 15.0025,
+      "baseline_rmse_seg": 59.4809
+    },
+    {
+      "rmse_seg": 37.3104,
+      "mae_seg": 13.381,
+      "baseline_rmse_seg": 52.4178
+    },
+    {
+      "rmse_seg": 33.7259,
+      "mae_seg": 11.7341,
+      "baseline_rmse_seg": 46.3767
+    }
+  ],
+  "formula_inferencia": "tempo_s = comprimento_m / (velocidade_livre_kmh * razao_prevista / 3.6)"
+}

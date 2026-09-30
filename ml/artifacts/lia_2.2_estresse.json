@@ -1,0 +1,72 @@
+{
+  "descricao": "Estresse treino × produção da LIA 2.2: 2.1 e 2.2 treinadas no fold 5 do",
+  "fold": 5,
+  "val_periodo": [
+    "2026-05-29 18:44:47.963245-03:00",
+    "2026-07-19 21:33:24.384683-03:00"
+  ],
+  "pct_linhas_sem_vizinho_recente": 5.41,
+  "pct_linhas_com_chuva": 17.65,
+  "cenarios": {
+    "fresco": {
+      "lia_2.1": {
+        "rmse_seg": 34.5507,
+        "mae_seg": 12.3329
+      },
+      "lia_2.2": {
+        "rmse_seg": 33.7259,
+        "mae_seg": 11.7341
+      }
+    },
+    "sem_vizinhos": {
+      "lia_2.1": {
+        "rmse_seg": 34.5507,
+        "mae_seg": 12.3329
+      },
+      "lia_2.2": {
+        "rmse_seg": 34.8772,
+        "mae_seg": 12.5267
+      }
+    },
+    "chuva_zero": {
+      "lia_2.1": {
+        "rmse_seg": 34.5507,
+        "mae_seg": 12.3329
+      },
+      "lia_2.2": {
+        "rmse_seg": 33.7259,
+        "mae_seg": 11.7339
+      }
+    },
+    "chuva_nan": {
+      "lia_2.1": {
+        "rmse_seg": 34.5507,
+        "mae_seg": 12.3329
+      },
+      "lia_2.2": {
+        "rmse_seg": 34.1821,
+        "mae_seg": 12.1598
+      }
+    },
+    "tudo_velho": {
+      "lia_2.1": {
+        "rmse_seg": 43.4279,
+        "mae_seg": 15.1295
+      },
+      "lia_2.2": {
+        "rmse_seg": 42.9895,
+        "mae_seg": 14.7685
+      }
+    },
+    "tudo_velho_chuva_nan": {
+      "lia_2.1": {
+        "rmse_seg": 43.4279,
+        "mae_seg": 15.1295
+      },
+      "lia_2.2": {
+        "rmse_seg": 43.7218,
+        "mae_seg": 15.8208
+      }
+    }
+  }
+}

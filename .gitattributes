@@ -1,0 +1,2 @@
+# Scripts rodam em Linux (EC2/Hostinger/CI): CRLF quebra o bash.
+*.sh text eol=lf

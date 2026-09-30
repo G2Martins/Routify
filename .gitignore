@@ -1,6 +1,6 @@
 # ========================================
 # Routify — root .gitignore
-# Cobre Python (BackEnd), Node/Expo (FrontEnd), IDE, OS, segredos.
+# Cobre Python (apps/api, services/, ml/), Node (apps/mobile, apps/admin), IDE, OS, segredos.
 # ========================================
 
 # ---- Segredos e variáveis de ambiente ----
@@ -11,9 +11,9 @@
 *secret*
 *credentials*
 
-# Chaves específicas do projeto
-BackEnd/Servidor/config/.env
-BackEnd/Servidor/config/tomtom_keys.json
+# Chaves específicas do projeto — em qualquer pasta
+**/tomtom_keys.json
+services/collector/config/.env
 
 # ---- Python ----
 __pycache__/
@@ -27,8 +27,13 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+# venv Python dentro das pastas Python (nunca `lib/` solto: engolia apps/mobile/src/lib)
+apps/api/**/lib/
+services/**/lib/
+ml/**/lib/
+apps/api/**/lib64/
+services/**/lib64/
+ml/**/lib64/
 parts/
 sdist/
 var/
@@ -59,10 +64,10 @@ coverage.xml
 .ipynb_checkpoints/
 
 # ---- Modelos ML / artefatos pesados ----
-BackEnd/Treinamento_IA/models/*.pkl
-BackEnd/Treinamento_IA/models/*.parquet
-BackEnd/Treinamento_IA/models/*.graphml
-BackEnd/Treinamento_IA/models/mlruns/
+ml/artifacts/*.pkl
+ml/artifacts/*.parquet
+ml/artifacts/*.graphml
+ml/artifacts/mlruns/
 mlruns/
 *.h5
 *.onnx
@@ -124,20 +129,37 @@ tmp/
 temp/
 
 # ---- Docs build ----
-Docs/build/
+docs/build/
 *.pdf.bak
 
 # ---- Claude / IA assistants ----
 .claude/
 .claude.json
 .claude.json.backup
-CLAUDE.md
-**/CLAUDE.md
 .mcp.json
 .clauderc
 
-# ---- Markdown interno (notas de execução/auditoria, não faz parte do
-# entregável do repositório) — mantém só READMEs, em qualquer pasta ----
+# ---- Markdown interno (notas soltas de execução/auditoria ficam fora) —
+# mantém READMEs, a spec viva (CLAUDE.md), as docs vivas (docs/) e o
+# planejamento GSD (.planning/) ----
 *.md
 !README.md
 !**/README.md
+!CLAUDE.md
+!docs/**/*.md
+!.planning/**/*.md
+
+# SQL local (pode conter e-mails/dados pessoais) — nunca versionar
+supabase/.local/
+
+# Chaves e credenciais de infra (AWS/Hostinger/SSH) — nunca versionar
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+.aws/
+*.tfstate
+*.tfstate.*
+.terraform/

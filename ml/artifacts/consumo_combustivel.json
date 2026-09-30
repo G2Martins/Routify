@@ -1,0 +1,12 @@
+{
+  "modelo": "Evans, Herman & Lam (1976), Transportation Science 10(2): litros = K1 x km + K2 x horas",
+  "k1_litros_por_km": 0.0625,
+  "k2_litros_por_hora": 0.8,
+  "calibracao": "Carro compacto a gasolina. K2 = marcha lenta de motor 1.0-1.6 (~0,8 L/h). K1 fecha 14 km/L a 90 km/h (estrada); com isso, a 25 km/h medios da cidade o modelo da ~10,6 km/L, a faixa urbana do PBEV/INMETRO para compactos.",
+  "preco_litro_reais": 6.89,
+  "preco_fonte": "ANP, media do DF na 1a quinzena de setembro de 2026 (Correio Braziliense): https://newblogs.correiobraziliense.com.br/multieixos/2026/09/19/gasolina-no-df-sobe-223-na-1o-quinzena-de-setembro/",
+  "co2_kg_por_litro": 1.62,
+  "co2_nota": "Gasolina C (E30): 70% de gasolina A x 2,31 kg CO2/L de combustao. O CO2 do etanol anidro e biogenico e fica fora, como no GHG Protocol.",
+  "comparacao": "Economia = rota escolhida pela LIA contra o caminho mais curto (menor distancia) no mesmo instante, os dois com o tempo estimado pela LIA.",
+  "atualizado_em": "2026-09-23"
+}

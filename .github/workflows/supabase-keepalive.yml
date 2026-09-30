@@ -1,0 +1,32 @@
+name: Supabase keep-alive
+
+# O plano free pausa o projeto após ~7 dias sem requisições ao banco (aconteceu
+# em 2026: o domínio passou a dar NXDOMAIN e a API caiu em modo degradado).
+# Uma leitura leve por dia mantém o projeto ativo; falha aqui = projeto
+# pausado/fora do ar, e o GitHub avisa por e-mail.
+on:
+  schedule:
+    - cron: '17 12 * * *'  # todo dia, 09h17 de Brasília
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Leitura leve no PostgREST
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "::notice::Secrets SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY ausentes — pulando."
+            exit 0
+          fi
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 \
+            -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+            "$SUPABASE_URL/rest/v1/vias_monitoradas?select=id_ponto&limit=1")
+          echo "HTTP $code"
+          # 000 = não resolveu/conectou (projeto pausado); 5xx = banco com problema.
+          [ "$code" -ge 200 ] && [ "$code" -lt 500 ] || exit 1

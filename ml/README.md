@@ -1,0 +1,236 @@
+<div align="center">
+
+# Routify — Treinamento da LIA
+
+**Pipeline Bronze → Silver → Features → XGBoost + MLflow**
+
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&logo=python&logoColor=white)
+![XGBoost](https://img.shields.io/badge/XGBoost-3.2-FF6F00?style=flat-square)
+![Optuna](https://img.shields.io/badge/Optuna-4.9-0083CC?style=flat-square)
+![MLflow](https://img.shields.io/badge/MLflow-3.12-0194E2?style=flat-square&logo=mlflow&logoColor=white)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-1.8-F7931E?style=flat-square&logo=scikit-learn&logoColor=white)
+
+</div>
+
+---
+
+## 🎯 Objetivo
+
+Treinar a **LIA** (*Logística de Inteligência Artificial*) — modelo que prevê a **razão de congestionamento** (`velocidade_atual / velocidade_livre`) de cada via monitorada, a partir dos dados coletados pelo `services/collector` no Supabase.
+
+A saída é um conjunto de artefatos versionados (`lia_X.Y.pkl` + encoder + perfis + metadata) consumidos pela `apps/api` para alimentar o algoritmo A\*.
+
+> **Por que razão, e não segundos?** O tempo de viagem depende do comprimento
+> do trecho; a razão de congestionamento é adimensional e a mesma predição
+> serve arestas de qualquer tamanho — é o que permite treinar um único
+> modelo para toda a malha viária.
+
+---
+
+## 🧱 Pipeline
+
+```
+   Supabase                  silver.py              features.py              train.py
+   historico_trafego  ──▶  Bronze→Silver   ──▶   perfis + recência ──▶   XGBoost + CV
+   (1,5M+ rows)            Parquet limpo        + LabelEncoder            ↓
+                                                                    lia_2.1.pkl
+                                                                    lia_2.1_encoder.pkl
+                                                                    lia_2.1_profiles.pkl
+                                                                    lia_2.1_metadata.json
+                                                                    mlruns/
+```
+
+Cada `python train.py` executa as 3 etapas em sequência. **Silver não é
+congelado** — recarrega 100% dos dados do Supabase a cada treino, garantindo
+que novos dados entrem automaticamente. Use `--skip-silver` para reaproveitar
+o Parquet já gerado (mais rápido, útil em iteração).
+
+---
+
+## 📂 Arquivos
+
+| Arquivo | Função |
+|---|---|
+| `silver.py` | Pull do `historico_trafego` em chunks de 1k, conversão UTC→UTC-3, remoção de outliers, forward-fill limitado (32min), export Parquet |
+| `features.py` | Perfis históricos por (via, hora, dia da semana) com cascata de fallback, feature de recência, LabelEncoder do `id_ponto` |
+| `train.py` | `TimeSeriesSplit` (5 folds), MLflow logging, treino final em 100% dos dados, persistência |
+| `tune_hyperparams.py` | Busca bayesiana de hiperparâmetros (Optuna), reaproveitando a mesma validação de `train.py` |
+| `calibrate_transfer.py` | Calibra a confiança do Knowledge Transfer (vias sem monitoramento direto) por regressão isotônica sobre pares reais |
+| `external_validation.py` | Compara a rota da LIA, a de menor distância e a de uma referência externa (TomTom) para o mesmo par origem-destino |
+| `calibrate_signals.py` | Atraso médio por semáforo: resíduo "TomTom sem trânsito − LIA" no mesmo trajeto ~ δ·semáforos + β·km, em N rotas sorteadas → `artifacts/semaforos_calibracao.json` (a API aplica δ) |
+| `free_flow_speeds.py` | Mediana da velocidade livre da TomTom por ponto → `artifacts/velocidade_livre_tomtom.json` (experimento `VEL_LIVRE_TOMTOM=1` na API) |
+| `publish_metrics.py` | Publica as métricas versionadas de cada LIA no Supabase (`lia_treinos`/`lia_analises`) para o painel ADM |
+| `requirements.txt` | Dependências Python |
+| `artifacts/` | metadata JSON (versionado) + artefatos pesados (gitignored) |
+
+---
+
+## ⚙️ Setup
+
+Use o **venv da API** (`apps/api/.venv`), que tem as mesmas versões fixadas (pandas 3.0, scikit-learn 1.8, xgboost 3.2, numpy 2.4).
+- O Python global pode ter outras versões.
+- Um modelo treinado nelas não carrega no ambiente de produção, e vice-versa. Aconteceu em 22/09, e o retreino daquele dia foi descartado para a tese.
+
+```bash
+cd ml
+../apps/api/.venv/Scripts/python train.py --version lia_2.2 --skip-silver
+```
+
+**Pré-requisito:** `.env` em `../services/collector/config/.env` (copie de `.env.example` e preencha):
+```
+SUPABASE_URL=https://xxxxx.supabase.co
+SUPABASE_KEY=eyJ...
+```
+
+---
+
+## ▶️ Execução
+
+### Treino completo
+```bash
+python train.py
+```
+
+### Versão customizada / reaproveitando o Silver já baixado
+```bash
+python train.py --version lia_2.1_repro --skip-silver --cpu            # 2.1 no pipeline atual (base da ablação)
+python fetch_contexto.py                                               # chuva (Open-Meteo) + feriados (BrasilAPI)
+python train.py --version lia_2.2 --skip-silver --cpu --contexto       # 2.1 + vizinhos, chuva, feriado
+python context_stress_test.py                                          # 2.1 × 2.2 com entradas degradadas
+```
+`--params manual` (padrão, hiperparâmetros do Pedro) ou `--params optuna` (testado, não adotado).
+
+### Etapas isoladas (debug)
+```bash
+python silver.py     # só atualiza Silver
+```
+
+### Calibração e otimização (opcionais, não bloqueiam a API)
+```bash
+python calibrate_transfer.py                          # recalibra a confiança do Knowledge Transfer
+python tune_hyperparams.py --n-trials 60      # busca bayesiana de hiperparâmetros
+python external_validation.py                               # LIA vs. TomTom vs. menor distância
+python calibrate_signals.py --api http://127.0.0.1:8000     # atraso de semáforo (API rodando, sem calibração prévia)
+python free_flow_speeds.py                                  # velocidade livre TomTom por ponto
+```
+
+**Artefatos da tese em `artifacts/`:**
+- `lia_2.1*` = modelo do Pedro (19/08), que bate com `lia_2.1_metadata.json` — **número oficial da 2.1**;
+- `lia_2.1_repro_metadata.json` = mesma receita no pipeline/ambiente atual (RMSE 40,88 s × 40,69 s do Pedro: diferença dentro do desvio entre folds) — é a base justa da ablação;
+- `lia_2.2*` = 2.1 + contexto (**padrão da API**); `lia_2.2_vizinhos.json` (vizinhos usados no treino e na API), `lia_2.2_estresse.json` (estresse treino × produção), `chuva_brasilia.json` e `feriados.json` (fontes versionadas);
+- `lia_2.1_retreino_20260923*` = retreino com Optuna em ambiente divergente. **Não usar na tese.**
+- `fase3_comparacao.csv` (validação externa, 71 corridas) é versionado.
+
+---
+
+## 🔢 Features (16 na LIA 2.1, +5 de contexto na 2.2)
+
+| Feature | Origem | Por quê |
+|---|---|---|
+| `id_ponto_enc` | `LabelEncoder` | Identidade do segmento |
+| `hora` | `data_hora_brasilia.hour` | Padrão intradiário |
+| `dia_semana` | `.dayofweek` | Seg-Sex vs Sáb-Dom |
+| `hora_sin` / `hora_cos` | seno/cosseno da hora | Preserva ciclicidade (23h está perto de 0h) |
+| `is_fim_semana` | `dow >= 5` | Comportamento diferente |
+| `is_horario_pico` | `hora ∈ {6,7,8,17,18,19}` | Rush Brasília |
+| `velocidade_livre` | direto da via | Limite teórico da via |
+| `perfil_via_hora_dow` | mediana histórica (via, hora, dow) | Perfil mais específico disponível |
+| `perfil_via_hora` | mediana histórica (via, hora) | Fallback quando falta amostra no nível acima |
+| `perfil_via` | mediana histórica (via) | Fallback seguinte |
+| `perfil_hora_dow` | mediana histórica (hora, dow) global | Fallback final — sustenta o Knowledge Transfer |
+| `perfil_via_hora_dow_std` | dispersão da faixa | Sinaliza instabilidade da faixa ao modelo |
+| `perfil_via_hora_dow_n` | nº de amostras da faixa | Sinaliza confiabilidade do perfil |
+| `razao_lag1` | última observação real da via | Recência — ver nota abaixo |
+| `delta_min_lag1` | minutos desde essa observação | Recência |
+
+> **Recência (`razao_lag1`/`delta_min_lag1`):** validado em benchmark contra
+> LSTM — essas duas features dão ao XGBoost acesso à mesma informação que
+> uma rede recorrente teria por desenho (a observação mais recente da via),
+> eliminando a vantagem que o LSTM tinha nesse quesito. Em produção, vêm de
+> um cache com TTL (`API/recency_cache.py`), não de um `shift()` sobre o
+> dataset de treino — reproduzível na inferência, diferente dos `lag_*` da
+> LIA 1.0, que só existiam no treino.
+
+### Contexto (LIA 2.2) — `apps/api/contexto.py`, o mesmo código no treino e na API
+
+| Feature | Origem | Regra (igual no treino e na inferência) |
+|---|---|---|
+| `vizinhos_razao` | 5 vias monitoradas mais próximas (≤ 3 km) | média da última leitura de cada uma nos 60 min **antes** do instante |
+| `vizinhos_n` | idem | quantos vizinhos tinham leitura (0 → razão NaN, ramo aprendido) |
+| `chuva_mm` | Open-Meteo (histórico no treino, previsão na API) | rótulo da hora cheia anterior (H cobre H-1→H): nada do futuro |
+| `chuva_3h_mm` | idem | soma dos 3 últimos rótulos |
+| `is_feriado` | BrasilAPI + distritais do DF (21/04, 30/11) | 0/1 |
+
+Sem chuva disponível a API manda **0** (seco, a moda): o treino nunca viu chuva
+ausente e NaN piora o erro (`lia_2.2_estresse.json`, cenário `chuva_nan`).
+Incidentes da TomTom **não** viram feature: não há histórico deles no período do
+dataset (entram só no roteamento, como interdição).
+
+> Sem lags de série temporal (`shift`/`rolling`) como na LIA 1.0 — a
+> arquitetura de perfis históricos não depende de espaçamento regular entre
+> coletas, então não sofre com os buracos de coleta que quebravam os lags.
+
+---
+
+## 🏋️ Hiperparâmetros XGBoost
+
+Padrão = `XGB_PARAMS_MANUAL` em `train.py` (os do modelo do Pedro): 600 árvores,
+profundidade 7, `learning_rate` 0,05, `subsample`/`colsample_bytree` 0,8,
+`min_child_weight` 10, `reg_alpha` 0,1, `reg_lambda` 1,0, `hist`, `random_state` 42,
+`early_stopping_rounds` 40 só no CV.
+
+`XGB_PARAMS_OPTUNA` (`tune_hyperparams.py`, TPE, 60 trials) foi **testado e não
+adotado**: o ganho medido veio de um ambiente divergente e a 2.1 citada na tese
+usa os manuais. A 2.2 usa os mesmos manuais, então a ablação isola o contexto.
+Cada treino grava `cv_folds` no metadata (RMSE/MAE por fold) para comparação pareada.
+
+**Validação:** `TimeSeriesSplit(n_splits=5)` — sem vazamento de dados
+futuros; os perfis históricos são recalculados dentro de cada fold, só com
+dados de treino.
+**Modelo final:** treinado em **100% dos dados**, sem `early_stopping_rounds`.
+
+---
+
+## 📊 MLflow
+
+Visualizar runs:
+```bash
+mlflow ui --backend-store-uri "file:///<caminho-absoluto>/artifacts/mlruns"
+```
+
+> O `mlflow` 3.12 pede `pandas<3`; o venv fixa `pandas==3.0.0` (o pip avisa do
+> conflito, o treino funciona). "MLflow falhou: Run … not found" vem do store
+> antigo em `artifacts/mlruns` e não afeta os artefatos — eles já foram salvos.
+
+Métricas logadas por run: RMSE/MAE (em razão e em segundos, geral e só no
+subconjunto congestionado), importância de cada feature, hiperparâmetros,
+total de amostras, nº de pontos monitorados, período coberto.
+
+---
+
+## 🧭 Sobre o roadmap original (LSTM, K-Means)
+
+O planejamento inicial deste ciclo previa duas evoluções que **não
+seguiram como planejado**, por motivos testados e documentados, não por
+abandono:
+
+- **Migração para LSTM:** testada com benchmark controlado. Com a feature
+  de recência adicionada, XGBoost e LSTM empatam — XGBoost treina ~3,4x mais
+  rápido e dispensa GPU em produção. **Decisão: manter XGBoost.**
+- **Interpolação temporal com K-Means:** implementada, mas a versão inicial
+  reindexava cada via em intervalos fixos de 8 minutos, gerando dezenas de
+  milhões de pontos sintéticos e destruindo a maior parte dos dados reais no
+  processo. Removida — a arquitetura de perfis históricos não depende de
+  espaçamento regular, então deixou de ser necessária.
+
+---
+
+## 🚨 Troubleshooting
+
+**`KeyError: 'c'` no `mlflow.set_experiment`** — Path Windows interpretado como scheme. Já corrigido com `Path(...).as_uri()`.
+
+**`Shape X: (0, N)` após features** — Silver pegou poucos rows (Supabase corta default em 1000/req). `CHUNK_SIZE = 1000` em `silver.py` já cobre isso via paginação — confirme que os dados existem no Supabase.
+
+**Treino lento** — `tree_method='hist'` já está habilitado. Com GPU disponível (`device='cuda'`), o script detecta e usa automaticamente; sem GPU, cai para CPU sem erro.
+
+**`optuna` não instalado** — `pip install -r requirements.txt` já inclui; se rodou antes de atualizar, `pip install optuna`.
