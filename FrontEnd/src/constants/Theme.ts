@@ -129,10 +129,16 @@ export type Theme = ReturnType<typeof buildTheme>;
 export const MAP_STYLES = ['dark', 'street', 'satellite'] as const;
 export type MapStyle = typeof MAP_STYLES[number];
 
-export const MAP_TILE_URLS: Record<MapStyle, { url: string; attribution: string }> = {
+export const MAP_TILE_URLS: Record<MapStyle, { url: string; attribution: string; className?: string }> = {
   dark: {
-    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    attribution: '© OpenStreetMap · © CARTO',
+    // CARTO passou a exigir conta/domínio cadastrado (localhost não é
+    // reconhecido, retorna tile com watermark "API KEY REQUIRED"). Sem
+    // depender de chave: tile padrão do OSM (sempre livre) + filtro CSS
+    // invertendo cor pra simular tema escuro — ver className abaixo e
+    // MapComponent.web.tsx.
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '© OpenStreetMap',
+    className: 'map-tiles-dark-invert',
   },
   street: {
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',

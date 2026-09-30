@@ -30,6 +30,22 @@ function injectLeafletCSS() {
   document.head.appendChild(link);
 }
 
+// Simula tile escuro sem depender de provedor pago/com key: inverte cor do
+// tile do OSM padrão (livre). hue-rotate(180) desfaz a inversão de matiz que
+// o invert() causaria (senão água/vegetação saem com cor errada).
+function injectDarkTileCSS() {
+  if (typeof document === 'undefined') return;
+  if (document.getElementById('map-dark-invert-css')) return;
+  const style = document.createElement('style');
+  style.id = 'map-dark-invert-css';
+  style.textContent = `
+    .map-tiles-dark-invert {
+      filter: invert(100%) hue-rotate(180deg) brightness(0.95) contrast(0.9);
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 const BRASILIA_LAT = -15.793889;
 const BRASILIA_LON = -47.882778;
 
@@ -48,6 +64,7 @@ const MapComponent = forwardRef((_props, ref) => {
   // Inicializa o mapa uma única vez
   useEffect(() => {
     injectLeafletCSS();
+    injectDarkTileCSS();
 
     async function initMap() {
       if (mapInstanceRef.current || !containerRef.current) return;
@@ -69,6 +86,7 @@ const MapComponent = forwardRef((_props, ref) => {
       tileLayerRef.current = L.tileLayer(tile.url, {
         attribution: tile.attribution,
         maxZoom: 19,
+        className: tile.className || '',
       }).addTo(map);
 
       mapInstanceRef.current = map;
@@ -94,6 +112,7 @@ const MapComponent = forwardRef((_props, ref) => {
     tileLayerRef.current = L.tileLayer(tile.url, {
       attribution: tile.attribution,
       maxZoom: 19,
+      className: tile.className || '',
     }).addTo(mapInstanceRef.current);
   }, [mapStyle]);
 
