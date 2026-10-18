@@ -16,12 +16,25 @@ function rotulo(versao: string) {
 const ganho = (valor: number | null, base: number | null) =>
   valor === null || base === null || base === 0 ? null : ((valor - base) / base) * 100;
 
+/** Versão realmente servindo rotas agora — os KPIs abaixo citam lia_2.1 (a
+ * versão do TCC) por escolha editorial, mas isso pode divergir do que está
+ * em produção; avisamos quando diverge em vez de deixar implícito. */
+async function versaoAtivaProducao(): Promise<string | null> {
+  try {
+    const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/health`, { next: { revalidate: 300 } });
+    return r.ok ? ((await r.json()).modelo_ativo ?? null) : null;
+  } catch {
+    return null;
+  }
+}
+
 export default async function LiaPage() {
   const { sb } = await exigirAdmin();
-  const [treinos, analises, feedback] = await Promise.all([
+  const [treinos, analises, feedback, versaoProducao] = await Promise.all([
     sb.from('lia_treinos').select('*').order('versao'),
     sb.from('lia_analises').select('chave, dados, atualizado_em'),
     sb.rpc('admin_validacao_feedback'),
+    versaoAtivaProducao(),
   ]);
 
   const linhas = (treinos.data ?? []) as LiaTreino[];
@@ -60,6 +73,14 @@ export default async function LiaPage() {
         sobre="Acompanhamento contínuo dos resultados pedidos pelo orientador. Todo número vem dos artefatos versionados em ml/artifacts, publicados por ml/publish_metrics.py."
       />
       <ErroConsulta erro={treinos.error ?? analises.error} />
+
+      {versaoProducao && versaoProducao !== 'lia_2.1' ? (
+        <Aviso titulo={`Em produção: ${rotulo(versaoProducao)}`}>
+          Os KPIs abaixo (RMSE/MAE) citam <span className="num">lia_2.1</span> — a versão referenciada no texto do
+          TCC — não a versão ativa agora. Ver a tabela de versões mais abaixo para os números de{' '}
+          {rotulo(versaoProducao)}.
+        </Aviso>
+      ) : null}
 
       {!linhas.length && !treinos.error ? (
         <Aviso titulo="Nenhuma métrica publicada ainda">

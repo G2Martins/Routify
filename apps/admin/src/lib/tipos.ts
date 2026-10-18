@@ -169,6 +169,16 @@ export type AnalyticsUso = {
     cobertura_media_pct: number | string | null;
     degradadas: number;
     com_incidente: number;
+    // Referência externa real (TomTom, mesmo trajeto) — só existe quando a
+    // fusão conseguiu essa chamada, e só depois da migration
+    // 20260930010000_lia_vs_tomtom_referencia.sql estar aplicada (opcional
+    // de propósito, pra não quebrar a página se o código subir antes da
+    // migration). n_com_referencia costuma ser < rotas.
+    referencia_tomtom?: {
+      n_com_referencia: number;
+      ganho_medio_seg: number | string | null;
+      lia_mais_rapida_pct: number | string | null;
+    };
   };
   hora_dia: { hora: number; dia: number; n: number }[];
   calor: { lat: number | string; lon: number | string; n: number }[];

@@ -189,6 +189,11 @@ export default function MapScreen() {
         { lat: origemPlace.lat, lon: origemPlace.lon },
         { lat: destinoPlace.lat, lon: destinoPlace.lon }
       );
+      enviarEvento('rota_solicitada', {
+        distancia_km: data.distancia_km ?? null,
+        tempo_previsto_seg: data.tempo_total_seg ?? null,
+        modelo: data.modelo_utilizado ?? null,
+      });
 
       mapRef.current?.showRoute?.(
         data.polyline,

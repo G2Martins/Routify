@@ -398,7 +398,12 @@ async def registrar_requisicao(request: Request, call_next):
         erro = type(e).__name__
         raise
     finally:
-        if request.method != 'OPTIONS' and request.url.path not in ROTAS_SEM_LOG:
+        # 404 quase sempre é bot varrendo caminhos conhecidos de vulnerabilidade
+        # (/.git/config, /.env, /_ignition/execute-solution...) — nenhuma rota
+        # real do app gera 404 em uso normal. Sem esse filtro, esse tráfego
+        # inflava "requisições totais" e aparecia no top de rotas mais usadas
+        # no painel de Uso (achado do orientador).
+        if request.method != 'OPTIONS' and request.url.path not in ROTAS_SEM_LOG and status != 404:
             usage.registrar(getattr(request.app.state, 'supabase', None), 'api_requisicoes', {
                 'metodo': request.method,
                 'rota': request.url.path[:120],

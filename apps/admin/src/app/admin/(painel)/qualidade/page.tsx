@@ -36,10 +36,15 @@ export default async function QualidadePage() {
             <Kpi rotulo="Nulos" valor={fmtPct(pct(q.resumo.nulos))} detalhe={`${fmtInt(q.resumo.nulos)} leituras`} atraso={160} />
             <Kpi rotulo="Acima da vel. livre ×1,5" valor={fmtPct(pct(q.resumo.acima_da_livre))} detalhe={`${fmtInt(q.resumo.acima_da_livre)} leituras`} atraso={200} />
             <Kpi rotulo="Velocidade zero" valor={fmtPct(pct(q.resumo.velocidade_zero))} detalhe={`${fmtInt(q.resumo.velocidade_zero)} leituras`} atraso={240} />
-            <Kpi rotulo="Confiança TomTom < 0,5" valor={fmtPct(pct(q.resumo.baixa_confianca))} detalhe={`${fmtInt(q.resumo.baixa_confianca)} leituras`} atraso={280} />
+            <Kpi
+              rotulo="Confiança TomTom < 0,5 (alerta do painel)"
+              valor={fmtPct(pct(q.resumo.baixa_confianca))}
+              detalhe={`${fmtInt(q.resumo.baixa_confianca)} leituras — filtro de treino usa 0,3 (ml/silver.py)`}
+              atraso={280}
+            />
           </div>
 
-          <Cartao titulo="Cobertura: leituras por hora × dia da semana" atraso={320} nota="Horário do banco (UTC). Lacunas aparecem como células vazias.">
+          <Cartao titulo="Cobertura: leituras por hora × dia da semana" atraso={320} nota="Horário de Brasília. Lacunas aparecem como células vazias.">
             <HeatmapCobertura celulas={q.cobertura_hora_dia} />
           </Cartao>
 

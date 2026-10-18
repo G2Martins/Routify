@@ -1,0 +1,128 @@
+# Fase 3 (cron) — 10 rodadas/dia, mas os HORÁRIOS mudam por dia da semana
+# (campo dia-da-semana do cron), não repetem o mesmo relógio todo dia.
+#
+# Por quê: repetir as mesmas 10 horas todo dia só dá amostra boa daquelas 10
+# horas — nunca pega 9h, 14h, 20h, 23h etc. Variando por dia, em ~1 semana a
+# cobertura passa por quase o dia inteiro (5h-23h), e como a semana se repete
+# ~4x no mês, cada combinação dia-da-semana × faixa de horário ainda acumula
+# várias amostras — não perde poder estatístico, ganha cobertura.
+#
+# Sáb/dom têm horário mais tardio de propósito (padrão de trânsito de fim de
+# semana é diferente — gente sai mais tarde, picos de manhã cedo não existem
+# do mesmo jeito) — é um recorte interessante por si só pra comparar com dia
+# de semana.
+#
+# Cada rodada: 11 pares, ~1-2 min, RAM/CPU desprezíveis (chama a API já
+# rodando via HTTP, não carrega grafo/modelo).
+#
+# Instalar na EC2:
+#   crontab -e
+#   cola tudo abaixo (ajusta o caminho do venv se for diferente)
+#
+# Conferir que o cron roda em horário de Brasília:
+#   timedatectl   (deve mostrar America/Sao_Paulo; senão, ver nota no fim)
+#
+# Log de cada rodada vai em ml/artifacts/fase3_cron.log (acumulado); dados em
+# ml/artifacts/fase3_comparacao_cron.csv.
+
+VENV=/opt/routify/apps/api/.venv/bin/python
+SCRIPT=/opt/routify/ml/external_validation_cron.py
+LOG=/opt/routify/ml/artifacts/fase3_cron.log
+
+# campo dia-da-semana do cron: 0=domingo, 1=segunda, ..., 6=sábado
+
+# --- Segunda (1): pico manhã denso, cobre começo e fim do dia ---
+00 06 * * 1 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 07 * * 1 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 08 * * 1 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 10 * * 1 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 12 * * 1 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 14 * * 1 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 17 * * 1 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 18 * * 1 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 19 * * 1 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 22 * * 1 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+
+# --- Terça (2): desloca meio-dia/tarde, cobre 9h/11h/13h/15h/23h ---
+30 06 * * 2 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 07 * * 2 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 09 * * 2 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 11 * * 2 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 13 * * 2 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 15 * * 2 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+30 17 * * 2 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 18 * * 2 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 19 * * 2 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 23 * * 2 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+
+# --- Quarta (3): pega madrugada cedo (5h), 16h, 21h ---
+00 05 * * 3 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 07 * * 3 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 08 * * 3 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 09 * * 3 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 12 * * 3 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 15 * * 3 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 16 * * 3 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 18 * * 3 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 19 * * 3 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 21 * * 3 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+
+# --- Quinta (4): cobre 10h/13h/14h/20h, fecha às 22h ---
+00 06 * * 4 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 07 * * 4 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 09 * * 4 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 10 * * 4 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 13 * * 4 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 14 * * 4 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 17 * * 4 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 18 * * 4 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 20 * * 4 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 22 * * 4 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+
+# --- Sexta (5): pico de saída mais espalhado (16h-20h, sexta costuma
+#     prolongar o trânsito da tarde) ---
+00 06 * * 5 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 07 * * 5 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 08 * * 5 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 11 * * 5 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 12 * * 5 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 16 * * 5 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 17 * * 5 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 18 * * 5 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 19 * * 5 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 20 * * 5 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+
+# --- Sábado (6): padrão de fim de semana, começa mais tarde ---
+00 08 * * 6 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 09 * * 6 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 10 * * 6 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 11 * * 6 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 13 * * 6 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 15 * * 6 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 17 * * 6 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 19 * * 6 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 21 * * 6 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 23 * * 6 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+
+# --- Domingo (0): fim de semana, ainda mais tarde/leve ---
+00 09 * * 0 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 10 * * 0 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 11 * * 0 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 13 * * 0 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 15 * * 0 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 17 * * 0 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 19 * * 0 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 21 * * 0 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 22 * * 0 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+00 23 * * 0 $VENV $SCRIPT --api http://127.0.0.1:8000 >> $LOG 2>&1
+
+# Cobertura resultante ao longo de uma semana: praticamente todo o dia, das
+# 5h às 23h, em algum dia da semana — e como a semana se repete ~4x no mês,
+# cada combinação dia-da-semana × faixa de horário acumula ~4 amostras.
+# Segunda a sexta mantêm os picos de manhã (6-9h) e tarde/noite (17-20h)
+# amostrados com mais frequência (são o foco real da tese); sábado/domingo
+# têm padrão próprio, de propósito, pra comparar dia útil × fim de semana.
+#
+# Se `timedatectl` não mostrar America/Sao_Paulo, ajustar o fuso do sistema
+# (sudo timedatectl set-timezone America/Sao_Paulo) ou trocar os horários
+# acima pelo equivalente em UTC (Brasília = UTC-3) antes de instalar.

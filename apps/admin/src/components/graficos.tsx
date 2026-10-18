@@ -60,24 +60,40 @@ export function SerieUso({ dados }: { dados: { dia: string; rotas: number; usuar
         <YAxis allowDecimals={false} tick={TICK} tickLine={false} axisLine={false} />
         <Tooltip {...DICA} />
         <Legend {...LEGENDA} />
-        <Area type="monotone" dataKey="rotas" name="Rotas" stroke="var(--chart-1)" strokeWidth={2} fill="var(--chart-1)" fillOpacity={0.12} />
-        <Line type="monotone" dataKey="usuarios" name="Usuários" stroke="var(--chart-2)" strokeWidth={2} dot={{ r: 3 }} />
+        {/* linear, não monotone: com poucos dias de amostra uma curva suave sugere
+            valores intermediários que não existem entre os pontos reais */}
+        <Area type="linear" dataKey="rotas" name="Rotas" stroke="var(--chart-1)" strokeWidth={2} fill="var(--chart-1)" fillOpacity={0.12} />
+        <Line type="linear" dataKey="usuarios" name="Usuários" stroke="var(--chart-2)" strokeWidth={2} dot={{ r: 3 }} />
       </ComposedChart>
     </Moldura>
   );
 }
 
-/** Litros economizados por dia (rota da LIA × caminho mais curto). */
-export function BarrasCombustivel({ dados }: { dados: { dia: string; litros: number; rotas: number }[] }) {
-  const pontos = dados.map((d) => ({ ...d, litros: Number(d.litros), rotulo: d.dia.slice(5).split('-').reverse().join('/') }));
+/** Litros economizados por dia (rota da LIA × caminho mais curto). Mostra as
+ * duas leituras lado a lado: "ganho quando ganha" (só positivo, otimista) e
+ * o saldo líquido real (pode ser negativo) — evita que o gráfico sozinho
+ * passe a impressão de que a LIA só economiza combustível. */
+export function BarrasCombustivel({
+  dados,
+}: {
+  dados: { dia: string; litros: number; saldo_litros?: number; rotas: number }[];
+}) {
+  const pontos = dados.map((d) => ({
+    ...d,
+    litros: Number(d.litros),
+    saldo_litros: d.saldo_litros !== undefined ? Number(d.saldo_litros) : null,
+    rotulo: d.dia.slice(5).split('-').reverse().join('/'),
+  }));
   return (
     <Moldura altura={220}>
       <BarChart data={pontos} margin={{ top: 8, right: 12, bottom: 0, left: -12 }}>
         <CartesianGrid vertical={false} stroke="var(--chart-grade)" />
         <XAxis dataKey="rotulo" tick={TICK} tickLine={false} axisLine={false} />
         <YAxis tick={TICK} tickLine={false} axisLine={false} />
-        <Tooltip {...DICA} formatter={(v) => [`${br(Number(v), 2)} L`, 'Economizado']} />
-        <Bar dataKey="litros" name="Litros economizados" fill="var(--chart-3)" radius={[4, 4, 0, 0]} />
+        <Tooltip {...DICA} formatter={(v, nome) => [`${br(Number(v), 2)} L`, nome]} />
+        <Legend {...LEGENDA} />
+        <Bar dataKey="litros" name="Ganho quando ganha" fill="var(--chart-3)" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="saldo_litros" name="Saldo líquido do dia" fill="var(--chart-2)" radius={[4, 4, 0, 0]} />
       </BarChart>
     </Moldura>
   );

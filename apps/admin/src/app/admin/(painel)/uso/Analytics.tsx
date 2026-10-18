@@ -183,7 +183,11 @@ export function Analytics({ a }: { a: AnalyticsUso }) {
         </Cartao>
       </div>
 
-      <Cartao titulo="LIA × menor distância" atraso={120} nota="Comparação feita pela API em cada rota calculada (previsão da LIA nos dois caminhos).">
+      <Cartao
+        titulo="LIA × menor distância"
+        atraso={120}
+        nota="Comparação interna: os dois tempos vêm da própria LIA (previsão nos dois caminhos). Mede o quanto a LIA se afasta do vetor estático, não a precisão dela — para isso, ver o card abaixo."
+      >
         <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
           <Mini rotulo="Rotas diferentes" valor={fmtPct(pct(l.diferentes, l.rotas))} detalhe={`${fmtInt(l.diferentes)} de ${fmtInt(l.rotas)} rotas`} />
           <Mini rotulo="Ganho médio" valor={comSinal(ganho)} detalhe="quando a LIA muda o caminho" />
@@ -191,6 +195,36 @@ export function Analytics({ a }: { a: AnalyticsUso }) {
           <Mini rotulo="Só LIA (degradadas)" valor={fmtPct(pct(l.degradadas, l.rotas))} detalhe={`${fmtInt(l.degradadas)} rotas sem TomTom`} />
           <Mini rotulo="Com incidente" valor={fmtPct(pct(l.com_incidente, l.rotas))} detalhe={`${fmtInt(l.com_incidente)} rotas`} />
         </div>
+      </Cartao>
+
+      <Cartao
+        titulo="LIA × referência externa (TomTom)"
+        atraso={130}
+        nota="Referência independente: ETA da TomTom sob trânsito ao vivo, calculado para o MESMO trajeto que a LIA escolheu (não é a própria LIA se avaliando). Só existe nas rotas em que a fusão conseguiu essa chamada — por isso a amostra é menor que o total de rotas."
+      >
+        {l.referencia_tomtom ? (
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+            <Mini
+              rotulo="Amostra com referência"
+              valor={fmtInt(l.referencia_tomtom.n_com_referencia)}
+              detalhe={`de ${fmtInt(l.rotas)} rotas no período`}
+            />
+            <Mini
+              rotulo="Ganho médio vs. TomTom"
+              valor={comSinal(num(l.referencia_tomtom.ganho_medio_seg))}
+              detalhe="tempo TomTom − tempo LIA, mesmo trajeto"
+            />
+            <Mini
+              rotulo="LIA mais rápida"
+              valor={fmtPct(l.referencia_tomtom.lia_mais_rapida_pct)}
+              detalhe="das rotas com referência"
+            />
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Aplique a migration <code>20260930010000_lia_vs_tomtom_referencia.sql</code> para habilitar este card.
+          </p>
+        )}
       </Cartao>
 
       <Cartao titulo="Rotas por hora × dia da semana" atraso={160} nota="Hora de partida no horário de Brasília.">

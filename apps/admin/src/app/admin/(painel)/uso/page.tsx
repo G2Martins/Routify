@@ -29,10 +29,13 @@ type Requisicao = { id: number; criado_em: string; metodo: string; rota: string;
 type EconomiaCombustivel = {
   rotas_com_estimativa: number;
   rotas_otimizadas: number;
+  rotas_que_gastaram_mais?: number;
   litros_economizados: number;
+  saldo_litros_liquido?: number;
   litros_consumidos: number;
   minutos_economizados?: number;
-  serie_diaria: { dia: string; litros: number; rotas: number }[];
+  saldo_minutos_liquido?: number;
+  serie_diaria: { dia: string; litros: number; saldo_litros?: number; rotas: number }[];
 };
 type ParamsCombustivel = { preco_litro_reais: number; co2_kg_por_litro: number; preco_fonte?: string; atualizado_em?: string };
 
@@ -63,6 +66,7 @@ export default async function UsoPage({ searchParams }: { searchParams: Promise<
   ]);
   const eco = economia.data as EconomiaCombustivel | null;
   const litros = Number(eco?.litros_economizados ?? 0);
+  const saldoLitros = Number(eco?.saldo_litros_liquido ?? litros);
 
   return (
     <>
@@ -80,9 +84,15 @@ export default async function UsoPage({ searchParams }: { searchParams: Promise<
         <ErroConsulta erro={economia.error} acoes />
         {eco ? (
           <>
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-              <Kpi rotulo="Tempo economizado" valor={`${fmtInt(eco.minutos_economizados ?? 0)} min`} detalhe="contra o caminho mais curto" />
-              <Kpi rotulo="Litros economizados" valor={fmtDec(litros, 2)} detalhe={`em ${dias} dias`} atraso={20} />
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
+              <Kpi rotulo="Tempo economizado" valor={`${fmtInt(eco.minutos_economizados ?? 0)} min`} detalhe="soma só quando ganha tempo" />
+              <Kpi rotulo="Combustível — ganho quando ganha" valor={fmtDec(litros, 2)} detalhe={`L, em ${dias} dias`} atraso={20} />
+              <Kpi
+                rotulo="Saldo líquido de combustível"
+                valor={`${saldoLitros >= 0 ? '+' : ''}${fmtDec(saldoLitros, 2)} L`}
+                detalhe="soma de todas as rotas, pode ser negativo"
+                atraso={30}
+              />
               <Kpi
                 rotulo="Economia em gasolina"
                 valor={params ? `R$ ${fmtDec(litros * params.preco_litro_reais, 2)}` : '—'}
@@ -90,27 +100,29 @@ export default async function UsoPage({ searchParams }: { searchParams: Promise<
                 atraso={40}
               />
               <Kpi
-                rotulo="CO₂ evitado"
-                valor={params ? `${fmtDec(litros * params.co2_kg_por_litro, 1)} kg` : '—'}
-                detalhe="gasolina C (E30), parte fóssil"
+                rotulo="CO₂ — saldo líquido"
+                valor={params ? `${saldoLitros >= 0 ? '+' : ''}${fmtDec(saldoLitros * params.co2_kg_por_litro, 1)} kg` : '—'}
+                detalhe="gasolina C (E30), parte fóssil — líquido, não só o ganho"
                 atraso={80}
               />
               <Kpi
-                rotulo="Rotas que economizaram"
-                valor={`${fmtInt(eco.rotas_otimizadas)} de ${fmtInt(eco.rotas_com_estimativa)}`}
-                detalhe={eco.litros_consumidos > 0 ? `${fmtDec(eco.litros_consumidos, 1)} L estimados no total` : undefined}
+                rotulo="Rotas: ganharam / gastaram mais"
+                valor={`${fmtInt(eco.rotas_otimizadas)} / ${fmtInt(eco.rotas_que_gastaram_mais ?? 0)}`}
+                detalhe={`de ${fmtInt(eco.rotas_com_estimativa)} com estimativa`}
                 atraso={120}
               />
             </div>
             {eco.serie_diaria.length ? (
-              <Cartao titulo="Litros economizados por dia">
+              <Cartao titulo="Combustível por dia — ganho quando ganha vs. saldo líquido">
                 <BarrasCombustivel dados={eco.serie_diaria} />
               </Cartao>
             ) : null}
             <p className="text-xs text-muted-foreground">
               Estimativa por rota, feita pela API no momento do cálculo: litros = K1·km + K2·horas (Evans, Herman &amp; Lam,
-              1976), com a rota escolhida pela LIA contra o caminho mais curto no mesmo instante. Só a parte positiva entra
-              na soma. Parâmetros e fontes em <code>ml/artifacts/consumo_combustivel.json</code>.
+              1976), com a rota escolhida pela LIA contra o caminho mais curto no mesmo instante. A LIA otimiza tempo, não
+              combustível — uma rota mais rápida e mais longa pode gastar mais; por isso mostramos o saldo líquido (pode ser
+              negativo) ao lado do &quot;ganho quando ganha&quot;, em vez de só a soma otimista. Parâmetros e fontes em{' '}
+              <code>ml/artifacts/consumo_combustivel.json</code>.
             </p>
           </>
         ) : null}

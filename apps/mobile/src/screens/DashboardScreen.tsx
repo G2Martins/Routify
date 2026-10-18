@@ -27,8 +27,10 @@ interface HistoryStats {
   rotas: number;
   km_total: number;
   min_total: number;
-  litros_economizados: number; // soma só do que foi economia (rota mais rápida que gasta mais não desconta)
+  litros_economizados: number; // só a parte positiva — "quanto ganhei quando ganhei"
+  saldo_litros_liquido: number; // soma sem clamp — pode ser negativo, é o saldo real
   rotas_com_economia: number;
+  rotas_que_gastaram_mais: number;
   rotas_com_estimativa: number;
   minutos_economizados: number;
   vias_evitadas: number;
@@ -148,9 +150,11 @@ export default function DashboardScreen() {
           const km_total = rows.reduce((s, r) => s + Number(r.distancia_km || 0), 0);
           const min_total = rows.reduce((s, r) => s + Number(r.tempo_total_seg || 0), 0) / 60;
           const estimadas = rows.filter((r) => r.combustivel_economizado_l != null);
-          const economias = estimadas.map((r) => Math.max(0, Number(r.combustivel_economizado_l)));
-          const litros_economizados = economias.reduce((s, v) => s + v, 0);
-          const rotas_com_economia = economias.filter((v) => v >= 0.005).length;
+          const brutos = estimadas.map((r) => Number(r.combustivel_economizado_l));
+          const litros_economizados = brutos.reduce((s, v) => s + Math.max(0, v), 0);
+          const saldo_litros_liquido = brutos.reduce((s, v) => s + v, 0);
+          const rotas_com_economia = brutos.filter((v) => v >= 0.005).length;
+          const rotas_que_gastaram_mais = brutos.filter((v) => v <= -0.005).length;
           const minutos_economizados = rows.reduce((s, r) => s + Math.max(0, Number(r.minutos_economizados || 0)), 0);
           const vias_evitadas = new Set(
             rows.map((r) => (r.via_principal || '').trim()).filter(Boolean)
@@ -160,7 +164,9 @@ export default function DashboardScreen() {
             km_total,
             min_total,
             litros_economizados,
+            saldo_litros_liquido,
             rotas_com_economia,
+            rotas_que_gastaram_mais,
             rotas_com_estimativa: estimadas.length,
             minutos_economizados,
             vias_evitadas,
@@ -212,20 +218,28 @@ export default function DashboardScreen() {
               <Kpi
                 ordem={3}
                 icone="mdi:gas-station-outline"
-                valor={stats ? `${fmt(stats.litros_economizados, 2)} L` : '—'}
-                rotulo="Combustível economizado"
+                valor={stats ? `${stats.saldo_litros_liquido >= 0 ? '+' : ''}${fmt(stats.saldo_litros_liquido, 2)} L` : '—'}
+                rotulo="Combustível — saldo líquido"
               />
               <Kpi
                 ordem={4}
                 icone="ion:cash-outline"
-                valor={stats && combustivel ? `R$ ${fmt(stats.litros_economizados * combustivel.preco_litro_reais, 2)}` : '—'}
-                rotulo="Economia em gasolina"
+                valor={
+                  stats && combustivel
+                    ? `${stats.saldo_litros_liquido >= 0 ? '' : '-'}R$ ${fmt(Math.abs(stats.saldo_litros_liquido) * combustivel.preco_litro_reais, 2)}`
+                    : '—'
+                }
+                rotulo="Economia em gasolina (líquida)"
               />
               <Kpi
                 ordem={5}
                 icone="ion:leaf-outline"
-                valor={stats && combustivel ? `${fmt(stats.litros_economizados * combustivel.co2_kg_por_litro, 1)} kg` : '—'}
-                rotulo="CO₂ evitado"
+                valor={
+                  stats && combustivel
+                    ? `${stats.saldo_litros_liquido >= 0 ? '+' : ''}${fmt(stats.saldo_litros_liquido * combustivel.co2_kg_por_litro, 1)} kg`
+                    : '—'
+                }
+                rotulo="CO₂ — saldo líquido"
               />
             </GradeKpi>
             {stats?.rotas === 0 ? (
@@ -234,7 +248,9 @@ export default function DashboardScreen() {
               </Text>
             ) : (
               <Text style={[theme.typography.caption, { color: c.textSubtle, marginTop: 8, fontSize: 12 }]}>
-                {stats ? `${fmt(stats.rotas_com_economia)} de ${fmt(stats.rotas_com_estimativa)} rotas economizaram combustível. ` : ''}
+                {stats
+                  ? `${fmt(stats.rotas_com_economia)} de ${fmt(stats.rotas_com_estimativa)} rotas economizaram combustível, ${fmt(stats.rotas_que_gastaram_mais)} gastaram mais. `
+                  : ''}
                 Estimativa por rota: o caminho da LIA contra o caminho mais curto no mesmo horário (modelo de
                 Evans–Herman–Lam). A LIA escolhe o mais rápido; quando ele é bem mais longo, pode gastar um pouco mais
                 de gasolina — essas rotas contam no tempo, não no combustível

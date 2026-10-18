@@ -58,4 +58,9 @@ export interface RouteHistoryRow {
   hora_partida?: number | null;
   dia_semana?: number | null;
   lia_cobertura_pct?: number | null;
+  // Minutos economizados já na mesma escala do tempo exibido (calculado pela
+  // API, ver apps/api/combustivel.py:base_na_escala) — usar este campo em vez
+  // de recalcular tempo_rota_curta_seg - tempo_total_seg na tela, que compara
+  // em escalas diferentes e infla a diferença.
+  minutos_economizados?: number | null;
 }

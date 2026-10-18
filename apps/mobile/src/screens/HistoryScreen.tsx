@@ -169,7 +169,11 @@ export default function HistoryScreen({ navigation }: any) {
   const celula = { width: desktop ? ('50%' as const) : ('100%' as const), padding: 6 };
 
   const renderCartao = (item: RouteHistoryRow, ordem: number) => {
-    const deltaSeg = item.tempo_rota_curta_seg != null ? item.tempo_rota_curta_seg - item.tempo_total_seg : null;
+    // minutos_economizados já vem calculado pela API na mesma escala do tempo
+    // exibido — não recalcular aqui com tempo_rota_curta_seg bruto, que compara
+    // em escalas diferentes e gera um delta maior (e inconsistente) do que o
+    // mostrado no mapa/painel (ver comentário em supabase.ts:RouteHistoryRow).
+    const deltaSeg = item.minutos_economizados != null ? item.minutos_economizados * 60 : null;
     const emFeedback = rotaEmFeedback?.id === item.id;
     return (
       <Surgir key={item.id} ordem={Math.min(ordem, 8)} style={celula}>
