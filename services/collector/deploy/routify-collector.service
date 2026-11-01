@@ -1,22 +1,39 @@
 [Unit]
-Description=Routify — coletor de tráfego + Fase 3 (LIA vs. TomTom)
+Description=Routify — coletor TomTom Flow → historico_trafego
 After=network-online.target
 Wants=network-online.target
+# Sem as credenciais o serviço nem tenta subir (mesma regra da routify-api).
+ConditionPathExists=/opt/routify/services/collector/config/.env
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
-Type=simple
-# Ajuste o usuário e os caminhos para o que existir na VM.
 User=routify
-WorkingDirectory=/home/routify/Routify/services/collector
+WorkingDirectory=/opt/routify/services/collector
+Environment=TZ=America/Sao_Paulo
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/home/routify/Routify/services/collector/venv/bin/python main.py
+Environment=PYTHONDONTWRITEBYTECODE=1
+# Fase 3 (grafo + modelo, ~1,4 GB de pico) não cabe ao lado da API numa t3.small.
+Environment=COLETOR_FASE3=0
+# Cadência: sem COLETOR_INTERVALO_MIN o coletor calcula pela cota da TomTom
+# (20 mil/mês por chave, 15% reservados pra API) — 39 chaves × 630 pontos = 43 min.
+ExecStart=/opt/routify/services/collector/.venv/bin/python main.py
 Restart=always
-RestartSec=15
-
-# Fase 3 sozinha pode passar de 1GB de RAM por alguns segundos (grafo de
-# 38km carregado do zero a cada rodada agendada). Sem limite aqui — se a VM
-# tiver RAM insuficiente, prefira reduzir o radius do grafo ou o OCPU/RAM da
-# instância a impor um MemoryMax que mata o processo no pior momento.
+RestartSec=30
+# ~80 MB em uso; o teto protege a API (MemoryMax=1500M) na máquina de 2 GB.
+MemoryMax=300M
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+LockPersonality=true
+UMask=0077
 
 [Install]
 WantedBy=multi-user.target

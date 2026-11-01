@@ -1,105 +1,55 @@
-# Deploy 24/7 — Oracle Cloud Free Tier (Ampere A1)
+# Deploy 24/7 do coletor
 
-Por que Oracle e não outra gratuita: é a única opção gratuita que dá uma VM
-de verdade (não um serviço que hiberna por inatividade) com RAM suficiente
-para o pico de ~1,4GB da Fase 3 (grafo de 38km carregado a cada rodada
-agendada) rodando ao lado do coletor. O tier "Always Free" da Oracle não tem
-prazo de expiração (diferente do free tier de 12 meses da AWS), e o formato
-Ampere A1 dá até 4 OCPU / 24GB RAM de graça, permanentemente, por conta.
+**Última revisão:** 2026-11-01
 
-## 1. Criar a conta e a instância
+Desde 2026-11-01 o coletor roda **na mesma EC2 da API** (custo zero): mesmo `.env` e
+`tomtom_keys.json`, serviço systemd `routify-collector`. O passo a passo completo, com o
+contexto da cota e da memória, está em [docs/core/deploy.md §1.1](../../../docs/core/deploy.md).
 
-1. Criar conta em cloud.oracle.com (pede cartão para verificação de
-   identidade, mas o Always Free não cobra nada enquanto você ficar dentro
-   da cota).
-2. Criar uma Compute Instance:
-   - **Shape:** `VM.Standard.A1.Flex` (Ampere, ARM64) — usar os 4 OCPU / 24GB
-     inteiros, já que é gratuito de qualquer forma.
-   - **Imagem:** Ubuntu 22.04 (ou mais recente) — ARM64.
-   - **Boot volume:** o padrão (~50GB) sobra; o tier free cobre até 200GB.
-3. **Armadilha conhecida:** provisionar Ampere A1 costuma dar erro "Out of
-   host capacity" nas regiões mais procuradas — é falta de capacidade da
-   Oracle, não erro seu. Tente outro Availability Domain, outra região
-   próxima (ex. se `sa-saopaulo-1` estiver cheia, tentar outra região da
-   América do Sul), ou tentar de novo em horários diferentes. É um
-   incômodo real e documentado, não um sinal de que algo está configurado
-   errado.
-4. Gerar/usar um par de chaves SSH na criação — é o único acesso à VM.
+| Arquivo | Pra quê |
+|---|---|
+| `instalar-ec2.sh` | cria o venv mínimo, instala a unidade e sobe o serviço (idempotente, roda como root) |
+| `routify-collector.service` | unidade systemd: usuário `routify`, `MemoryMax=300M`, hardening, `COLETOR_FASE3=0` |
+| `requirements-ec2.txt` | só `requests`, `python-dotenv`, `schedule`, `supabase` |
+| `requirements-vm.txt` | pilha completa (coletor + Fase 3 + API) para uma VM própria com ≥ 4 GB |
 
-## 2. Configuração inicial da VM
+## Na EC2
 
 ```bash
-ssh ubuntu@<IP_DA_VM>
-
-# Fuso horário — importante: schedule.every().day.at("07:00") no main.py
-# usa o horário local do processo. Sem isso, os horários de pico/fora-pico
-# da Fase 3 disparam no horário errado (UTC, 3h à frente de Brasília).
-sudo timedatectl set-timezone America/Sao_Paulo
-
-sudo apt update && sudo apt install -y python3.12 python3.12-venv git
+# código já extraído em /opt/routify e config/{.env,tomtom_keys.json} já copiados (deploy.md §1)
+sudo bash /opt/routify/services/collector/deploy/instalar-ec2.sh
+journalctl -u routify-collector -f
 ```
 
-## 3. Levar o código
+Esperado no log: `Cadência: 1 ciclo a cada 43 min — 39 chaves × 20000/mês, 630 pontos, reserva de 15% pra API`
+e, uns 6 min depois, `Salvando lote de 6xx registros`. Parar: `sudo systemctl disable --now routify-collector`.
 
-Do jeito mais simples — `git clone` do repositório na VM (a Fase 3 importa
-`ml/` e `apps/api/`, então o coletor precisa do repositório inteiro). Não copiar `.env` nem `tomtom_keys.json` pelo git se o repo for
-público — transferir esses dois arquivos separadamente (scp direto) para
-`services/collector/config/` (a API e o `ml/` leem esse mesmo arquivo).
+## Variáveis de ambiente
 
-```bash
-# na VM, depois do clone em ~/Routify/
-cd ~/Routify/services/collector
-python3.12 -m venv venv
-source venv/bin/activate
-pip install --upgrade pip
-pip install -r deploy/requirements-vm.txt
-```
+| Variável | Efeito | Padrão |
+|---|---|---|
+| `COLETOR_INTERVALO_MIN` | força a cadência (min) | calculado pela cota (`intervalo_minutos`) |
+| `COLETOR_COTA_MENSAL_CHAVE` | cota mensal de Flow por chave | `20000` (docs.tomtom.com/pricing) |
+| `COLETOR_RESERVA_API` | fatia do pool reservada pra API sob demanda | `0.15` |
+| `COLETOR_FASE3` | `1` agenda a Fase 3 (07/12/18/22 h, grafo + modelo, ~1,4 GB) | `0` |
+| `TOMTOM_KEYS_FILE` | arquivo de chaves (um subconjunto, se quiser separar do pool da API) | `config/tomtom_keys.json` |
 
-**Ponto de atenção real, não hipotético:** os pacotes acima estão travados
-nas mesmas versões que serializaram os pickles do modelo (ver comentário em
-`apps/api/requirements.txt`). Numa VM ARM64, é preciso confirmar que o PyPI tem
-wheel `manylinux...aarch64` para essas versões exatas — a maioria
-(numpy/pandas/scipy/scikit-learn/xgboost) publica wheel ARM64 nas versões
-recentes usadas aqui, mas se algum `pip install` cair para compilar do
-código-fonte, vai ser bem mais lento (às vezes falha por falta de
-dependência de build). Rode o `pip install` **primeiro**, antes de
-configurar o resto — se algo não tiver wheel ARM64, é melhor descobrir logo
-no início.
+A cadência sai de `chaves × cota × (1 − reserva) / 31 dias / pontos`: com 39 chaves e 630 pontos dá 43 min
+(~21 mil chamadas/dia). O teste `tests/test_rotacao.py::test_intervalo_nunca_estoura_o_orcamento` garante que o
+consumo diário nunca passa do orçamento.
 
-## 4. Rodar como serviço (systemd)
+## Alternativa: VM própria com a Fase 3 ligada
 
-```bash
-sudo useradd -m -s /bin/bash routify   # se ainda não existir
-sudo cp ~/Routify/services/collector/deploy/routify-collector.service \
-        /etc/systemd/system/
-# editar User= e os caminhos dentro do .service se o usuário/diretório
-# real na VM for diferente do exemplo (routify / /home/routify/Routify)
+A Fase 3 (`ml/external_validation.py`) carrega o grafo de 38 km e o modelo a cada rodada (~1,4 GB de pico) e
+não cabe ao lado da API numa t3.small. Para rodá-la 24/7 é preciso uma VM com ≥ 4 GB:
 
-sudo systemctl daemon-reload
-sudo systemctl enable --now routify-collector
-sudo systemctl status routify-collector
-journalctl -u routify-collector -f       # acompanhar logs ao vivo
-```
-
-`Restart=always` no unit file garante que, se o processo cair por qualquer
-motivo (exceção não tratada, OOM), ele volta sozinho — sem precisar você
-ficar reiniciando manualmente, que era exatamente o problema original com a
-rotação de chaves.
-
-## 5. Verificar que está funcionando
-
-```bash
-journalctl -u routify-collector --since "10 min ago" | grep -i "coleta\|rotacion\|fase 3"
-```
-
-- A cada 8 min deve aparecer o ciclo de coleta de tráfego.
-- Às 07h/12h/18h/22h (horário de Brasília, depois do `timedatectl` acima)
-  deve rodar a Fase 3 — procurar por "FASE 3 — Comparação" no log.
-- Se alguma chave TomTom esgotar, o log mostra "esgotada — marcada por 24h"
-  e continua rotacionando pelas outras, sem travar.
-
-## 6. Custo de rede/egress
-
-O tier Always Free inclui 10TB/mês de saída de dados — o volume desta
-aplicação (chamadas de API + Supabase) fica ordens de grandeza abaixo disso.
-Não é uma preocupação real aqui.
+- **Oracle Cloud Always Free** (Ampere A1, até 4 OCPU / 24 GB, sem prazo): tentativa de 2026-09 não concluída por
+  `Out of host capacity` (falta de capacidade do provedor, não erro de configuração). Tentar outro
+  *Availability Domain*/região ou outro horário.
+- Na VM: `sudo timedatectl set-timezone America/Sao_Paulo` (os horários da Fase 3 são do fuso do processo),
+  `git clone` do repositório inteiro (a Fase 3 importa `ml/` e `apps/api/`), `.env` e `tomtom_keys.json` por `scp`,
+  venv com `pip install -r deploy/requirements-vm.txt` (**primeiro**: em ARM64 confirme que numpy/pandas/scipy/
+  scikit-learn/xgboost têm wheel `aarch64` nas versões fixadas — são as que serializaram os pickles).
+- Unidade: copie `routify-collector.service`, ajuste `WorkingDirectory`/`ExecStart` para o clone, tire o
+  `MemoryMax` e troque `COLETOR_FASE3=0` por `1`.
+- Egress não é preocupação: o coletor faz ~21 mil chamadas pequenas por dia.

@@ -1,0 +1,7 @@
+# Só o coletor, pra rodar ao lado da API na EC2 de 2 GB (ver deploy/README.md):
+# sem OSMnx/pandas (a malha já está no banco; o import é tardio em main.py) e
+# sem a Fase 3 (grafo + modelo não cabem junto com a API — COLETOR_FASE3=0).
+requests==2.31.0
+python-dotenv==1.0.0
+schedule==1.2.0
+supabase==2.13.0

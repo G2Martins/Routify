@@ -2,7 +2,14 @@
 Módulo responsável por consultar a API de Flow Segment Data da TomTom.
 Implemente controle de velocidade (QPS), rotação inteligente de chaves
 com cooldown persistente e armazenamento em lote.
+
+Cota (docs.tomtom.com/pricing, lido em 2026-11-01): "free monthly requests
+per API" — Flow Segment Data 20 mil/mês por chave. A API sob demanda
+(apps/api/tomtom.py) usa o MESMO pool, então a cadência é dimensionada pela
+cota com uma reserva pra API (ver intervalo_minutos) e o consumo é espalhado
+por todas as chaves (round-robin a cada requisição bem-sucedida).
 """
+import math
 import os
 import time
 import json
@@ -20,15 +27,24 @@ load_dotenv(os.path.join('config', '.env'))
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Cota esgotada = janela rolante de 24h (branch tcc2): o horário/periodicidade
-# real do reset da TomTom não está confirmado (pricing indica cota mensal por
-# API). 24h rolante garante que o reset já passou, seja qual for o horário.
-# ponytail: se confirmar cota mensal, trocar por cooldown até o reset do mês.
+# Cota esgotada = janela rolante de 24h: a TomTom não expõe o horário do reset
+# mensal e 1 tentativa por chave por dia custa quase nada. Mesma política da API.
 SECONDS_PER_DAY = 86400
+COOLDOWN_CHAVE_INVALIDA = 600   # 403 sem texto de cota: chave inválida/proibida
 QPS_BACKOFF_SECONDS = 1.0
 INTER_REQUEST_DELAY = 0.25
 REQUEST_TIMEOUT = 10
+# A TomTom devolve 429 tanto pra QPS quanto pra cota: até 3 seguidos = QPS
+# (backoff curto na mesma chave); o 4º vira cota. Igual a apps/api/tomtom.py.
 MAX_QPS_RETRIES_PER_KEY = 3
+
+# Dimensionamento da cadência pela cota mensal (ver intervalo_minutos).
+COTA_MENSAL_FLOW = int(os.getenv('COLETOR_COTA_MENSAL_CHAVE', '20000'))
+RESERVA_API = float(os.getenv('COLETOR_RESERVA_API', '0.15'))
+INTERVALO_PISO_MIN = 8   # cadência do dataset original; mais rápido que isso não ajuda o modelo
+
+# TOMTOM_KEYS_FILE permite dar ao coletor um subconjunto do pool (a API lê a mesma variável).
+ARQUIVO_CHAVES = os.getenv('TOMTOM_KEYS_FILE', os.path.join('config', 'tomtom_keys.json'))
 
 
 def load_keys_from_json(filepath: str) -> List[dict]:
@@ -41,9 +57,26 @@ def load_keys_from_json(filepath: str) -> List[dict]:
         raise ValueError(f"Arquivo {filepath} ausente ou mal formatado.")
 
 
-API_KEYS_DATA = load_keys_from_json('config/tomtom_keys.json')
+API_KEYS_DATA = load_keys_from_json(ARQUIVO_CHAVES)
 if not API_KEYS_DATA:
     raise ValueError("Nenhuma chave encontrada no arquivo JSON.")
+
+
+def intervalo_minutos(n_chaves: int, n_pontos: int, cota_mensal: int = COTA_MENSAL_FLOW,
+                      reserva: float = RESERVA_API, dias_mes: int = 31) -> int:
+    """Menor intervalo entre ciclos (min) que cabe na cota mensal do pool.
+
+    ciclos/dia = chaves × cota × (1 − reserva) / dias / pontos. Com 39 chaves,
+    630 pontos, 20 mil/mês e 15% de reserva → 43 min. O teto (ceil) garante
+    que o consumo diário nunca passa do orçamento; piso de 8 min.
+    """
+    if n_chaves <= 0 or n_pontos <= 0:
+        raise ValueError("n_chaves e n_pontos precisam ser positivos")
+    if not 0 <= reserva < 1:
+        raise ValueError("reserva deve estar em [0, 1)")
+    requisicoes_dia = n_chaves * cota_mensal * (1.0 - reserva) / dias_mes
+    ciclos_dia = requisicoes_dia / n_pontos
+    return max(INTERVALO_PISO_MIN, math.ceil(1440.0 / ciclos_dia))
 
 
 class TrafficCollector:
@@ -167,6 +200,8 @@ class TrafficCollector:
                     return None
                 segment = data.get('flowSegmentData', {})
                 if 'currentSpeed' in segment:
+                    # Round-robin: espalha o consumo da cota mensal por todas as chaves.
+                    self.current_key_index = (self.current_key_index + 1) % len(self.api_keys_data)
                     return segment
                 logging.error(f"Formato JSON inesperado retornado: {data}")
                 return None
@@ -174,52 +209,46 @@ class TrafficCollector:
             if status in (403, 429):
                 error_text = (response.text or "").lower()
 
-                # 1) Rate limit por segundo (QPS) — backoff curto, mesma chave
-                if "over qps" in error_text or status == 429 and "qps" in error_text:
-                    if tentativas_qps < MAX_QPS_RETRIES_PER_KEY:
-                        tentativas_qps += 1
-                        logging.warning(
-                            f"QPS atingido na chave [{key_entry['id']}]. "
-                            f"Backoff {QPS_BACKOFF_SECONDS}s (tentativa {tentativas_qps}/{MAX_QPS_RETRIES_PER_KEY})."
-                        )
-                        time.sleep(QPS_BACKOFF_SECONDS)
-                        continue
-                    # QPS persistente — trate como esgotamento curto (5 min) e rotacione
-                    logging.error(f"QPS persistente em [{key_entry['id']}]. Cooldown curto de 5 min.")
-                    self._mark_exhausted(self.current_key_index, cooldown_seconds=300)
-                    tentativas_qps = 0
-                    if not self._advance_to_next_available():
-                        logging.critical("Todas as chaves em cooldown após QPS persistente. Pulando ponto.")
-                        return None
+                # 1) 429 = QPS até a 3ª vez seguida na mesma chave: backoff curto e repete.
+                if status == 429 and tentativas_qps < MAX_QPS_RETRIES_PER_KEY:
+                    tentativas_qps += 1
+                    logging.warning(
+                        f"HTTP 429 na chave [{key_entry['id']}] (QPS?). "
+                        f"Backoff {QPS_BACKOFF_SECONDS}s (tentativa {tentativas_qps}/{MAX_QPS_RETRIES_PER_KEY})."
+                    )
+                    time.sleep(QPS_BACKOFF_SECONDS)
                     continue
 
-                # 2) Cota diária / créditos / conta — cooldown até reset diário UTC
+                # 2) 4º 429 seguido, ou 403 falando de cota/créditos/conta = cota do mês
+                #    esgotada → 24h rolante e rotaciona.
                 exhausted_phrases = (
-                    "over rate", "over quota", "limit exceeded",
+                    "over rate", "over quota", "quota", "limit exceeded",
                     "insufficientfunds", "credits", "account inactive",
                 )
-                if any(phrase in error_text for phrase in exhausted_phrases):
-                    logging.warning(f"Cota da chave [{key_entry['id']}] esgotada: {error_text[:200]}")
-                    self._mark_exhausted(self.current_key_index)  # cooldown até 00:00 UTC
+                if status == 429 or any(phrase in error_text for phrase in exhausted_phrases):
+                    logging.warning(
+                        f"Cota da chave [{key_entry['id']}] esgotada (HTTP {status}): {error_text[:200]}"
+                    )
+                    self._mark_exhausted(self.current_key_index)
                     tentativas_qps = 0
                     if not self._advance_to_next_available():
                         espera = self._shortest_cooldown_remaining()
                         logging.critical(
                             f"TODAS as {len(self.api_keys_data)} chaves esgotadas. "
-                            f"Próxima reset em {espera/60:.1f} min. Pulando ponto."
+                            f"Próxima volta em {espera/60:.1f} min. Pulando ponto."
                         )
                         return None
                     continue
 
-                # 3) 403/429 desconhecido — não banir a chave por tempo longo, mas registrar
+                # 3) 403 sem texto de cota: chave inválida/proibida — 10 min e rotaciona.
                 logging.error(
-                    f"HTTP {status} desconhecido em [{key_entry['id']}] no ponto ({lat},{lon}): "
+                    f"HTTP {status} em [{key_entry['id']}] no ponto ({lat},{lon}): "
                     f"{response.text[:300]}"
                 )
-                self._mark_exhausted(self.current_key_index, cooldown_seconds=600)
+                self._mark_exhausted(self.current_key_index, cooldown_seconds=COOLDOWN_CHAVE_INVALIDA)
                 tentativas_qps = 0
                 if not self._advance_to_next_available():
-                    logging.critical("Todas as chaves em cooldown após erros desconhecidos. Pulando ponto.")
+                    logging.critical("Todas as chaves em cooldown após erros de autorização. Pulando ponto.")
                     return None
                 continue
 

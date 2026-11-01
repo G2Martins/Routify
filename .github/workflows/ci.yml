@@ -23,6 +23,10 @@ jobs:
       - run: python -m compileall -q apps/api services ml
       - run: pytest -q
         working-directory: apps/api
+      # Coletor: rotação de chaves e cadência pela cota (rede e banco simulados).
+      - run: pip install requests schedule python-dotenv
+      - run: pytest -q tests
+        working-directory: services/collector
 
   frontend:
     name: App mobile (tsc)
