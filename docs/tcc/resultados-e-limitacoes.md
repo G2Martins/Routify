@@ -1,6 +1,6 @@
 # Resultados, calibração e limitações — rascunho para o texto final
 
-**Última revisão:** 2026-09-23
+**Última revisão:** 2026-11-01
 
 > **Status: rascunho.** Redigido com apoio de IA a partir dos artefatos versionados do repositório (`ml/artifacts/*.json`), para atender às recomendações do orientador sobre a seção de Resultados e Discussão. A equipe deve revisar, reescrever com a própria voz e declarar o uso de IA conforme as normas da instituição. Todo número abaixo aponta para a chave do JSON de origem; as figuras são geradas por `ml/thesis_figures.py` e se atualizam sozinhas quando os JSONs mudarem.
 
@@ -138,10 +138,10 @@ A Fase 3 compara, para o mesmo par origem-destino e no mesmo instante:
      - perda quadrática, que puxa previsões para a média;
      - piso da razão em 0,05;
      - ausência de recência fresca em produção desde a parada da coleta, hoje mitigada pela consulta à TomTom sob demanda.
-3. **Coleta não contínua.**
-   - A coleta teve lacunas e foi encerrada em 19/07/2026.
-   - O projeto Supabase gratuito foi pausado por inatividade depois disso.
-   - Os perfis históricos refletem o período coletado (março a julho de 2026) e não capturam sazonalidade anual.
+3. **Coleta não contínua e cobertura temporal enviesada** *(números em `ml/artifacts/cobertura_dataset.json`, gerado por `ml/dataset_coverage.py`)*.
+   - A coleta foi de 07/03/2026 a 19/07/2026 (`periodo_inicio`, `periodo_fim`; 134 dias com coleta, 630 pontos, 1.513.824 linhas) e o projeto Supabase gratuito foi pausado por inatividade depois disso.
+   - A cadência nominal era de 8 min, mas a cota do pool de chaves só sustentou o dia inteiro em **13 dias** (`n_dias_cheios`), que concentram **68,5%** das linhas (`pct_linhas_em_dias_cheios`). Nos demais, a mediana é de 4 ciclos por dia (`ciclos_por_dia_mediana`), sempre logo após 00:00 UTC: a hora 21h de Brasília tem 23,3% das linhas (`pct_hora_mais_coberta`) e o fim de semana tem 21% do volume de um dia útil (`razao_fim_de_semana_vs_dia_util`).
+   - Consequência: os perfis por (ponto, hora, dia da semana) e o treino se apoiam em poucas datas por célula de pico, não capturam sazonalidade anual e ajudam a explicar a subestimativa diurna da Fase 3. A coleta foi retomada em 11/2026 com cadência dimensionada pela cota (1 ciclo a cada ~43 min, uniforme no dia), o que permite um retreino comparável (mesmos folds) ao fim do semestre.
 4. **Proveniência das métricas.** A LIA 2.0 é reportada pelo benchmark. A 2.1 oficial é o modelo de 19/08 (hiperparâmetros manuais; o Optuna foi testado e não adotado) e a reprodução no ambiente atual fica a 0,2 s dela (seção 2).
 5. **Contexto em produção (LIA 2.2).**
    - A chuva do treino vem da reanálise histórica do Open-Meteo e a da API vem da previsão para as horas passadas: fontes parecidas, não idênticas.

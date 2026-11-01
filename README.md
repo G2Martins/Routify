@@ -50,7 +50,7 @@ O motor preditivo — **LIA** (*Logística de Inteligência Artificial*) — ali
 
 ```mermaid
 flowchart TB
-    COL["services/collector/<br/>coleta TomTom a cada 8 min — pausada na fase final<br/>OSMnx: topologia da malha · Fase 3"] -->|INSERT| SB[("Supabase · Postgres<br/>malha_completa ~38k vias · vias_monitoradas ~630<br/>historico_trafego 1,5M+ linhas · route_history / profiles")]
+    COL["services/collector/<br/>coleta TomTom com cadência pela cota (~43 min) na EC2<br/>OSMnx: topologia da malha · Fase 3 opt-in"] -->|INSERT| SB[("Supabase · Postgres<br/>malha_completa ~38k vias · vias_monitoradas ~630<br/>historico_trafego 1,5M+ linhas · route_history / profiles")]
     SB -->|SELECT em blocos| ML["ml/ — local<br/>silver → features → train (XGBoost + CV temporal)<br/>tune_hyperparams · calibrate_transfer"]
     ML -->|artefatos em ml/artifacts| API["apps/api/ — FastAPI<br/>modelo + grafo OSM em RAM<br/>/route (A* + LIA + TomTom sob demanda) · /predict · /search/places · /health"]
     TT["TomTom<br/>Flow · Incidents · Routing · Search"] <-->|sob demanda, pool de chaves| API
@@ -67,7 +67,7 @@ Detalhe dos fluxos (cache de recência, rotação de chaves, busca de endereços
 ### Backend
 | Camada | Tecnologia | Propósito |
 |---|---|---|
-| Coleta | Python + TomTom Flow Segment Data API | Telemetria de tráfego a cada 8 min, com pool de chaves rotativo |
+| Coleta | Python + TomTom Flow Segment Data API | Telemetria de tráfego com cadência dimensionada pela cota mensal (~43 min com 39 chaves), pool de chaves round-robin |
 | Topologia | OSMnx + Shapely + NetworkX | Malha viária como grafo, roteamento A* |
 | Banco | Supabase (Postgres) | Persistência de séries temporais + auth do app |
 | Pipeline ML | pandas + pyarrow | Bronze → Silver, engenharia de features |
@@ -108,13 +108,13 @@ Routify/
 │       ├── .env.example
 │       └── package.json
 ├── services/
-│   └── collector/                 ← coletor de tráfego (pausado na fase final)
+│   └── collector/                 ← coletor de tráfego (roda na EC2 ao lado da API)
 │       ├── config/                ← .env.example + tomtom_keys.example.json
 │       ├── deploy/                ← guia de deploy 24/7 (systemd)
 │       ├── db.py                  ← acesso ao Supabase
 │       ├── map_extractor.py       ← Overpass → malha_completa / vias_monitoradas
 │       ├── traffic_collector.py   ← TomTom Flow → historico_trafego (rotação de chaves)
-│       └── main.py                ← scheduler: coleta (8 min) + Fase 3 (4x/dia)
+│       └── main.py                ← scheduler: coleta (cadência pela cota) + Fase 3 opt-in (COLETOR_FASE3=1)
 ├── ml/                            ← pipeline de treino da LIA (local)
 │   ├── silver.py · features.py · train.py
 │   ├── tune_hyperparams.py        ← busca bayesiana (Optuna)
@@ -194,8 +194,9 @@ pip install -r requirements.txt
 python main.py
 ```
 
-Roda em loop: coleta de tráfego a cada 8 minutos, mais o experimento de
-validação (Fase 3) 4x/dia. Ver `services/collector/deploy/README.md` para
+Roda em loop: coleta de tráfego com cadência dimensionada pela cota da TomTom
+(`COLETOR_INTERVALO_MIN` força um valor), mais o experimento de validação
+(Fase 3) 4x/dia quando `COLETOR_FASE3=1`. Ver `services/collector/deploy/README.md` para
 colocar isso rodando 24/7 (guia para Oracle Cloud Free Tier).
 
 ---
@@ -311,7 +312,7 @@ validação da hipótese central contra uma referência de tráfego externa
 **Em aberto para um próximo ciclo:**
 - [ ] Offline-first no app (cache local de rota para tolerar perda de conectividade)
 - [ ] Acumular mais rodadas da Fase 3 para validação estatisticamente robusta
-- [ ] Hospedagem 24/7 do coletor (tentativa em Oracle Cloud Free Tier não concluída por falta de capacidade do provedor — ver `services/collector/deploy/README.md`)
+- [x] Hospedagem 24/7 do coletor: na própria EC2 da API, como serviço `routify-collector` (ver `services/collector/deploy/README.md`)
 
 ---
 

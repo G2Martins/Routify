@@ -1,6 +1,6 @@
 # Rodar o Routify localmente — visão de usuário e visão ADM
 
-**Última revisão:** 2026-09-23
+**Última revisão:** 2026-11-01
 
 Passo a passo para subir API, app e painel ADM na sua máquina e testar os dois lados. Tempo estimado: ~15 min na primeira vez.
 
@@ -36,10 +36,13 @@ Painel ADM (Next :3000) ─┘          └── LIA 2.1 + grafo OSM em memóri
 
 As migrations de `supabase/migrations/` precisam estar aplicadas, na ordem:
 
-1. `20260907000000_thesis_validation.sql` — colunas de validação da tese em `route_history`;
-2. `20260923000000_security_hardening.sql` — **liga o RLS** nas tabelas do dataset;
-3. `20260923010000_usage_tracking_admin.sql` — tabelas de captura de uso, RPCs do painel, views de qualidade, `pg_cron`;
-4. `20260923020000_admin_actions.sql` — ações do painel (papel, bloqueio, sessões, exportar/apagar dados, TomTom, avisos, outliers), auditoria append-only e analytics de uso.
+1. `20260427000000_route_history.sql` — `route_history`, `profiles`, trigger `handle_new_user`;
+2. `20260907000000_thesis_validation.sql` — colunas de validação da tese em `route_history`;
+3. `20260923000000_security_hardening.sql` — **liga o RLS** nas tabelas do dataset;
+4. `20260923010000_usage_tracking_admin.sql` — tabelas de captura de uso, RPCs do painel, views de qualidade, `pg_cron`;
+5. `20260923020000_admin_actions.sql` — ações do painel (papel, bloqueio, sessões, exportar/apagar dados, TomTom, avisos, outliers), auditoria append-only e analytics de uso;
+6. `20260923030000_economia_combustivel.sql` — RPC `admin_economia_combustivel`;
+7. `20260923040000_minutos_economizados.sql` — minutos economizados nos painéis.
 
 **Opção A — SQL Editor (mais simples).** No painel do Supabase → **SQL Editor** → **New query**, cole o conteúdo dos arquivos (nessa ordem) e clique em **Run**. Tudo é idempotente: rodar de novo não estraga nada.
 
@@ -86,7 +89,7 @@ cd apps/api
 
 Confira em <http://localhost:8000/health>. O esperado é:
 
-- `modelo_ativo: "lia_2.1"`;
+- `modelo_ativo: "lia_2.2"` (ou `lia_2.1` com `LIA_VERSION=lia_2.1`);
 - `vias_monitoradas: 630`;
 - `tomtom.ativo: true`;
 - `semaforos.atraso_s` > 0 (atraso médio por semáforo, calibrado).

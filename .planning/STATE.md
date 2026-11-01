@@ -1,8 +1,8 @@
 # STATE — Routify
 
-**Última revisão:** 2026-09-23 (noite)
+**Última revisão:** 2026-11-01
 
-Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) · Pesquisa de traçado/contexto/APIs: [research/2026-09-23-tracado-contexto-apis.md](research/2026-09-23-tracado-contexto-apis.md)
+Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) · Pesquisa de traçado/contexto/APIs: [research/2026-09-23-tracado-contexto-apis.md](research/2026-09-23-tracado-contexto-apis.md) · **Análise de melhorias + estratégia de testes (2026-11-01):** [research/2026-11-01-analise-melhorias-e-testes.md](research/2026-11-01-analise-melhorias-e-testes.md)
 
 ## Onde estamos
 
@@ -13,67 +13,61 @@ Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) 
 | F3 Captura de uso | feita; migrations 1–3 aplicadas pelo dono em 2026-09-23 |
 | F7 Plataforma unificada + design | **feita no código**: paleta da logo + linguagem Valerium nos dois apps, login refeito, sessão única (cookie) app ↔ `/admin`, item "Painel ADM" por role, auto-sugestão nova. Falta validação visual do dono |
 | F8 Ações ADM | feita; migration 4 (`admin_actions`) aplicada via MCP em 2026-09-23 |
-| F9 Segurança | parcial: rate limit por IP, auditoria append-only, anti-corrida, `extra=forbid` em todos os corpos, feedback único. Falta: CSP/headers no deploy, suíte `tests/security/`, trava de login por (e-mail, IP), sessão ociosa |
-| F10 Deploy (AWS + Hostinger + Actions) | **no ar em 2026-09-23**: front na Hostinger (SSL ativo) + API na EC2 t3.small (Caddy/Let's Encrypt, ufw, systemd sem root, LIA 2.2). Validado de fora: CORS só do front, rota e busca pelo HTTPS público ([deploy.md](../docs/core/deploy.md)). Falta: GitHub Actions |
+| F9 Segurança | parcial: rate limit por IP, auditoria append-only, anti-corrida, `extra=forbid` em todos os corpos, feedback único. **2026-11-01:** chave TomTom não vaza mais em log INFO (teste), uvicorn sem access log, Caddy com teto de corpo, `StartLimit*`. Falta: CSP/headers no deploy, suíte `tests/security/`, trava de login por (e-mail, IP), sessão ociosa, limite por IP antes do auth em `/eventos` e `/admin` |
+| F10 Deploy (AWS + Hostinger + Actions) | **no ar desde 2026-09-23** (conferido em 2026-11-01: `/health` 200, LIA 2.2; front 200). Falta: GitHub Actions |
 | F12 LIA 2.2 (contexto) | **feita**: vizinhos + chuva + feriado, mesmo código no treino e na API; padrão da API; estresse treino × produção versionado |
 | F11 Traçado + fusão LIA × TomTom | **feita e validada ao vivo**: grafo 38 km, conector tracejado, `entryPoints`, fusão por `supportingPoints`, semáforos OSM (271 cruzamentos) + calibração |
+| F13 Coleta na EC2 (cadência pela cota) | **código pronto e testado** (17 testes do coletor, 0 antes); unidade, instalador e docs prontos. **Deploy bloqueado:** o security group só libera o IP antigo do dono e esta máquina não tem AWS CLI/credencial. Falta: dono libera o IP (ou ativa o Session Manager) → `instalar-ec2.sh` |
+| F14 Análise de melhorias + estratégia de testes | **entregue** (4 revisões: API/segurança, ML, front, DB/CI) com backlog priorizado e evidência arquivo:linha; artefato `cobertura_dataset.json` |
 
-## Verificado nesta sessão
+## Verificado nesta sessão (2026-11-01)
 
-- API (venv com versões fixadas): 45 testes; subida com LIA 2.1 do Pedro, grafo 97.739 nós, 271 semáforos.
-- Rotas reais:
-  - Águas Claras → Ceilândia chega ao destino (antes grudava a 10 km);
-  - destino em Goiás cai na rota da TomTom.
-- Fusão: a TomTom reconstruiu a rota da LIA (11,03 km iguais). No mesmo trajeto: LIA 710 s × TomTom 875 s (sem trânsito, 901 s) — a diferença motivou o atraso de semáforo.
-- Mobile `tsc` ok · admin `tsc` + `next build` ok (antes da UI de ações).
-- Varredura de segredos (arquivos versionáveis + histórico): limpa. `.gitignore` passou a cobrir `*.pem`, `*.key`, `.aws/`, tfstate.
+- Produção: `https://api-…/health` 200 (`modelo_ativo lia_2.2`, 39 chaves disponíveis em todos os serviços, recência mais recente 2026-10-31); front 200.
+- **39/39 chaves TomTom respondem 200** (1 chamada de Flow por chave).
+- Pricing (docs.tomtom.com/pricing): "Free monthly requests per API" — Flow Segment Data 20k, Incidents 2,5k, Routing 20k, Search 2,5k. A página não diz se é por conta ou por chave.
+- Dataset (`ml/artifacts/cobertura_dataset.json`): 1.513.824 linhas, 2026-03-07 → 2026-07-19, 630 pontos, 134 dias com coleta. **13 dias cheios (≥ 50 mil linhas) concentram 68,5% das linhas**; mediana 2.561 linhas/dia (4 ciclos, logo após 00:00 UTC); a hora 21h (Brasília) tem 23,3% das linhas; fim de semana = 21% do volume de um dia útil.
+- pytest API: **63 passed** (1 novo: `test_log_info_nao_contem_chave_nem_url`). Coletor: **17 passed**. `compileall` ok.
+- SSH `52.206.16.48:22` → `Connection timed out` (IP atual do dono fora do security group).
 
-## Decisões tomadas (2026-09-23)
+## Decisões tomadas (2026-11-01)
 
-- **Rota "pela LIA"** (pedido do dono): o app não mostra provedor; quando a rota do trânsito ao vivo vence, o selo é "Trânsito ao vivo" e a via é o nome real. O crédito "Trânsito © TomTom · Tempo: Open-Meteo" fica no rodapé do mapa (termos da TomTom e licença CC BY do Open-Meteo).
-- Busca ranqueada na API (marco, aglomeração, distância, casamento de nome) + bairro no rótulo; categoria em português no selo.
-- Combustível economizado por rota (Evans–Herman–Lam) no card, no Painel do usuário e no painel ADM (RPC `admin_economia_combustivel`).
-- Contramão: checagem por trecho das duas rotas IESB → Elétrica Lara contra as arestas dirigidas do OSM não achou violação; aguardando print do trecho visto pelo dono.
-
-- **Custo zero** (projeto acadêmico; termina em dez/2026): Hostinger com 1 site Node (Expo export em `/` + painel em `/admin`) e API na AWS plano Free, t3.small us-east-1, crédito de CPU Standard (~US$ 67 de US$ 100 até 31/12). HF Spaces fora (Docker exige PRO), Render/Koyeb fora (512 MB).
-- **LIA 2.1 da tese = modelo do Pedro** (manual). Optuna testado e não adotado. **LIA 2.2** (2.1 + contexto) = padrão da API: RMSE 40,88 → 40,27 s (5/5 folds), MAE 14,51 → 14,44 s (3/5), estresse em `lia_2.2_estresse.json`. Chuva ausente → 0; incidente não vira feature (sem histórico).
-- Grafo enxuto em pickle: API de 1,65 GB para 0,79 GB de RAM, sem mudar a rota (mesma via e distância no teste).
-- Isotônica do transfer regravada com sklearn 1.8 (mesma curva, diferença 0,0 numa grade de 1 m): sumiu o `InconsistentVersionWarning`.
-- Senha vazada (HIBP) do Supabase é só no plano Pro: mitigar com política de senha + checagem k-anônima no cadastro (backlog).
-
-- Mesmo domínio e login único; admin via `app_metadata.role`; Google em backlog; sem magic link.
-- **Paleta = logo; forma/tipografia/motion = Valerium** (Geist, Kalam só em títulos).
-- Ações ADM = todas (usuários, TomTom, dados/LIA, avisos), como RPC com auditoria na mesma transação.
-- Acesso de infra do Claude = admin total (com usuário IAM próprio, MFA na root, alarme de custo).
-- Fusão LIA × TomTom:
-  - a LIA decide onde enxerga;
-  - a TomTom preenche lacunas e só troca a rota com ganho ≥ 10% e ≥ 60 s.
-- Semáforo: atraso δ calibrado contra a TomTom (artefato versionado), aplicado igual na rota da LIA e na baseline.
-- Tiles do mapa: continuam OSM/Esri; TomTom "night" só com chave dedicada e restrição de domínio.
-- **`lia_2.1` = modelo do Pedro** (bate com o metadata versionado). O retreino de 22/09 foi para `lia_2.1_retreino_20260923` (ambiente errado; não usar na tese).
-- API e `ml/` rodam em `apps/api/.venv` (pandas 3.0 / xgboost 3.2 / sklearn 1.8).
-- RAG/TabR/TimeGPT: **não**. Próximas features: vizinhos, chuva, feriado, incidente; harness de avaliação; contrato de features.
+- **Coleta volta, na mesma EC2** (custo zero), com cadência pela cota mensal: 39 chaves × 20 mil × 85% / 31 dias / 630 pontos → **1 ciclo a cada 43 min** (~21 mil chamadas/dia). 15% do pool fica pra API sob demanda. `COLETOR_INTERVALO_MIN` força outro valor.
+- Coletor espelha a API: 429 repetido (4×) = cota, 24 h fora; 403 sem texto de cota = chave inválida, 10 min; round-robin por chamada. Fase 3 vira opt-in (`COLETOR_FASE3`), desligada na EC2 (RAM).
+- `TOMTOM_KEYS_FILE` no coletor (a API já tinha) permite separar o pool se a reserva de 15% não bastar.
+- **Acesso do parceiro à AWS** = usuário IAM + MFA obrigatória + `ReadOnlyAccess` + política mínima (start/stop/reboot da instância, Session Manager, custo) — nunca Organizations/Identity Center (converte a conta em paga). Procedimento em `docs/core/deploy.md` §5.
+- P0 de segurança aplicados sem esperar: `httpx`/`httpcore` em WARNING (a URL com `key=` ia pro log em INFO), `--no-access-log`, `request_body max_size 64KB`, `StartLimit*`; keep-alive do Supabase passa a ler `avisos_app` (a tabela antiga nega a chave pública).
+- Dataset começa em **2026-03-07**, não 2026-04-27 (CLAUDE.md corrigido).
 
 ## Decisões abertas (do dono / grupo)
 
 1. Pool de 39 chaves × ToS §14.2 — declarar na tese.
-2. 473 rotas anônimas de teste da calibração (2026-09-23 04:12–05:15 UTC) em `rotas_calculadas`: apagar? (aguarda OK).
+2. **Retreinar LIA 2.3 com os dados novos** em dez/2026? Precisa de ≥ 4 semanas de coleta uniforme (a cadência de 43 min dá ~33 observações/ponto/dia, em todas as horas).
+3. `route_history` é 100% escrito pelo cliente, com INSERT sem restrição de coluna: travar colunas (grant por coluna + CHECK) ou mover a escrita pra API?
+4. Backup do dataset fora do Supabase (o free não tem backup; só há parquets locais): onde e como (dump semanal cifrado)?
+5. **Metodologia da avaliação (revisão de ML, 2026-11-01):** o baseline de persistência (`razao_lag1`) empata com a LIA 2.1 no RMSE (39,96 × 40,88 s) e ganha no MAE (12,04 × 14,51); o `early_stopping` usa o fold de validação (receita de produção = 41,64 s); perfis são in-sample. Com perfis OOF + recência envelhecida: 38,08 s. Decidir: (a) regerar métricas/figuras sem ES na validação e com persistência no `evaluate_cv`; (b) adotar OOF + envelhecimento como LIA 2.3 (confirmar em holdout); (c) como contar isso na tese. Números ainda não versionados (scratchpad) — nada entra no texto antes de virar JSON.
+6. Rotacionar as 39 chaves TomTom? Elas podem estar no `journalctl` da EC2 (log INFO do httpx até 2026-11-01). O journal é legível só por root/adm; recomendação: limpar o journal, não rotacionar.
 
 ## Próximos passos
 
-- [ ] Deploy contínuo (GitHub Actions): build do front em runner Linux + deploy da API por SSH.
+- [ ] **Dono:** liberar o IP atual no security group (ou ativar o Session Manager, deploy.md §5.1) → extrair o código (`git archive`) → `sudo bash /opt/routify/services/collector/deploy/instalar-ec2.sh` → re-rodar `provisionar-ec2.sh` (unidade da API com `--no-access-log`, Caddy com teto) → `sudo journalctl --vacuum-time=1s`.
+- [ ] **Dono:** criar o usuário IAM do Pedro (deploy.md §5.2) e ativar o Session Manager (§5.1).
+- [ ] Testes P0 da análise: limite por IP antes do auth em `/eventos` e `/admin`; TestClient HTTP (422 com NaN/extra/fora do DF, 429 com `Retry-After`, 401/403 do admin); contrato modelo ↔ metadata; migrations + RLS no CI (pgTAP).
+- [ ] `route_history`: grant de INSERT por coluna + CHECKs (ou a API persiste).
+- [ ] Backup semanal do dataset (Action com `pg_dump` cifrado).
+- [ ] `/route` fora do event loop (cache dos pesos por hora/dia) — p95 e `/health` sob carga.
+- [ ] Deploy contínuo (GitHub Actions): build do front em runner Linux + deploy da API por SSM.
 - [ ] Dono: validar visualmente app + painel em produção.
 - [ ] Recalibrar semáforo em horário comercial (a calibração atual foi de madrugada).
 - [ ] Velocidade livre por classe de via (viés β ≈ 22,9 s/km) e depois recalibrar δ.
 - [ ] Figura 1 com a LIA 2.2 (opcional: a tese cita a 2.1).
 - [ ] Snap na aresta (em vez do nó) para eliminar o conector.
-- [ ] F9 restante (CSP, suíte de segurança, trava de login, sessão ociosa) → F10 deploy.
+- [ ] F9 restante (CSP, suíte de segurança, trava de login, sessão ociosa).
 
 ## Checklist do orientador (texto final)
 
 - [x] Gráfico MAE/RMSE LIA 1.0 → 2.0 → 2.1 × baseline (`fig1`; números finais dependem do re-run)
 - [x] Curva isotônica confiança × distância (`fig2`) + ressalva do recorte
-- [x] Limitações e trabalhos futuros — **atualizar:** o semáforo agora tem tratamento calibrado; a fusão com a TomTom cobre as lacunas
-- [x] Diagrama de arquitetura (`docs/core/architecture.md`) + versão viva no painel — **atualizar** com a fusão
+- [x] Limitações e trabalhos futuros — **atualizar:** o semáforo agora tem tratamento calibrado; a fusão com a TomTom cobre as lacunas; **incluir a cobertura temporal do dataset** (números de `cobertura_dataset.json`)
+- [x] Diagrama de arquitetura (`docs/core/architecture.md`) + versão viva no painel — **atualizar** com a fusão e o coletor na EC2
 - [x] "Erro médio" = RMSE; coluna MAE na Tabela 1
 - [ ] Equipe revisar/reescrever o rascunho e declarar o uso de IA

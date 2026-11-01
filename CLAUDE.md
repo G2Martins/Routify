@@ -2,16 +2,16 @@
 
 > **Spec viva.** Porta de entrada lida pelo agente toda sessão. Não duplica os docs profundos — **aponta** pra eles. Atualize quando uma regra, comando, módulo ou hurdle mudar.
 >
-> **Última revisão:** 2026-09-23
+> **Última revisão:** 2026-11-01
 > **Estado/decisões:** [.planning/STATE.md](.planning/STATE.md) · **Análise da plataforma (fase final TCC 2):** [.planning/research/2026-09-22-analise-plataforma.md](.planning/research/2026-09-22-analise-plataforma.md)
 
 ---
 
 ## 1. O que é
 
-TCC 2026 — **roteamento preditivo para Brasília/DF**. Um coletor puxou TomTom Traffic Flow pro Supabase desde 2026-04-27 (~630 pontos, de 8 em 8 min). O modelo **LIA** (XGBoost) prevê a razão de congestionamento (vel. atual / vel. livre, 0,05–1,0). A API FastAPI roteia com A* num grafo OSMnx de 38 km. O app Expo (mobile + web) é a visão do usuário. Equipe: G2Martins + Pedro Borges (ver README).
+TCC 2026 — **roteamento preditivo para Brasília/DF**. Um coletor puxou TomTom Traffic Flow pro Supabase de 2026-03-07 a 2026-07-20 (~630 pontos, 1,51 M linhas; cadência nominal de 8 min, mas só 12 dias ficaram cobertos o dia inteiro — `ml/artifacts/cobertura_dataset.json`). Em 2026-11 a coleta voltou na EC2, ao lado da API, com cadência dimensionada pela cota (~43 min). O modelo **LIA** (XGBoost) prevê a razão de congestionamento (vel. atual / vel. livre, 0,05–1,0). A API FastAPI roteia com A* num grafo OSMnx de 38 km. O app Expo (mobile + web) é a visão do usuário. Equipe: G2Martins + Pedro Borges (ver README).
 
-**Fase final:** plataforma para o usuário (uso e histórico de rotas) + **visão ADM** (data quality, buscas, erros, modelo — observabilidade). A coleta contínua será **parada**; o TomTom passa a ser chamado sob demanda, com rotação automática de chaves. Cliente é **hostil até prova em contrário** (§4).
+**Fase final:** plataforma para o usuário (uso e histórico de rotas) + **visão ADM** (data quality, buscas, erros, modelo — observabilidade). A coleta contínua ficou pausada de jul a out/2026 e voltou em nov/2026 (coletor na EC2, cota-aware); o TomTom também é chamado sob demanda pela API, com rotação automática de chaves. Cliente é **hostil até prova em contrário** (§4).
 
 ## 2. Stack + Comandos
 
@@ -24,7 +24,9 @@ Passo a passo pra subir tudo e testar as visões de usuário e ADM: [docs/core/r
 cd apps/api && .venv/Scripts/python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000   # API
 cd apps/api && .venv/Scripts/python -m pytest -q                       # testes da API (HTTP da TomTom simulado)
 cd ml && ../apps/api/.venv/Scripts/python calibrate_signals.py --api http://127.0.0.1:8000   # atraso de semáforo
-cd services/collector && python main.py                                     # coletor TomTom (8 min) — será pausado
+cd services/collector && python main.py                                     # coletor TomTom (cadência pela cota; COLETOR_INTERVALO_MIN força; COLETOR_FASE3=1 liga a Fase 3)
+cd services/collector && python -m pytest -q tests                          # testes do coletor (rede e banco simulados)
+cd ml && ../apps/api/.venv/Scripts/python dataset_coverage.py                      # cobertura temporal do dataset → cobertura_dataset.json
 cd ml && ../apps/api/.venv/Scripts/python train.py --version lia_2.2 --skip-silver --contexto   # treino (sem --skip-silver puxa do Supabase)
 cd ml && ../apps/api/.venv/Scripts/python thesis_figures.py                        # figuras do texto → docs/figuras/
 cd ml && ../apps/api/.venv/Scripts/python publish_metrics.py                       # métricas da LIA → lia_treinos/lia_analises (painel ADM)
@@ -44,7 +46,7 @@ CI (`.github/workflows/`):
 | Módulo | O quê | Doc |
 |---|---|---|
 | [apps/api/](apps/api/) | `GET /health`, `GET /metrics`, `POST /predict`, `POST /route` (A* por `travel_time_lia` + baseline de menor distância + bloco `tomtom`), `GET /search/places` (malha local → TomTom Search → Nominatim). `tomtom.py` (TomTom sob demanda: pool de chaves, recência ao vivo no corredor, interdições, ETA de referência). (tcc2) `recency_cache.py` (TTL 300 s, merge com a leitura ao vivo), `graph_enrichment.py` (BallTree, transfer ≤ 500 m), `lia_inference.py` (ordem das features vem do modelo); `contexto.py` (LIA 2.2: vizinhos, chuva Open-Meteo, feriados — mesmo código no treino e na API); grafo enxuto em pickle (`ATRIBUTOS_ARESTA`, API ~0,79 GB de RAM); confiança calibrada em runtime = `transfer_confidence_isotonic.pkl`. **Captura de uso** (`usage.py`): middleware grava `api_requisicoes`; `/route` grava `rotas_calculadas` (coords arredondadas em 3 casas); `POST /eventos` (JWT obrigatório, 60/min por usuário) grava `eventos_app`; tudo fire-and-forget com service_role. CORS por allowlist (`CORS_ORIGINS`). **Fusão LIA × TomTom** (`trajeto.py`): a TomTom reconstrói a rota da LIA via `supportingPoints` (ETA ao vivo do mesmo trajeto + alternativa só se melhor); tempo = cobertura·LIA + resto·TomTom; fora da malha (snap > 600 m) a rota é da TomTom; atraso de semáforo calibrado (`semaforos_calibracao.json`). `seguranca.py` (limitador 429/Retry-After, `exigir_admin`), `config_runtime.py` (flags do painel), `routers/admin.py` (pool TomTom) | [README](apps/api/README.md), [architecture](docs/core/architecture.md) |
-| [services/collector/](services/collector/) | Coletor TomTom Flow Segment Data v4 → `historico_trafego`; bootstrap de `malha_completa`/`vias_monitoradas`; rotação de chaves. (tcc2) job Fase 3 4×/dia + `deploy/` (systemd) | [README](services/collector/README.md) |
+| [services/collector/](services/collector/) | Coletor TomTom Flow Segment Data v4 → `historico_trafego`; bootstrap de `malha_completa`/`vias_monitoradas` (import tardio do OSMnx); rotação round-robin com cooldown (429×4 = cota 24 h, 403 = chave 10 min); cadência = `intervalo_minutos(chaves, pontos)` pela cota mensal com 15% de reserva pra API; Fase 3 opt-in (`COLETOR_FASE3=1`). Roda na EC2 como `routify-collector` (`deploy/instalar-ec2.sh`). Testes em `tests/` | [README](services/collector/README.md) |
 | [ml/](ml/) | `silver.py` (Supabase → parquet, **único** acesso ao banco) → `features.py` → `train.py` (TimeSeriesSplit, 5 folds). (tcc2) `tune_hyperparams.py` (Optuna, não adotado), `calibrate_transfer.py`, `benchmark_lstm_xgboost.py`, `external_validation.py`. LIA 2.2: `fetch_contexto.py` (chuva/feriados versionados), `train.py --contexto`, `context_stress_test.py`. Artefatos em `models/` (`.pkl` gitignored, `.json` versionado) | [README](ml/README.md) |
 | [supabase/migrations/](supabase/migrations/) | Única DDL versionada, em ordem: `20260427…_route_history` (`route_history`, `profiles`, trigger `handle_new_user`), (tcc2) `20260907…_thesis_validation`, `20260923000000_security_hardening` (RLS do dataset), `20260923010000_usage_tracking_admin` (uso, `is_admin()`, RPCs de leitura, views de qualidade no schema `painel`, `pg_cron`), `20260923020000_admin_actions` (RPCs de ação com trava anti-corrida + auditoria na mesma transação, `config_runtime`, `avisos_app`, feedback outlier, analytics k-anônimo) | [rodar-local §1](docs/core/rodar-local.md) |
 | [apps/admin/](apps/admin/) | Painel ADM Next.js 16: visão geral, LIA (benchmarks), arquitetura viva (React Flow), uso, qualidade dos dados, usuários. Só chave publishable; acesso garantido no banco (RLS + RPC com `is_admin()`) | [README](apps/admin/README.md) |
@@ -98,7 +100,7 @@ CI (`.github/workflows/`):
     - RLS sem policy + revoke nas 3 tabelas (API, coletor e ml usam service_role);
     - UPDATE de `route_history` restrito às colunas de feedback;
     - `handle_new_user` fora do `/rpc`.
-  - **Status:** as migrations 1–3 foram aplicadas pelo dono em 2026-09-23 (o `publish_metrics.py` gravou; conferir o Advisor). **Pendente:** `20260923020000_admin_actions.sql`, sem a qual as ações do painel e a `config_runtime` dão 404. Como aplicar e como promover admin: [docs/core/rodar-local.md §1](docs/core/rodar-local.md).
+  - **Status:** as migrations 1–3 foram aplicadas pelo dono em 2026-09-23 (o `publish_metrics.py` gravou; conferir o Advisor). A 4ª (`20260923020000_admin_actions.sql`) foi aplicada via MCP em 2026-09-23; `economia_combustivel` e `minutos_economizados` vieram depois (conferir com `supabase migration list --linked`). Como aplicar e como promover admin: [docs/core/rodar-local.md §1](docs/core/rodar-local.md).
 - O papel ADM nunca pode ficar em coluna que o próprio usuário edita (`profiles` tem update pelo dono). Fica em `app_metadata.role`, que só o service role grava e já vem no JWT. Depois de promover, o usuário precisa sair e entrar de novo para o token trazer o papel.
 
 ## 6. Common Hurdles
@@ -128,11 +130,16 @@ CI (`.github/workflows/`):
 - **`.gitignore` do tcc2 ignora `*.md` exceto README** (notas internas ficam fora do repo). Exceções mantidas: `CLAUDE.md`, `docs/**/*.md`, `.planning/**/*.md`. Doc viva nova em outra pasta precisa de exceção.
 - **`apps/mobile/src/lib/` sumia do git.** O `.gitignore` antigo tinha `lib/` (template Python) e engolia `api.ts`/`supabase.ts`/`responsive.ts`. Corrigido em `75c92d8`; hoje o ignore de `lib/` só vale dentro das pastas Python. O snapshot tcc2 não tem a pasta, então não builda sozinho; o tipo `RouteHistoryRow` do main não tem as colunas novas de validação.
 - **Rotação de chaves TomTom (coletor):** o mesmo bug foi corrigido 2× em paralelo (main `d0fb247` × tcc2). No merge ficou a implementação do main: cooldown graduado (QPS 300 s, 403 desconhecido 600 s), `requests.Session` com retry e guard anti-sobreposição `coleta_protegida`. A cota esgotada usa a **janela rolante de 24 h** do Pedro (`SECONDS_PER_DAY`), porque o reset não está confirmado. Ao reaproveitar na API: extrair um módulo compartilhado, não copiar.
-- **Cota free da TomTom é MENSAL e POR API** (pricing conferido em 2026-09-22): Flow 20 mil, Incidents 2,5 mil, Search 2,5 mil e Routing 20 mil por chave.
+- **Cota free da TomTom é MENSAL e POR API** (docs.tomtom.com/pricing, reconferido em 2026-11-01: "free monthly requests per API"): Flow 20 mil, Incidents 2,5 mil, Search 2,5 mil e Routing 20 mil. A página **não diz** se é por conta ou por chave; o coletor assume por chave e deixa 15% pro uso sob demanda.
+  - Em 2026-11-01 as 39 chaves responderam 200 (teste de 1 chamada por chave).
+  - O coletor e a API têm cooldown em memória cada um; só o arquivo de chaves é compartilhado. Um restart re-sonda chaves esgotadas (1 chamada por chave e serviço).
   - Por isso o cooldown em `tomtom.py` é por (chave, serviço).
   - A TomTom devolve **429 tanto pra QPS quanto pra cota**; 3 respostas 429 seguidas na mesma chave viram cota. Não dá pra confiar em frases de erro antigas ("Developer Over Qps").
   - O Incident Details não aceita `pt-BR`; usar `pt-PT`.
   - A confirmar no painel my.tomtom.com: se a conta nova não tem cota diária adicional.
+- **Cobertura temporal do dataset é enviesada** (`ml/artifacts/cobertura_dataset.json`): na maioria dos dias o pool só rendeu ~2.520 linhas (4 ciclos logo após 00:00 UTC) e 64% das linhas vêm de 12 dias "cheios"; a hora 21h (Brasília) tem 23% das linhas e sábado/domingo têm 1/8 da segunda. Explica parte da subestimativa diurna da Fase 3 e motivou a volta da coleta. Declarar como limitação.
+- **SSH na EC2: o security group só libera o IP do dono** (`/32`). IP residencial muda → `Connection timed out`. Atualizar a regra no console (EC2 → Security Groups → Inbound → SSH) ou usar o Session Manager (ver `docs/core/deploy.md` §5). Sem AWS CLI/credencial na máquina, o assistente não consegue abrir o SG sozinho.
+- **httpx loga a URL inteira em INFO** (`?key=…&point=lat,lon`): `tomtom.py` põe `httpx`/`httpcore` em WARNING e o uvicorn roda com `--no-access-log`. Teste `test_log_info_nao_contem_chave_nem_url`. Logs antigos da EC2 (`journalctl`) podem ter chaves: limpar com `journalctl --vacuum-time=1s` depois do deploy.
 - **Pool de 39 chaves × ToS TomTom §14.2** — os termos permitem suspender contas criadas pra obter requisições grátis adicionais. Declarar na tese como risco/limitação de protótipo acadêmico.
 - **Flow Segment Data só existe na API Genesis v4** (`/traffic/services/4/flowSegmentData`). O traffic flow do Orbis v2 é só tiles. Incidents, Routing e Search já têm versão Orbis, mas o código usa as versões Genesis estáveis.
 - **Nominatim: a política da OSMF proíbe autocomplete** e exige ≤ 1 req/s + cache. Por isso ele é o último elo da busca, com trava. Não mover pra frente da cadeia.

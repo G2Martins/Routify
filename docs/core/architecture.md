@@ -1,6 +1,6 @@
 # Arquitetura — Routify
 
-**Última revisão:** 2026-09-23
+**Última revisão:** 2026-11-01
 
 Visão de ponta a ponta do sistema na fase final do TCC 2: a coleta contínua para e a TomTom passa a ser consultada **sob demanda**, complementando a LIA (XGBoost) na hora de cada rota. Este documento atende ao item 3 do orientador: fluxo da API com o cache de recência, a rotação defensiva de chaves e o fallback da busca de endereços.
 
@@ -102,7 +102,7 @@ sequenceDiagram
 
 Por que o cooldown é **por serviço**: a cota free da TomTom é mensal e separada por API (Flow 20 mil, Incidents 2,5 mil, Search 2,5 mil, Routing 20 mil por chave, segundo a página de pricing em set/2026). Esgotar Incidents numa chave não tira o Flow dela. O valor da chave nunca aparece em log, só o id.
 
-O coletor (`services/collector/traffic_collector.py`, pausado) segue a mesma política: cooldown graduado e janela de 24 h para cota.
+O coletor (`services/collector/traffic_collector.py`, de volta na EC2 desde 2026-11) segue a mesma política: 429 repetido = cota (24 h), 403 = chave (10 min), round-robin a cada chamada; a cadência é dimensionada pela cota mensal com 15% de reserva pra API (`intervalo_minutos`). Os dois processos têm cooldown próprio em memória.
 
 ## 4. Busca de endereços (autocomplete)
 
