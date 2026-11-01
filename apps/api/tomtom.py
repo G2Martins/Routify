@@ -33,6 +33,10 @@ import numpy as np
 from lia_inference import RAZAO_MAX, RAZAO_MIN
 
 logger = logging.getLogger(__name__)
+# httpx/httpcore registram a URL completa em INFO — com a chave e a coordenada do
+# usuário. Só erros deles interessam (CLAUDE.md §4: nunca logar chave).
+for _ruidoso in ('httpx', 'httpcore'):
+    logging.getLogger(_ruidoso).setLevel(logging.WARNING)
 
 BASE_URL = 'https://api.tomtom.com'
 ARQUIVO_CHAVES = os.path.join(os.path.dirname(__file__), '..', '..', 'services', 'collector', 'config', 'tomtom_keys.json')

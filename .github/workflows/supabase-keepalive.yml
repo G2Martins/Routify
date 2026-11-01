@@ -26,7 +26,8 @@ jobs:
           fi
           code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 \
             -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
-            "$SUPABASE_URL/rest/v1/vias_monitoradas?select=id_ponto&limit=1")
+            "$SUPABASE_URL/rest/v1/avisos_app?select=id&limit=1")
           echo "HTTP $code"
-          # 000 = não resolveu/conectou (projeto pausado); 5xx = banco com problema.
-          [ "$code" -ge 200 ] && [ "$code" -lt 500 ] || exit 1
+          # avisos_app tem policy de leitura pública: qualquer coisa que não seja 200
+          # (000 = projeto pausado, 401/403 = RLS mudou, 5xx = banco) é falha de verdade.
+          [ "$code" -eq 200 ] || exit 1

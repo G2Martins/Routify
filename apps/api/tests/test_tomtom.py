@@ -121,6 +121,16 @@ def test_erro_de_rede_nao_vaza_chave_no_log(caplog):
     assert 'SEGREDO' not in caplog.text
 
 
+def test_log_info_nao_contem_chave_nem_url(caplog):
+    """httpx registra a URL completa em INFO (…?key=SEGREDO…); tomtom.py silencia esse logger."""
+    def handler(req):
+        return httpx.Response(200, json={'flowSegmentData': {'currentSpeed': 30, 'freeFlowSpeed': 60}})
+
+    with caplog.at_level('INFO'):
+        assert _rodar(_cliente(handler), lambda c: c.fluxo(-15.8, -47.9)) is not None
+    assert 'SEGREDO' not in caplog.text and 'api.tomtom.com' not in caplog.text
+
+
 def test_orcamento_do_minuto_corta_chamadas():
     feitas = []
 

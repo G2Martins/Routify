@@ -43,6 +43,9 @@ After=network-online.target
 Wants=network-online.target
 # Sem as credenciais o serviço nem tenta subir (evita loop de restart recarregando o grafo).
 ConditionPathExists=$RAIZ/services/collector/config/.env
+# 5 quedas em 5 min param o loop (ex.: .env ilegível) em vez de reiniciar pra sempre.
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 User=routify
@@ -51,7 +54,8 @@ Environment=TZ=America/Sao_Paulo
 Environment=TRUST_PROXY=1
 Environment=CORS_ORIGINS=$APP_ORIGIN
 Environment=PYTHONDONTWRITEBYTECODE=1
-ExecStart=$API/.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
+# Sem access log: ele grava a query (?q=, lat, lon) e o IP de cada requisição (LGPD).
+ExecStart=$API/.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000 --no-access-log
 Restart=always
 RestartSec=5
 # ~0,8 GB em uso; o teto protege o SO numa máquina de 2 GB.
@@ -82,6 +86,10 @@ EOF
 cat > /etc/caddy/Caddyfile <<EOF
 $API_DOMAIN {
 	encode zstd gzip
+	# Corpos da API têm poucos KB; sem teto, um POST de 200 MB estoura o MemoryMax.
+	request_body {
+		max_size 64KB
+	}
 	reverse_proxy 127.0.0.1:8000
 	header {
 		Strict-Transport-Security "max-age=63072000; includeSubDomains"
