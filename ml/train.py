@@ -1,6 +1,7 @@
 """
 Treinamento LIA 2.0 — XGBoost + MLflow
-Uso: python train.py [--version lia_2.0] [--cpu] [--skip-silver]
+Uso: python train.py [--version lia_2.0] [--cpu] [--skip-silver] [--contexto]
+     LIA 2.3: --version lia_2.3 --contexto --oof-perfis --envelhecer --es-interno
 
 Fluxo:
   1. silver.py — atualiza o Parquet a partir do Supabase
@@ -138,114 +139,163 @@ def _metricas(y_true, y_pred, tempo_real_s, prefixo=''):
     }
 
 
-def evaluate_cv(df: pd.DataFrame, params: dict, cols: list = None) -> dict:
-    """CV temporal. Cada fold recalcula os perfis só com o seu treino."""
+IDADES_AVALIACAO_MIN = (15, 30, 60, 120)
+
+
+def _ajustar(params: dict, X, y, es_interno: bool = False, eval_set=None):
+    """Treina um XGBRegressor e devolve (modelo, nº de árvores).
+
+    es_interno (LIA 2.3): o nº de árvores sai de um early stopping no último 10%
+    do PRÓPRIO treino, em ordem temporal, e o modelo é refeito com 100% do
+    treino. Sem ele, o early stopping usa `eval_set`, que na CV é a própria
+    validação (como até a 2.2: otimista, a parada escolhe pelo conjunto que
+    depois é medido). Sem eval_set, treina as n_estimators fixas.
+    """
+    sem_es = {k: v for k, v in params.items() if k != 'early_stopping_rounds'}
+    if es_interno:
+        corte = int(len(X) * 0.9)
+        sonda = xgb.XGBRegressor(**params)
+        sonda.fit(X.iloc[:corte], y.iloc[:corte],
+                  eval_set=[(X.iloc[corte:], y.iloc[corte:])], verbose=False)
+        n = int(sonda.best_iteration) + 1
+        return xgb.XGBRegressor(**{**sem_es, 'n_estimators': n}).fit(X, y, verbose=False), n
+    if eval_set is not None:
+        m = xgb.XGBRegressor(**params).fit(X, y, eval_set=eval_set, verbose=False)
+        return m, int(m.best_iteration) + 1
+    return xgb.XGBRegressor(**sem_es).fit(X, y, verbose=False), int(sem_es['n_estimators'])
+
+
+def _media(lista, chave):
+    vals = [d[chave] for d in lista if not np.isnan(d[chave])]
+    return (float(np.mean(vals)), float(np.std(vals))) if vals else (float('nan'), float('nan'))
+
+
+def evaluate_cv(df: pd.DataFrame, params: dict, cols: list = None, oof: bool = False,
+                envelhecer: bool = False, es_interno: bool = False,
+                idades=IDADES_AVALIACAO_MIN) -> dict:
+    """CV temporal. Cada fold recalcula os perfis só com o seu treino.
+
+    Mede nos mesmos folds o modelo, o perfil puro e a persistência (repetir a
+    última leitura da via). Repete a medida com a recência envelhecida em
+    `idades` minutos, como ela chega na API: com leitura de 8 min a persistência
+    é difícil de bater, mas isso não é a produção. Acima da janela dos vizinhos
+    (60 min) a medida também tira os vizinhos, que a API não teria.
+    """
     cols = cols or feat.FEATURE_COLS
     tscv = TimeSeriesSplit(n_splits=N_SPLITS)
-    resultados = {'modelo': [], 'baseline': []}
+    serie = feat.serie_observacoes(df)
+    nomes = ('modelo', 'baseline', 'persistencia')
+    resultados = {n: [] for n in nomes}
+    por_idade = {i: {n: [] for n in nomes} for i in idades}
+    arvores = []
 
-    logging.info(f"TimeSeriesSplit temporal ({N_SPLITS} folds)...")
+    logging.info(f"TimeSeriesSplit temporal ({N_SPLITS} folds) | perfis OOF: {oof} | "
+                 f"recência envelhecida: {envelhecer} | early stopping interno: {es_interno}")
 
     for fold, (tr_idx, val_idx) in enumerate(tscv.split(df)):
-        df_tr = df.iloc[tr_idx]
-        df_val = df.iloc[val_idx]
+        df_tr, df_val = df.iloc[tr_idx], df.iloc[val_idx]
 
         # Perfis SÓ com treino — evita vazar futuro no passado.
         perfis = feat.build_profiles(df_tr)
-        tr = feat.apply_profiles(df_tr.copy(), perfis)
+        tr = feat.apply_profiles_oof(df_tr) if oof else feat.apply_profiles(df_tr.copy(), perfis)
         val = feat.apply_profiles(df_val.copy(), perfis)
+        if envelhecer:
+            tr = feat.envelhecer_recencia(tr, serie)
 
-        X_tr, y_tr = tr[cols], tr[feat.TARGET_COL]
         X_val, y_val = val[cols], val[feat.TARGET_COL]
         tempo_val = val['tempo_viagem_segundos'].values
 
         t0 = time.time()
-        model = xgb.XGBRegressor(**params)
-        model.fit(X_tr, y_tr, eval_set=[(X_val, y_val)], verbose=False)
+        model, n_arv = _ajustar(params, tr[cols], tr[feat.TARGET_COL], es_interno,
+                                eval_set=[(X_val, y_val)])
         dur = time.time() - t0
+        arvores.append(n_arv)
 
-        m_modelo = _metricas(y_val, model.predict(X_val), tempo_val)
-        # Baseline: usar o perfil histórico diretamente como predição.
-        m_base = _metricas(y_val, val['perfil_via_hora_dow'].values, tempo_val)
+        m = {'modelo': _metricas(y_val, model.predict(X_val), tempo_val),
+             'baseline': _metricas(y_val, val['perfil_via_hora_dow'].values, tempo_val),
+             'persistencia': _metricas(y_val, val['razao_lag1'].values, tempo_val)}
+        for n in nomes:
+            resultados[n].append(m[n])
 
-        resultados['modelo'].append(m_modelo)
-        resultados['baseline'].append(m_base)
+        for idade in idades:
+            r, d = feat.recencia_envelhecida(val, serie, idade)
+            ok = ~np.isnan(r)
+            if ok.sum() < 500:
+                continue
+            v = val.iloc[np.where(ok)[0]].copy()
+            v['razao_lag1'], v['delta_min_lag1'] = r[ok], np.log1p(d[ok])
+            if idade > feat.ctx.JANELA_VIZINHOS_MIN and 'vizinhos_razao' in v:
+                v['vizinhos_razao'], v['vizinhos_n'] = np.nan, 0.0
+            yv, tv = v[feat.TARGET_COL].values, v['tempo_viagem_segundos'].values
+            por_idade[idade]['modelo'].append(_metricas(yv, model.predict(v[cols]), tv))
+            por_idade[idade]['persistencia'].append(_metricas(yv, v['razao_lag1'].values, tv))
+            por_idade[idade]['baseline'].append(_metricas(yv, v['perfil_via_hora_dow'].values, tv))
 
         logging.info(
             f"  Fold {fold+1}/{N_SPLITS} — treino {len(tr):,} → val {len(val):,} | "
-            f"val de {df_val['data_hora_brasilia'].min():%d/%m} a "
-            f"{df_val['data_hora_brasilia'].max():%d/%m} | "
-            f"modelo RMSE {m_modelo['rmse_seg']:.1f}s vs baseline "
-            f"{m_base['rmse_seg']:.1f}s | {dur:.1f}s"
+            f"val de {df_val['data_hora_brasilia'].min():%d/%m} a {df_val['data_hora_brasilia'].max():%d/%m} | "
+            f"modelo {m['modelo']['rmse_seg']:.1f}s · perfil {m['baseline']['rmse_seg']:.1f}s · "
+            f"persistência {m['persistencia']['rmse_seg']:.1f}s | {n_arv} árvores | {dur:.1f}s"
         )
-
-    def media(lista, chave):
-        vals = [d[chave] for d in lista if not np.isnan(d[chave])]
-        return float(np.mean(vals)) if vals else float('nan')
 
     resumo = {}
-    for nome in ('modelo', 'baseline'):
+    for nome in nomes:
         for chave in resultados[nome][0]:
-            resumo[f'{nome}_{chave}'] = media(resultados[nome], chave)
-            resumo[f'{nome}_{chave}_std'] = float(np.std(
-                [d[chave] for d in resultados[nome] if not np.isnan(d[chave])]
-            ))
+            resumo[f'{nome}_{chave}'], resumo[f'{nome}_{chave}_std'] = _media(resultados[nome], chave)
 
     logging.info("")
-    logging.info("--- Resultado da validação cruzada ---")
-    logging.info(
-        f"  Modelo   — RMSE {resumo['modelo_rmse_seg']:.1f}s "
-        f"(± {resumo['modelo_rmse_seg_std']:.1f}) | "
-        f"razão {resumo['modelo_rmse_razao']:.4f}"
-    )
-    logging.info(
-        f"  Baseline — RMSE {resumo['baseline_rmse_seg']:.1f}s "
-        f"(± {resumo['baseline_rmse_seg_std']:.1f}) | "
-        f"razão {resumo['baseline_rmse_razao']:.4f}"
-    )
-    logging.info(
-        f"  Só congestionado — modelo {resumo['modelo_rmse_seg_congestionado']:.1f}s "
-        f"vs baseline {resumo['baseline_rmse_seg_congestionado']:.1f}s"
-    )
+    logging.info("--- Resultado da validação cruzada (RMSE / MAE em segundos) ---")
+    for nome in nomes:
+        logging.info(f"  {nome:<12} {resumo[f'{nome}_rmse_seg']:.2f} (± {resumo[f'{nome}_rmse_seg_std']:.2f}) / "
+                     f"{resumo[f'{nome}_mae_seg']:.2f} | só congestionado {resumo[f'{nome}_rmse_seg_congestionado']:.1f}")
 
-    ganho = resumo['baseline_rmse_seg'] - resumo['modelo_rmse_seg']
-    if ganho > 0:
-        logging.info(
-            f"  → O modelo supera o perfil puro em {ganho:.1f}s "
-            f"({ganho/resumo['baseline_rmse_seg']*100:.1f}%)"
-        )
-    else:
-        logging.warning(
-            f"  → O perfil puro está {abs(ganho):.1f}s MELHOR que o modelo. "
-            f"O XGBoost não está agregando valor sobre a média histórica."
-        )
+    resumo['por_idade'] = {}
+    for idade in idades:
+        if not por_idade[idade]['modelo']:
+            continue
+        resumo['por_idade'][str(idade)] = {
+            f'{n}_{c}': round(_media(por_idade[idade][n], c)[0], 4)
+            for n in nomes for c in ('rmse_seg', 'mae_seg')}
+        resumo['por_idade'][str(idade)]['folds'] = len(por_idade[idade]['modelo'])
+        p = resumo['por_idade'][str(idade)]
+        logging.info(f"  leitura com {idade:>3} min: modelo {p['modelo_rmse_seg']:.2f} · "
+                     f"persistência {p['persistencia_rmse_seg']:.2f} · perfil {p['baseline_rmse_seg']:.2f}")
 
     # Por fold, para comparação pareada entre versões (mesmos folds nas duas).
-    resumo['folds'] = [{'rmse_seg': round(m['rmse_seg'], 4), 'mae_seg': round(m['mae_seg'], 4),
-                        'baseline_rmse_seg': round(b['rmse_seg'], 4)}
-                       for m, b in zip(resultados['modelo'], resultados['baseline'])]
+    resumo['folds'] = [{'rmse_seg': round(a['rmse_seg'], 4), 'mae_seg': round(a['mae_seg'], 4),
+                        'baseline_rmse_seg': round(b['rmse_seg'], 4),
+                        'persistencia_rmse_seg': round(c['rmse_seg'], 4),
+                        'persistencia_mae_seg': round(c['mae_seg'], 4), 'arvores': n}
+                       for a, b, c, n in zip(resultados['modelo'], resultados['baseline'],
+                                             resultados['persistencia'], arvores)]
     return resumo
 
 
-def train_final(df: pd.DataFrame, params: dict, cols: list = None):
-    """Modelo final: perfis sobre 100% dos dados (viram artefato para a API)."""
+def train_final(df: pd.DataFrame, params: dict, cols: list = None, oof: bool = False,
+                envelhecer: bool = False, n_arvores: int = None):
+    """Modelo final: perfis sobre 100% dos dados (viram artefato para a API).
+
+    n_arvores (LIA 2.3): a mediana das paradas da CV. Um early stopping no fim
+    da série inteira (jul/2026: dias esparsos, quase só 21h) parava em ~68
+    árvores, longe das 200–600 que a CV mediu.
+    """
     logging.info("Treinando modelo final com 100% dos dados...")
     cols = cols or feat.FEATURE_COLS
 
     perfis = feat.build_profiles(df)
-    full = feat.apply_profiles(df.copy(), perfis)
+    full = feat.apply_profiles_oof(df) if oof else feat.apply_profiles(df.copy(), perfis)
+    if envelhecer:
+        full = feat.envelhecer_recencia(full, feat.serie_observacoes(df))
 
     X, y = full[cols], full[feat.TARGET_COL]
-
-    final_params = {k: v for k, v in params.items() if k != 'early_stopping_rounds'}
-    model = xgb.XGBRegressor(**final_params)
-    model.fit(X, y, verbose=False)
-
+    model, n_arv = _ajustar({**params, 'n_estimators': n_arvores} if n_arvores else params, X, y)
+    logging.info(f"  modelo final com {n_arv} árvores")
     return model, perfis, X
 
 
 def run(version: str = 'lia_2.0', use_gpu: bool = True, skip_silver: bool = False,
-        params_nome: str = 'manual', com_contexto: bool = False):
+        params_nome: str = 'manual', com_contexto: bool = False, oof: bool = False,
+        envelhecer: bool = False, es_interno: bool = False):
     os.makedirs(MODELS_DIR, exist_ok=True)
     params = dict(PARAMS_POR_NOME[params_nome])
     cols = feat.feature_cols(com_contexto)
@@ -270,11 +320,13 @@ def run(version: str = 'lia_2.0', use_gpu: bool = True, skip_silver: bool = Fals
     mlflow.set_experiment("LIA")
 
     logging.info("=== Passo 3: Validação cruzada temporal ===")
-    resumo = evaluate_cv(df, params, cols)
+    resumo = evaluate_cv(df, params, cols, oof=oof, envelhecer=envelhecer, es_interno=es_interno)
     folds = resumo.pop('folds')
+    por_idade = resumo.pop('por_idade')
 
     logging.info("=== Passo 4: Modelo final ===")
-    model, perfis, X_full = train_final(df, params, cols)
+    n_final = int(np.median([f['arvores'] for f in folds])) if es_interno else None
+    model, perfis, X_full = train_final(df, params, cols, oof=oof, envelhecer=envelhecer, n_arvores=n_final)
 
     importance = dict(zip(X_full.columns, model.feature_importances_))
     logging.info("Importância das features:")
@@ -308,6 +360,12 @@ def run(version: str = 'lia_2.0', use_gpu: bool = True, skip_silver: bool = Fals
                             **{k: v for k, v in params.items() if k not in ('verbosity', 'device')}},
         'com_contexto': com_contexto,
         'cv_folds': folds,
+        'cv_por_idade_recencia_min': por_idade,
+        'receita': {'perfis_oof': oof, 'recencia_envelhecida': envelhecer,
+                    'idades_envelhecimento_min': list(feat.IDADES_RECENCIA_MIN) if envelhecer else [],
+                    'early_stopping': 'interno (último 10% do treino)' if es_interno else 'na validação da CV',
+                    'arvores_modelo_final': int(model.get_params()['n_estimators']),
+                    'regra_arvores_final': 'mediana das paradas da CV' if es_interno else 'n_estimators fixo'},
         'formula_inferencia': 'tempo_s = comprimento_m / (velocidade_livre_kmh * razao_prevista / 3.6)',
     })
     with open(meta_path, 'w', encoding='utf-8') as f:
@@ -356,6 +414,12 @@ if __name__ == '__main__':
                         help='manual = LIA 2.1 da tese (padrão); optuna = testado e não adotado')
     parser.add_argument('--contexto', action='store_true',
                         help='LIA 2.2: vizinhos, chuva e feriado (apps/api/contexto.py)')
+    parser.add_argument('--oof-perfis', action='store_true',
+                        help='LIA 2.3: perfis fora da amostra nas linhas de treino')
+    parser.add_argument('--envelhecer', action='store_true',
+                        help='LIA 2.3: metade do treino com a recência envelhecida (15 a 480 min)')
+    parser.add_argument('--es-interno', action='store_true',
+                        help='LIA 2.3: early stopping no fim do próprio treino, não na validação')
     args = parser.parse_args()
 
     t0 = time.time()
@@ -364,7 +428,8 @@ if __name__ == '__main__':
     logging.info("=" * 70)
 
     run(version=args.version, use_gpu=not args.cpu, skip_silver=args.skip_silver,
-        params_nome=args.params, com_contexto=args.contexto)
+        params_nome=args.params, com_contexto=args.contexto, oof=args.oof_perfis,
+        envelhecer=args.envelhecer, es_interno=args.es_interno)
 
     logging.info("=" * 70)
     logging.info(f"Concluído em {time.time() - t0:.1f}s")

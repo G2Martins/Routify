@@ -14,6 +14,8 @@
 
 ---
 
+**Última revisão:** 2026-11-02
+
 ## 🎯 Objetivo
 
 Treinar a **LIA** (*Logística de Inteligência Artificial*) — modelo que prevê a **razão de congestionamento** (`velocidade_atual / velocidade_livre`) de cada via monitorada, a partir dos dados coletados pelo `services/collector` no Supabase.
@@ -97,6 +99,20 @@ python train.py --version lia_2.1_repro --skip-silver --cpu            # 2.1 no 
 python fetch_contexto.py                                               # chuva (Open-Meteo) + feriados (BrasilAPI)
 python train.py --version lia_2.2 --skip-silver --cpu --contexto       # 2.1 + vizinhos, chuva, feriado
 python context_stress_test.py                                          # 2.1 × 2.2 com entradas degradadas
+# LIA 2.3 (padrão da API desde 2026-11-02): perfis fora da amostra + recência envelhecida + early stopping no treino
+python train.py --version lia_2.3 --skip-silver --cpu --contexto --oof-perfis --envelhecer --es-interno
+python ablation_lia_2_3.py                                             # 2.2 → 2.3, uma mudança por vez (~10 min)
+```
+Desde a 2.3, todo treino mede nos mesmos folds a **persistência** (repetir a última leitura) e o erro com a
+recência **envelhecida** (15/30/60/120 min, como ela chega na API): `cv.persistencia_*` e `cv_por_idade_recencia_min`
+no metadata. O modelo final usa a mediana das paradas da CV (`receita.arvores_modelo_final`).
+
+### Avaliação fora do tempo (dados que nenhum modelo viu)
+```bash
+python silver.py                                         # puxa as leituras novas (coleta voltou em 2026-11-02)
+python fetch_contexto.py --fim AAAA-MM-DD                # chuva até a data da avaliação
+python avaliar_fora_do_tempo.py --desde 2026-11-02 --versoes lia_2.2 lia_2.3
+python publish_metrics.py                                # leva tudo ao painel ADM (/admin/lia e /admin/provedores)
 ```
 `--params manual` (padrão, hiperparâmetros do Pedro) ou `--params optuna` (testado, não adotado).
 
@@ -117,7 +133,8 @@ python free_flow_speeds.py                                  # velocidade livre T
 **Artefatos da tese em `artifacts/`:**
 - `lia_2.1*` = modelo do Pedro (19/08), que bate com `lia_2.1_metadata.json` — **número oficial da 2.1**;
 - `lia_2.1_repro_metadata.json` = mesma receita no pipeline/ambiente atual (RMSE 40,88 s × 40,69 s do Pedro: diferença dentro do desvio entre folds) — é a base justa da ablação;
-- `lia_2.2*` = 2.1 + contexto (**padrão da API**); `lia_2.2_vizinhos.json` (vizinhos usados no treino e na API), `lia_2.2_estresse.json` (estresse treino × produção), `chuva_brasilia.json` e `feriados.json` (fontes versionadas);
+- `lia_2.3*` = 2.2 + perfis OOF + recência envelhecida + early stopping no treino (**padrão da API**); `ablation_lia_2.3.json` (efeito de cada mudança, por idade da leitura), `experimento_velocidade_livre.json` (LIA × TomTom no mesmo trajeto com a velocidade livre do OSM ou na escala da TomTom), `avaliacao_fora_do_tempo.json` (gerado em dezembro);
+- `lia_2.2*` = 2.1 + contexto; `lia_2.2_vizinhos.json` (vizinhos usados no treino e na API), `lia_2.2_estresse.json` (estresse treino × produção), `chuva_brasilia.json` e `feriados.json` (fontes versionadas);
 - `lia_2.1_retreino_20260923*` = retreino com Optuna em ambiente divergente. **Não usar na tese.**
 - `fase3_comparacao.csv` (validação externa, 71 corridas) é versionado.
 

@@ -9,9 +9,11 @@ e grava com o service_role do .env do coletor. Rodar depois de cada treino:
 
 Re-treinos extras entram sozinhos se salvos como artifacts/<versao>_retreino_<data>_metadata.json.
 """
+import csv
 import json
 import os
 import sys
+from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 from supabase import create_client
@@ -76,17 +78,41 @@ def linhas_treinos():
 
     # Ablação do contexto: mesma receita no mesmo ambiente, com e sem as 5 features.
     for versao, nota in (('lia_2.1_repro', '2.1 refeita no pipeline atual — base justa da ablação.'),
-                         ('lia_2.2', '2.1 + contexto (vizinhos, chuva, feriado). Padrão da API.')):
+                         ('lia_2.2', '2.1 + contexto (vizinhos, chuva, feriado).'),
+                         ('lia_2.3', '2.2 + perfis fora da amostra + recência envelhecida + early stopping '
+                                     'no próprio treino (ver ablation_lia_2.3.json). Padrão da API desde 2026-11-02.')):
         meta = _json(f'{versao}_metadata.json')
         if meta:
-            linhas.append(_linha_cv(versao, f'{versao}_metadata.json › cv', meta, meta.get('cv', {}), {
-                'nota': nota, 'pct_congestionado': meta.get('pct_congestionado'), 'cv_folds': meta.get('cv_folds')}))
+            cv = meta.get('cv', {})
+            linhas.append(_linha_cv(versao, f'{versao}_metadata.json › cv', meta, cv, {
+                'nota': nota, 'pct_congestionado': meta.get('pct_congestionado'), 'cv_folds': meta.get('cv_folds'),
+                # A partir da 2.3 o treino mede também a persistência e o erro por idade da leitura.
+                'persistencia_rmse_seg': cv.get('persistencia_rmse_seg'),
+                'persistencia_mae_seg': cv.get('persistencia_mae_seg'),
+                'cv_por_idade_recencia_min': meta.get('cv_por_idade_recencia_min'),
+                'receita': meta.get('receita')}))
 
     for nome in sorted(os.listdir(ARTEFATOS)):
         if '_retreino_' in nome and nome.endswith('_metadata.json'):
             meta = _json(nome)
             linhas.append(_linha_cv(nome.replace('_metadata.json', ''), nome, meta, meta.get('cv', {})))
     return linhas
+
+
+def fase3():
+    """Rodadas da Fase 3 (LIA 2.1 × TomTom em corredores fixos, ago–set/2026), linha a linha."""
+    caminho = os.path.join(ARTEFATOS, 'fase3_comparacao.csv')
+    if not os.path.exists(caminho):
+        return None
+    campos = ('timestamp', 'hora', 'dia_semana', 'par', 'lia_tempo_seg', 'lia_distancia_km',
+              'menor_dist_tempo_seg', 'tomtom_tempo_seg', 'tomtom_distancia_km', 'tomtom_atraso_transito_seg')
+    with open(caminho, encoding='utf-8') as f:
+        linhas = [{c: r.get(c) or None for c in campos} for r in csv.DictReader(f)]
+    for r in linhas:
+        for c in campos[4:]:
+            r[c] = float(r[c]) if r[c] not in (None, '') else None
+    return {'fonte': 'ml/artifacts/fase3_comparacao.csv', 'modelo': 'lia_2.1 (antes de semáforos e da fusão)',
+            'linhas': linhas}
 
 
 def main():
@@ -98,10 +124,16 @@ def main():
     treinos = linhas_treinos()
     sb.table('lia_treinos').upsert(treinos, on_conflict='versao').execute()
 
-    analises = [{'chave': chave_analise, 'dados': dados} for chave_analise, dados in (
+    agora = datetime.now(timezone.utc).isoformat(timespec='seconds')
+    analises = [{'chave': chave_analise, 'dados': dados, 'atualizado_em': agora} for chave_analise, dados in (
         ('calibracao_transfer', _json('calibracao_transfer.json')),
         ('benchmark_lstm_xgboost', _json('benchmark_lstm_vs_xgboost.json')),
         ('estresse_lia22', _json('lia_2.2_estresse.json')),
+        ('ablation_lia_2_3', _json('ablation_lia_2.3.json')),
+        ('avaliacao_fora_do_tempo', _json('avaliacao_fora_do_tempo.json')),
+        ('cobertura_dataset', _json('cobertura_dataset.json')),
+        ('experimento_velocidade_livre', _json('experimento_velocidade_livre.json')),
+        ('fase3_comparacao', fase3()),
     ) if dados]
     sb.table('lia_analises').upsert(analises, on_conflict='chave').execute()
     print(f"Publicado: {len(treinos)} versões ({', '.join(t['versao'] for t in treinos)}) e {len(analises)} análises.")

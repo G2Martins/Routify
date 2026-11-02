@@ -328,6 +328,73 @@ def apply_profiles(df: pd.DataFrame, perfis: dict) -> pd.DataFrame:
     return df
 
 
+def apply_profiles_oof(df_train: pd.DataFrame, k: int = 8) -> pd.DataFrame:
+    """Perfis FORA DA AMOSTRA para as linhas de treino (LIA 2.3).
+
+    Com perfis do próprio treino, cada linha enxerga uma mediana que ela mesma
+    ajudou a formar: o alvo vaza no perfil e o modelo aprende a confiar demais
+    nele (na CV de 2026-11-01, RMSE 41,6 s com perfis in-sample x 37,5 s OOF).
+    Aqui os dias do treino viram k blocos e o perfil de cada bloco sai só dos
+    outros. Validação e API continuam com o perfil do treino inteiro.
+    """
+    blocos = pd.factorize(df_train['data_hora_brasilia'].dt.date, sort=True)[0] % k
+    partes = [apply_profiles(df_train[blocos == b].copy(), build_profiles(df_train[blocos != b]))
+              for b in range(k) if (blocos == b).any()]
+    return pd.concat(partes).loc[df_train.index]
+
+
+# Idades (min) da última leitura que a API pode ver: até ~43 min com a coleta
+# contínua (cadência pela cota), mais quando a partida é no futuro.
+IDADES_RECENCIA_MIN = (15, 30, 60, 120, 240, 480)
+
+
+def serie_observacoes(df: pd.DataFrame) -> pd.DataFrame:
+    """Leituras reais (via, instante, razão) em ordem temporal."""
+    return (df[['id_ponto', 'data_hora_brasilia', TARGET_COL]]
+            .rename(columns={'data_hora_brasilia': 'ts_obs', TARGET_COL: 'r_obs'})
+            .sort_values('ts_obs'))
+
+
+def recencia_envelhecida(df: pd.DataFrame, serie: pd.DataFrame, idade_min: float):
+    """Para cada linha, a última leitura da mesma via feita até `idade_min` antes.
+
+    Devolve (razão, idade real em min), NaN onde não há leitura na tolerância.
+    Causal: só olha para trás no tempo.
+    """
+    v = df[['id_ponto', 'data_hora_brasilia']].copy()
+    v['pos'] = np.arange(len(v))
+    v['ts_q'] = v['data_hora_brasilia'] - pd.Timedelta(minutes=idade_min)
+    v = v.sort_values('ts_q')
+    tol = pd.Timedelta(minutes=max(15, int(idade_min * 0.25)))
+    m = pd.merge_asof(v, serie, left_on='ts_q', right_on='ts_obs', by='id_ponto',
+                      direction='backward', tolerance=tol).sort_values('pos')
+    idade = (m['data_hora_brasilia'] - m['ts_obs']).dt.total_seconds().values / 60.0
+    return m['r_obs'].values, idade
+
+
+def envelhecer_recencia(df: pd.DataFrame, serie: pd.DataFrame, frac: float = 0.5,
+                        idades=IDADES_RECENCIA_MIN, seed: int = 0) -> pd.DataFrame:
+    """Aumento de dados (LIA 2.3): em `frac` das linhas, troca a recência
+    fresca (~8 min nos dias cheios) por uma leitura envelhecida, com a idade
+    sorteada em `idades`. Ensina o modelo a pesar a recência pela idade, como
+    ela chega na API. Sem isso o erro cresce rápido quando a leitura envelhece.
+    """
+    rng = np.random.default_rng(seed)
+    R = np.full((len(df), len(idades)), np.nan)
+    D = np.full_like(R, np.nan)
+    for j, idade in enumerate(idades):
+        R[:, j], D[:, j] = recencia_envelhecida(df, serie, idade)
+    linhas = np.arange(len(df))
+    escolha = rng.integers(0, len(idades), len(df))
+    r, d = R[linhas, escolha], D[linhas, escolha]
+    usar = (rng.random(len(df)) < frac) & ~np.isnan(r)
+    df = df.copy()
+    df.loc[df.index[usar], 'razao_lag1'] = r[usar]
+    df.loc[df.index[usar], 'delta_min_lag1'] = np.log1p(d[usar])
+    logging.info(f"  recência envelhecida em {usar.mean() * 100:.1f}% das linhas de treino")
+    return df
+
+
 def razao_para_segundos(tempo_real_s, razao_real, razao_pred):
     """Converte erro na razão para erro em segundos, para leitura humana.
 

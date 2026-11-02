@@ -1,0 +1,505 @@
+{
+ "gerado_em": "2026-11-02T04:38:19+00:00",
+ "pergunta": "A velocidade livre do OSM explica o ETA da LIA abaixo da TomTom? Qual correção adotar?",
+ "metodo": "API local (mesmo código e artefatos da produção, REGISTRAR_USO=0), 16 corredores fixos de services/collector/comparar_provedores.py, em sequência, 02:20–03:10 de 2026-11-02 (Brasília, feriado, via livre). Referência: ETA da TomTom com trânsito para o MESMO trajeto da LIA (supportingPoints) e o mesmo ETA sem trânsito. Erro = (LIA − TomTom) / TomTom. Só os corredores com resposta nas 4 rodadas entram.",
+ "fator_medido": {
+  "valor": 0.883,
+  "pontos": 529,
+  "como": "mediana de TomTom freeFlowSpeed / limite OSM na aresta mais próxima de cada ponto monitorado"
+ },
+ "corredores": [
+  "rodoviaria-aeroporto",
+  "asanorte-asasul",
+  "sudoeste-lagosul",
+  "unb-esplanada",
+  "parque-torre",
+  "lagonorte-scs",
+  "cruzeiro-asanorte",
+  "guara-plano",
+  "taguatinga-plano",
+  "samambaia-plano",
+  "aguasclaras-plano",
+  "plano-taguatinga",
+  "gama-plano",
+  "sobradinho-plano"
+ ],
+ "configuracoes": [
+  {
+   "id": "off",
+   "modelo": "lia_2.2",
+   "velocidade_livre": "osm",
+   "descricao": "limite do OSM (Fase 3, produção até 2026-11-02)",
+   "vs_tomtom": {
+    "n": 14,
+    "vies_mediano_pct": -11.9,
+    "mape_pct": 16.1,
+    "dentro_20pct": 9
+   },
+   "vs_tomtom_sem_transito": {
+    "n": 14,
+    "vies_mediano_pct": -14.3,
+    "mape_pct": 18.1,
+    "dentro_20pct": 8
+   },
+   "por_corredor": [
+    {
+     "corredor": "rodoviaria-aeroporto",
+     "lia_s": 693.0,
+     "tomtom_s": 746.0,
+     "tomtom_sem_transito_s": 754,
+     "km": 12.93
+    },
+    {
+     "corredor": "asanorte-asasul",
+     "lia_s": 568.0,
+     "tomtom_s": 834.0,
+     "tomtom_sem_transito_s": 846,
+     "km": 10.97
+    },
+    {
+     "corredor": "sudoeste-lagosul",
+     "lia_s": 882.0,
+     "tomtom_s": 1214.0,
+     "tomtom_sem_transito_s": 1260,
+     "km": 13.15
+    },
+    {
+     "corredor": "unb-esplanada",
+     "lia_s": 368.0,
+     "tomtom_s": 418.0,
+     "tomtom_sem_transito_s": 425,
+     "km": 6.38
+    },
+    {
+     "corredor": "parque-torre",
+     "lia_s": 227.0,
+     "tomtom_s": 277.0,
+     "tomtom_sem_transito_s": 288,
+     "km": 2.55
+    },
+    {
+     "corredor": "lagonorte-scs",
+     "lia_s": 556.0,
+     "tomtom_s": 778.0,
+     "tomtom_sem_transito_s": 795,
+     "km": 10.25
+    },
+    {
+     "corredor": "cruzeiro-asanorte",
+     "lia_s": 806.0,
+     "tomtom_s": 1128.0,
+     "tomtom_sem_transito_s": 1141,
+     "km": 13.95
+    },
+    {
+     "corredor": "guara-plano",
+     "lia_s": 915.0,
+     "tomtom_s": 927.0,
+     "tomtom_sem_transito_s": 946,
+     "km": 15.62
+    },
+    {
+     "corredor": "taguatinga-plano",
+     "lia_s": 1293.0,
+     "tomtom_s": 1324.0,
+     "tomtom_sem_transito_s": 1376,
+     "km": 21.97
+    },
+    {
+     "corredor": "samambaia-plano",
+     "lia_s": 1641.0,
+     "tomtom_s": 1787.0,
+     "tomtom_sem_transito_s": 1859,
+     "km": 27.47
+    },
+    {
+     "corredor": "aguasclaras-plano",
+     "lia_s": 1322.0,
+     "tomtom_s": 1500.0,
+     "tomtom_sem_transito_s": 1558,
+     "km": 21.34
+    },
+    {
+     "corredor": "plano-taguatinga",
+     "lia_s": 1297.0,
+     "tomtom_s": 1914.0,
+     "tomtom_sem_transito_s": 1989,
+     "km": 23.4
+    },
+    {
+     "corredor": "gama-plano",
+     "lia_s": 1809.0,
+     "tomtom_s": 1884.0,
+     "tomtom_sem_transito_s": 1926,
+     "km": 35.06
+    },
+    {
+     "corredor": "sobradinho-plano",
+     "lia_s": 1259.0,
+     "tomtom_s": 1421.0,
+     "tomtom_sem_transito_s": 1427,
+     "km": 24.02
+    }
+   ]
+  },
+  {
+   "id": "on2",
+   "modelo": "lia_2.2",
+   "velocidade_livre": "por_classe",
+   "descricao": "fator TomTom/OSM por classe de via (rejeitado: muda as rotas)",
+   "vs_tomtom": {
+    "n": 14,
+    "vies_mediano_pct": -9.4,
+    "mape_pct": 17.6,
+    "dentro_20pct": 9
+   },
+   "vs_tomtom_sem_transito": {
+    "n": 14,
+    "vies_mediano_pct": -12.7,
+    "mape_pct": 15.2,
+    "dentro_20pct": 8
+   },
+   "por_corredor": [
+    {
+     "corredor": "rodoviaria-aeroporto",
+     "lia_s": 735.0,
+     "tomtom_s": 753.0,
+     "tomtom_sem_transito_s": 763,
+     "km": 12.95
+    },
+    {
+     "corredor": "asanorte-asasul",
+     "lia_s": 623.0,
+     "tomtom_s": 834.0,
+     "tomtom_sem_transito_s": 846,
+     "km": 10.97
+    },
+    {
+     "corredor": "sudoeste-lagosul",
+     "lia_s": 932.0,
+     "tomtom_s": 1366.0,
+     "tomtom_sem_transito_s": 1312,
+     "km": 13.25
+    },
+    {
+     "corredor": "unb-esplanada",
+     "lia_s": 398.0,
+     "tomtom_s": 418.0,
+     "tomtom_sem_transito_s": 425,
+     "km": 6.38
+    },
+    {
+     "corredor": "parque-torre",
+     "lia_s": 228.0,
+     "tomtom_s": 277.0,
+     "tomtom_sem_transito_s": 288,
+     "km": 2.55
+    },
+    {
+     "corredor": "lagonorte-scs",
+     "lia_s": 612.0,
+     "tomtom_s": 1581.0,
+     "tomtom_sem_transito_s": 795,
+     "km": 10.25
+    },
+    {
+     "corredor": "cruzeiro-asanorte",
+     "lia_s": 870.0,
+     "tomtom_s": 1313.0,
+     "tomtom_sem_transito_s": 1344,
+     "km": 11.01
+    },
+    {
+     "corredor": "guara-plano",
+     "lia_s": 970.0,
+     "tomtom_s": 909.0,
+     "tomtom_sem_transito_s": 936,
+     "km": 15.22
+    },
+    {
+     "corredor": "taguatinga-plano",
+     "lia_s": 1380.0,
+     "tomtom_s": 1296.0,
+     "tomtom_sem_transito_s": 1350,
+     "km": 21.97
+    },
+    {
+     "corredor": "samambaia-plano",
+     "lia_s": 1758.0,
+     "tomtom_s": 1987.0,
+     "tomtom_sem_transito_s": 2066,
+     "km": 27.2
+    },
+    {
+     "corredor": "aguasclaras-plano",
+     "lia_s": 1403.0,
+     "tomtom_s": 1512.0,
+     "tomtom_sem_transito_s": 1569,
+     "km": 21.34
+    },
+    {
+     "corredor": "plano-taguatinga",
+     "lia_s": 1359.0,
+     "tomtom_s": 1914.0,
+     "tomtom_sem_transito_s": 1989,
+     "km": 23.4
+    },
+    {
+     "corredor": "gama-plano",
+     "lia_s": 2008.0,
+     "tomtom_s": 1870.0,
+     "tomtom_sem_transito_s": 1920,
+     "km": 34.75
+    },
+    {
+     "corredor": "sobradinho-plano",
+     "lia_s": 1411.0,
+     "tomtom_s": 1427.0,
+     "tomtom_sem_transito_s": 1427,
+     "km": 24.02
+    }
+   ]
+  },
+  {
+   "id": "uni",
+   "modelo": "lia_2.2",
+   "velocidade_livre": "fator_unico",
+   "descricao": "fator único TomTom/OSM = 0,883 em todas as arestas",
+   "vs_tomtom": {
+    "n": 14,
+    "vies_mediano_pct": -2.2,
+    "mape_pct": 13.6,
+    "dentro_20pct": 11
+   },
+   "vs_tomtom_sem_transito": {
+    "n": 14,
+    "vies_mediano_pct": -3.9,
+    "mape_pct": 11.2,
+    "dentro_20pct": 9
+   },
+   "por_corredor": [
+    {
+     "corredor": "rodoviaria-aeroporto",
+     "lia_s": 735.0,
+     "tomtom_s": 746.0,
+     "tomtom_sem_transito_s": 754,
+     "km": 12.93
+    },
+    {
+     "corredor": "asanorte-asasul",
+     "lia_s": 638.0,
+     "tomtom_s": 834.0,
+     "tomtom_sem_transito_s": 846,
+     "km": 10.97
+    },
+    {
+     "corredor": "sudoeste-lagosul",
+     "lia_s": 1001.0,
+     "tomtom_s": 1214.0,
+     "tomtom_sem_transito_s": 1260,
+     "km": 13.15
+    },
+    {
+     "corredor": "unb-esplanada",
+     "lia_s": 416.0,
+     "tomtom_s": 418.0,
+     "tomtom_sem_transito_s": 425,
+     "km": 6.38
+    },
+    {
+     "corredor": "parque-torre",
+     "lia_s": 250.0,
+     "tomtom_s": 277.0,
+     "tomtom_sem_transito_s": 288,
+     "km": 2.55
+    },
+    {
+     "corredor": "lagonorte-scs",
+     "lia_s": 623.0,
+     "tomtom_s": 1581.0,
+     "tomtom_sem_transito_s": 795,
+     "km": 10.25
+    },
+    {
+     "corredor": "cruzeiro-asanorte",
+     "lia_s": 897.0,
+     "tomtom_s": 1115.0,
+     "tomtom_sem_transito_s": 1134,
+     "km": 13.88
+    },
+    {
+     "corredor": "guara-plano",
+     "lia_s": 998.0,
+     "tomtom_s": 909.0,
+     "tomtom_sem_transito_s": 936,
+     "km": 15.22
+    },
+    {
+     "corredor": "taguatinga-plano",
+     "lia_s": 1455.0,
+     "tomtom_s": 1296.0,
+     "tomtom_sem_transito_s": 1350,
+     "km": 21.97
+    },
+    {
+     "corredor": "samambaia-plano",
+     "lia_s": 1838.0,
+     "tomtom_s": 1798.0,
+     "tomtom_sem_transito_s": 1870,
+     "km": 27.47
+    },
+    {
+     "corredor": "aguasclaras-plano",
+     "lia_s": 1485.0,
+     "tomtom_s": 1512.0,
+     "tomtom_sem_transito_s": 1569,
+     "km": 21.34
+    },
+    {
+     "corredor": "plano-taguatinga",
+     "lia_s": 1440.0,
+     "tomtom_s": 1808.0,
+     "tomtom_sem_transito_s": 1883,
+     "km": 23.48
+    },
+    {
+     "corredor": "gama-plano",
+     "lia_s": 2013.0,
+     "tomtom_s": 1865.0,
+     "tomtom_sem_transito_s": 1916,
+     "km": 34.66
+    },
+    {
+     "corredor": "sobradinho-plano",
+     "lia_s": 1419.0,
+     "tomtom_s": 1457.0,
+     "tomtom_sem_transito_s": 1427,
+     "km": 24.02
+    }
+   ]
+  },
+  {
+   "id": "23",
+   "modelo": "lia_2.3",
+   "velocidade_livre": "fator_unico",
+   "descricao": "LIA 2.3 + fator único (configuração adotada)",
+   "vs_tomtom": {
+    "n": 14,
+    "vies_mediano_pct": -0.2,
+    "mape_pct": 10.2,
+    "dentro_20pct": 13
+   },
+   "vs_tomtom_sem_transito": {
+    "n": 14,
+    "vies_mediano_pct": -2.6,
+    "mape_pct": 10.5,
+    "dentro_20pct": 11
+   },
+   "por_corredor": [
+    {
+     "corredor": "rodoviaria-aeroporto",
+     "lia_s": 746.0,
+     "tomtom_s": 746.0,
+     "tomtom_sem_transito_s": 754,
+     "km": 12.93
+    },
+    {
+     "corredor": "asanorte-asasul",
+     "lia_s": 652.0,
+     "tomtom_s": 834.0,
+     "tomtom_sem_transito_s": 846,
+     "km": 10.97
+    },
+    {
+     "corredor": "sudoeste-lagosul",
+     "lia_s": 1017.0,
+     "tomtom_s": 1214.0,
+     "tomtom_sem_transito_s": 1260,
+     "km": 13.15
+    },
+    {
+     "corredor": "unb-esplanada",
+     "lia_s": 421.0,
+     "tomtom_s": 418.0,
+     "tomtom_sem_transito_s": 425,
+     "km": 6.38
+    },
+    {
+     "corredor": "parque-torre",
+     "lia_s": 252.0,
+     "tomtom_s": 277.0,
+     "tomtom_sem_transito_s": 288,
+     "km": 2.55
+    },
+    {
+     "corredor": "lagonorte-scs",
+     "lia_s": 633.0,
+     "tomtom_s": 778.0,
+     "tomtom_sem_transito_s": 795,
+     "km": 10.25
+    },
+    {
+     "corredor": "cruzeiro-asanorte",
+     "lia_s": 909.0,
+     "tomtom_s": 1111.0,
+     "tomtom_sem_transito_s": 1134,
+     "km": 13.88
+    },
+    {
+     "corredor": "guara-plano",
+     "lia_s": 1010.0,
+     "tomtom_s": 909.0,
+     "tomtom_sem_transito_s": 936,
+     "km": 15.22
+    },
+    {
+     "corredor": "taguatinga-plano",
+     "lia_s": 1475.0,
+     "tomtom_s": 1296.0,
+     "tomtom_sem_transito_s": 1350,
+     "km": 21.97
+    },
+    {
+     "corredor": "samambaia-plano",
+     "lia_s": 1863.0,
+     "tomtom_s": 1798.0,
+     "tomtom_sem_transito_s": 1870,
+     "km": 27.47
+    },
+    {
+     "corredor": "aguasclaras-plano",
+     "lia_s": 1505.0,
+     "tomtom_s": 1512.0,
+     "tomtom_sem_transito_s": 1569,
+     "km": 21.34
+    },
+    {
+     "corredor": "plano-taguatinga",
+     "lia_s": 1461.0,
+     "tomtom_s": 1808.0,
+     "tomtom_sem_transito_s": 1883,
+     "km": 23.48
+    },
+    {
+     "corredor": "gama-plano",
+     "lia_s": 2023.0,
+     "tomtom_s": 1867.0,
+     "tomtom_sem_transito_s": 1916,
+     "km": 34.66
+    },
+    {
+     "corredor": "sobradinho-plano",
+     "lia_s": 1435.0,
+     "tomtom_s": 1420.0,
+     "tomtom_sem_transito_s": 1427,
+     "km": 24.02
+    }
+   ]
+  }
+ ],
+ "limitacoes": [
+  "Só madrugada de feriado (via livre): mede a escala da velocidade livre, não o congestionamento.",
+  "n pequeno (14 corredores); a TomTom é referência, não verdade de campo.",
+  "O ETA da TomTom no mesmo trajeto pode saltar quando a rota muda de detalhe (ex.: Lago Norte → SCS)."
+ ]
+}
