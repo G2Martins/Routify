@@ -296,6 +296,8 @@ nunca passa pelo chat, e é apagada em IAM quando a tarefa acaba (ou rotacionada
    `aws --profile routify sts get-caller-identity`.
 5. Com o Session Manager ativo (§5.1), SSH passa pelo SSM e a porta 22 pode ficar fechada no security group:
    `ssh -i <chave.pem> -o ProxyCommand="aws --profile routify ssm start-session --target %h --document-name AWS-StartSSHSession --parameters portNumber=%p" ubuntu@<id-da-instância>`.
+   `-o HostKeyAlias=<ip-elástico>` reaproveita a chave de host já conhecida pelo IP. Testado em 2026-11-02 no Git Bash,
+   com o AWS CLI e o plugin no PATH.
    Sem o plugin, `aws ssm send-command --document-name AWS-RunShellScript` roda scripts sem shell interativo.
 
 ```json

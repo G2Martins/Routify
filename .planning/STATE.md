@@ -34,6 +34,7 @@ Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) 
 - `scripts/aws-bootstrap.sh` no CloudShell: porta 22 só para o IP de casa do dono; role `routify-ec2-ssm` associada (o agente só registrou depois de `snap restart`; health check a cada 5 min, sem erro); usuários IAM `pedro` (console + MFA obrigatória) e `claude-ops` (CLI, `RoutifyOperacaoCLI`) criados; 1 budget na conta.
 - Código da branch `coleta-aws-analise` (`a716681`) extraído em `/opt/routify`; `instalar-ec2.sh` e `provisionar-ec2.sh` rodaram; `/health` público 200 (39 chaves, todas disponíveis).
 - Journal rotacionado e limpo: 0 linhas com `key=` depois da coleta ligada.
+- Profile `routify` = `user/claude-ops`: SSM Online, Run Command ok (`routify-collector`, `routify-api` e `caddy` ativos) e SSH por dentro do SSM ok, sem a porta 22 externa. Security group: 80/443 abertos, 22 só o IP de casa.
 - `historico_trafego`: 630 linhas novas (630 pontos, `03:25:57` UTC), 0 inválidas; razão média 1,000 × 0,999 no histórico da mesma hora (0h de Brasília).
 
 ## Decisões tomadas (2026-11-01)
@@ -57,7 +58,8 @@ Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) 
 ## Próximos passos
 
 - [x] Bootstrap AWS (`scripts/aws-bootstrap.sh`) + deploy do coletor e da API (2026-11-02).
-- [ ] **Dono:** `aws configure --profile routify` com a access key do `claude-ops`, num terminal próprio (nunca no chat). Depois o assistente confere `sts get-caller-identity` e o SSM `Online`.
+- [x] Profile `routify` configurado pelo dono e conferido (2026-11-02).
+- [ ] Aurora `database-1` (não é do Routify): o dono pediu para apagar em 2026-11-02. O `claude-ops` não tem RDS; precisa de política temporária, que o próprio assistente remove no fim.
 - [ ] **Dono:** console → conta → ativar o acesso de usuários IAM ao Billing (só o root faz).
 - [ ] **Pedro:** 1º login (URL + senha temporária entregues pelo dono) → trocar senha → MFA → testar EC2 → Connect → Session Manager.
 - [ ] Merge de `coleta-aws-analise` em `main` + push (o CI roda os testes do coletor). Pede OK do dono.
