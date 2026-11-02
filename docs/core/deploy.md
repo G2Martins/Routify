@@ -56,10 +56,18 @@ ssh -i <chave.pem> ubuntu@<ip> 'sudo tar -xzf /tmp/code.tgz -C /opt/routify && s
 ```
 O `provisionar-ec2.sh` é idempotente: reescreve a unidade e o Caddyfile e reinicia. Depois da primeira
 atualização com `--no-access-log`, limpe o journal antigo, que pode ter URLs com chave TomTom e coordenadas:
-`sudo journalctl --vacuum-time=1s`.
+`sudo journalctl --rotate && sudo journalctl --vacuum-time=1s` (o `--rotate` fecha o arquivo ativo; sem ele o
+vacuum só apaga os arquivados).
 
 **SSH deu `Connection timed out`?** O security group só libera o IP do dono (`/32`) e IP residencial muda.
-Console → EC2 → Security Groups → Inbound → regra SSH → trocar pelo IP atual (`curl checkip.amazonaws.com`).
+Console → EC2 → Security Groups → Inbound → regra SSH → *Source* = **My IP** → Save. Ou, no **CloudShell** do console
+(ícone de terminal na barra superior; já autenticado como você), com o IP atual da sua máquina
+(`curl checkip.amazonaws.com` **na sua máquina**, não no CloudShell):
+```bash
+SG=$(aws ec2 describe-instances --instance-ids <id-da-instância> --query 'Reservations[0].Instances[0].SecurityGroups[0].GroupId' --output text)
+aws ec2 describe-security-group-rules --filters Name=group-id,Values=$SG --query 'SecurityGroupRules[?FromPort==`22`].[SecurityGroupRuleId,CidrIpv4]' --output text
+aws ec2 modify-security-group-rules --group-id $SG --security-group-rules "SecurityGroupRuleId=<sgr-da-linha-acima>,SecurityGroupRule='{IpProtocol=tcp,FromPort=22,ToPort=22,CidrIpv4=<ip-atual>/32}'"
+```
 Com o Session Manager (§5.1) isso deixa de ser necessário.
 
 ### 1.1 Coletor TomTom ao lado da API

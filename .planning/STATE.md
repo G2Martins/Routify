@@ -49,7 +49,7 @@ Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) 
 
 ## Próximos passos
 
-- [ ] **Dono:** liberar o IP atual no security group (ou ativar o Session Manager, deploy.md §5.1) → extrair o código (`git archive`) → `sudo bash /opt/routify/services/collector/deploy/instalar-ec2.sh` → re-rodar `provisionar-ec2.sh` (unidade da API com `--no-access-log`, Caddy com teto) → `sudo journalctl --vacuum-time=1s`.
+- [ ] **Dono:** liberar o IP atual no security group (ou ativar o Session Manager, deploy.md §5.1) → extrair o código (`git archive`) → `sudo bash /opt/routify/services/collector/deploy/instalar-ec2.sh` → re-rodar `provisionar-ec2.sh` (unidade da API com `--no-access-log`, Caddy com teto) → `sudo journalctl --rotate && sudo journalctl --vacuum-time=1s`.
 - [ ] **Dono:** criar o usuário IAM do Pedro (deploy.md §5.2) e ativar o Session Manager (§5.1).
 - [ ] Testes P0 da análise: limite por IP antes do auth em `/eventos` e `/admin`; TestClient HTTP (422 com NaN/extra/fora do DF, 429 com `Retry-After`, 401/403 do admin); contrato modelo ↔ metadata; migrations + RLS no CI (pgTAP).
 - [ ] `route_history`: grant de INSERT por coluna + CHECKs (ou a API persiste).
