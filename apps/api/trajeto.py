@@ -29,10 +29,11 @@ MARGEM_ABS_S = 60.0  # …e ganhar pelo menos 1 min, para trocar a da LIA
 
 
 class ArvoreNos:
-    """BallTree (haversine) dos nós do grafo, montada uma vez na subida."""
+    """BallTree (haversine) dos nós do grafo, montada uma vez na subida. `nos` restringe a árvore a um
+    subconjunto (o snap de origem/destino usa só o maior componente fortemente conexo)."""
 
-    def __init__(self, G: nx.MultiDiGraph):
-        self.nos = np.array(list(G.nodes))
+    def __init__(self, G: nx.MultiDiGraph, nos=None):
+        self.nos = np.array(list(G.nodes if nos is None else nos))
         coords = np.array([[G.nodes[n]['y'], G.nodes[n]['x']] for n in self.nos])
         self._arvore = BallTree(np.radians(coords), metric='haversine')
 

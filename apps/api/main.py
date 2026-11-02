@@ -355,7 +355,12 @@ async def lifespan(app: FastAPI):
         app.state.profiles = profiles
         app.state.metadata = metadata
         app.state.graph = G
-        app.state.arvore_nos = arvore_nos
+        # Origem/destino só em nós do maior componente fortemente conexo: de lá se chega a tudo e se sai
+        # para tudo. A auditoria de 2026-11-02 (ml/auditoria_grafo_df.py) achou bolsões de mão única em
+        # São Sebastião, Sobradinho e no Lago Norte onde o snap prendia a rota. Semáforos usam todos os nós.
+        maior_componente = max(nx.strongly_connected_components(G), key=len)
+        app.state.arvore_nos = trajeto.ArvoreNos(G, nos=maior_componente)
+        logging.info(f"Snap de origem/destino em {len(maior_componente):,} de {G.number_of_nodes():,} nós (maior componente)")
         app.state.graph_stats = graph_stats
         app.state.model_version = MODEL_VERSION
         app.state.supabase = sb

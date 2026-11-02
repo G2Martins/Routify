@@ -169,7 +169,7 @@ A Fase 3 compara, para o mesmo par origem-destino e no mesmo instante:
 7. **Dependência de API comercial.**
    - A cota gratuita da TomTom é mensal e por API (Flow 20 mil, Incidents 2,5 mil, Search 2,5 mil, Routing 20 mil).
    - O sistema usa um pool de chaves com rotação automática. Os termos da TomTom (§14.2) permitem suspender contas criadas para obter requisições gratuitas adicionais, então o pool é um risco declarado, adequado apenas a um protótipo acadêmico.
-8. **Cobertura.** O grafo cobre um raio de 38 km, e os 630 pontos monitorados concentram-se em vias arteriais (motorway, trunk e primary).
+8. **Cobertura.** O grafo é uma caixa de 76 × 76 km (OSMnx `dist_type=bbox`, ±38 km do centro): 79% da área do DF e 92,2% dos km dirigíveis do OSM no DF (`ml/artifacts/auditoria_grafo_df.json`). Ficam de fora 1.024 km, quase todos no leste de Planaltina e no sudeste do Paranoá. Os 630 pontos monitorados concentram-se em vias arteriais (motorway, trunk e primary) e no Plano Piloto (263): 83,2% dos km de via não têm sensor a menos de 500 m e 20 das 35 regiões administrativas não têm nenhum. Nesses buracos o tempo exibido usa a TomTom (fusão) e a cor do trânsito vem das seções de trânsito dela.
 9. **Sem modo offline** (cache local de rota) neste ciclo.
 
 ![Figura 4](../figuras/fig4_erro_congestionamento.png)

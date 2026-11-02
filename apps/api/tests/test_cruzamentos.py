@@ -39,3 +39,14 @@ def test_contagem_tempo_livre_e_peso_do_astar():
                                         atraso_cruzamento_via=2.0)
     assert peso(0, 1, G[0][1]) == 42.0 and peso(9, 1, G[9][1]) == 47.0
     assert peso(1, 2, G[1][2]) == 60.0 and peso(2, 3, G[2][3]) == 40.0
+
+
+def test_snap_restrito_ao_maior_componente_nao_cai_em_bolsao_de_mao_unica():
+    import networkx as nx
+    G = nx.MultiDiGraph()
+    for n, (lat, lon) in {1: (-15.80, -47.90), 2: (-15.80, -47.89), 3: (-15.81, -47.89), 9: (-15.8001, -47.9001)}.items():
+        G.add_node(n, y=lat, x=lon)
+    G.add_edges_from([(1, 2), (2, 3), (3, 1), (1, 9)])          # 9: só se entra (bolsão sem saída)
+    maior = max(nx.strongly_connected_components(G), key=len)
+    assert trajeto.ArvoreNos(G).snap(-15.8001, -47.9001)[0] == 9           # árvore completa: cai no bolsão
+    assert trajeto.ArvoreNos(G, nos=maior).snap(-15.8001, -47.9001)[0] == 1  # restrita: cai no componente

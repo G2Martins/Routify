@@ -18,7 +18,7 @@ flowchart LR
         PRED["POST /predict"]
         RC[("Cache de recência<br/>última razão por via<br/>TTL 5 min · merge")]
         POOL["Pool de chaves TomTom<br/>cooldown por (chave, serviço)<br/>orçamento por minuto"]
-        G[("Grafo OSMnx 38 km<br/>enriquecido na subida<br/>+ 271 cruzamentos com semáforo")]
+        G[("Grafo OSMnx ±38 km (caixa)<br/>enriquecido na subida<br/>+ 271 cruzamentos com semáforo")]
         FUS["Fusão LIA × TomTom<br/>trajeto.py"]
         M[("Modelo LIA 2.1<br/>+ perfis + curva isotônica")]
     end

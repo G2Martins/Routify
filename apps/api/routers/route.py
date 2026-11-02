@@ -131,7 +131,7 @@ class RouteOutput(BaseModel):
     fonte_rota: str = Field("lia", description='Quem traçou a rota escolhida: "lia" (A* com pesos da LIA) ou "tomtom".')
     tempo_lia_seg: Optional[int] = Field(
         None, description="Tempo previsto pela LIA para a rota da LIA, com o atraso médio de semáforo (instrumentação da tese).")
-    fora_da_malha: bool = Field(False, description="Origem/destino além da malha coberta (raio de 38 km); rota só da TomTom.")
+    fora_da_malha: bool = Field(False, description="Origem/destino além da malha coberta (caixa de ±38 km em volta do Plano Piloto); rota só da TomTom.")
     semaforos_na_rota: Optional[int] = Field(
         None, description="Cruzamentos com semáforo (OSM traffic_signals) na rota da LIA; entram no tempo com o atraso médio calibrado.")
     cruzamentos_na_rota: Optional[int] = Field(
@@ -603,7 +603,7 @@ def _snap(request: Request, G: nx.MultiDiGraph, lat: float, lon: float) -> Tuple
         "atualiza as vias do corredor, remove interdições e propõe a própria rota. Cada candidata "
         "recebe um tempo misto: a parte coberta pela LIA vale pela LIA, o resto (lacunas do "
         "histórico) pela TomTom; vence a menor e a outra volta em `alternativa`. Fora da malha de "
-        "38 km, a rota é só da TomTom. A rota de menor distância segue calculada para a tese. "
+        "±38 km, a rota é só da TomTom. A rota de menor distância segue calculada para a tese. "
         "Token opcional: com ele, a rota entra no histórico de uso da conta (coordenadas "
         "arredondadas em ~110 m). Limite: 20 rotas/min por IP."
     ),
@@ -693,7 +693,7 @@ async def calculate_route(body: RouteInput, request: Request):
         if not ref.get('polyline') or not ref.get('tempo_seg'):
             raise HTTPException(
                 status_code=422,
-                detail="Origem ou destino fora da área atendida pelo Routify (DF, raio de 38 km do Plano Piloto).",
+                detail="Origem ou destino fora da área atendida pelo Routify (caixa de ±38 km em volta do Plano Piloto).",
             )
         resumo_tt = resumo_tomtom(ref['polyline'], 0, ref)
         request.state.degradado = degradado
