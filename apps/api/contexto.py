@@ -30,6 +30,7 @@ CONTEXT_FEATURES = ['vizinhos_razao', 'vizinhos_n', 'chuva_mm', 'chuva_3h_mm', '
 K_VIZINHOS = 5
 RAIO_VIZINHOS_M = 3000.0
 JANELA_VIZINHOS_MIN = 60.0
+IDADE_MAX_CLIMA_S = 3 * 3600
 CENTRO_CHUVA = (-15.793, -47.882)  # ponto único (Plano Piloto) — ponytail: grade por região se a chuva local importar
 
 # Distritais do DF (Lei Orgânica / Lei 963/1995) que a BrasilAPI (nacionais) não traz.
@@ -159,15 +160,20 @@ class ContextoAoVivo:
         except Exception as e:
             logging.warning(f"Open-Meteo indisponível ({type(e).__name__}); chuva vai como 0")
 
-    def para_requisicao(self, instante_local: datetime, recencia=None) -> Callable[[int], Dict[str, float]]:
-        """Parte global calculada uma vez; devolve via → features de contexto."""
+    def para_requisicao(self, instante_local: datetime, recencia=None,
+                        deslocamento_min: float = 0.0) -> Callable[[int], Dict[str, float]]:
+        """Parte global calculada uma vez; devolve via → features de contexto.
+
+        deslocamento_min: minutos de agora até o instante pedido (/predict no
+        futuro). A leitura do vizinho precisa caber na janela também lá.
+        """
         base = contexto_global(instante_local, self.chuva, self.feriados)
         for k in ('chuva_mm', 'chuva_3h_mm'):
             if base[k] != base[k]:
                 base[k] = 0.0
 
         def da_via(via: int) -> Dict[str, float]:
-            razoes = [recencia.razao_recente(q, self.janela_min) for q in self.vizinhos.get(via, [])] \
+            razoes = [recencia.razao_recente(q, self.janela_min - deslocamento_min) for q in self.vizinhos.get(via, [])] \
                 if recencia is not None else []
             m, n = media_vizinhos(razoes)
             return {**base, 'vizinhos_razao': m, 'vizinhos_n': n}
@@ -175,7 +181,8 @@ class ContextoAoVivo:
 
     def clima(self, instante_local: datetime) -> Optional[Dict[str, object]]:
         """Tempo em Brasília na partida + o que a LIA 2.2 considerou (chuva e feriado)."""
-        if not self.atual:
+        # Open-Meteo fora do ar: não mostra o tempo de horas atrás como se fosse agora.
+        if not self.atual or self.chuva_em is None or time.time() - self.chuva_em > IDADE_MAX_CLIMA_S:
             return None
         base = self.para_requisicao(instante_local)(0)
         codigo = self.atual.get('weather_code')

@@ -25,6 +25,8 @@ LIMITE_LINHAS_BUSCA = 2000
 # Não busca de novo a cada requisição — só quando o cache passa desta idade.
 # Mantido abaixo do ciclo de coleta para nunca ficar mais de ~1 ciclo desatualizado.
 TTL_SEGUNDOS = 5 * 60
+# Leitura mais velha que isto não vira recência: a LIA cai no perfil + 24 h de defasagem.
+IDADE_MAX_RECENCIA_MIN = 24 * 60
 
 
 def _agora_utc() -> datetime:
@@ -156,6 +158,8 @@ class RecenciaCache:
 
         razao, timestamp = entrada
         delta_min = max((_agora_utc() - timestamp).total_seconds() / 60.0, 0.0)
+        if delta_min > IDADE_MAX_RECENCIA_MIN:
+            return None  # leitura de dias atrás (coleta parada): fallback validado, não extrapolação
         return {
             'razao_lag1': razao,
             'delta_min_lag1': math.log1p(delta_min),

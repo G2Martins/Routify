@@ -25,6 +25,8 @@ descreve.
 """
 import logging
 import math
+import re
+import statistics
 from typing import Optional, Tuple
 
 import numpy as np
@@ -85,15 +87,11 @@ def _parse_maxspeed(valor) -> Optional[float]:
         return float(valor) if valor > 0 else None
 
     texto = str(valor).strip().lower()
-    numero = ''.join(c for c in texto if c.isdigit() or c == '.')
-    if not numero:
+    # "50;60" e "['60', '40']" (lista serializada no GraphML): o menor, conservador.
+    numeros = [float(n) for n in re.findall(r'\d+(?:\.\d+)?', texto) if float(n) > 0]
+    if not numeros:
         return None
-    try:
-        v = float(numero)
-    except ValueError:
-        return None
-    if v <= 0:
-        return None
+    v = min(numeros)
     return v * 1.60934 if 'mph' in texto else v
 
 
@@ -187,6 +185,35 @@ def _midpoints(G) -> Tuple[list, np.ndarray]:
         chaves.append((u, v, k))
         coords.append((math.radians(lat), math.radians(lon)))
     return chaves, np.array(coords) if coords else np.zeros((0, 2))
+
+
+def calibrar_velocidade_livre(G, vel_tomtom: dict, dist_max_m: float = 30.0) -> dict:
+    """Velocidade livre na escala da TomTom (VEL_LIVRE_CALIBRADA, padrão ligado).
+
+    O limite do OSM fica acima da velocidade livre que a TomTom mede, e a LIA
+    foi treinada com a da TomTom. Mede a razão TomTom/OSM na aresta MAIS
+    PRÓXIMA de cada ponto monitorado (a via do próprio sensor; ruas a poucos
+    metros herdariam a velocidade da arterial) e multiplica TODAS as arestas
+    pela mediana. Um fator só muda a escala do tempo sem mudar qual rota é a
+    mais rápida. Testado em 2026-11-02 (16 corredores, API local, contra a
+    TomTom no mesmo trajeto): viés de -12,0% para -2,6% e MAPE de 15,9% para
+    12,9%. Um fator por classe de via mudava as rotas e piorava o MAPE (17,1%).
+    Idempotente: o valor do OSM fica em `speed_kph_osm`.
+    """
+    perto: dict = {}   # ponto -> (distância, razão TomTom/OSM da aresta mais próxima)
+    for _, _, d in G.edges(data=True):
+        base = d.setdefault('speed_kph_osm', d.get('speed_kph'))
+        via, dist = d.get('id_ponto_lia'), float(d.get('dist_lia_m') or 1e9)
+        if base and via in vel_tomtom and dist <= dist_max_m and dist < perto.get(via, (1e9,))[0]:
+            perto[via] = (dist, vel_tomtom[via] / base)
+    if not perto:
+        return {'fator': 1.0, 'pontos': 0}
+    fator = round(min(max(statistics.median(r for _, r in perto.values()), 0.4), 1.0), 3)
+    for _, _, d in G.edges(data=True):
+        if d.get('speed_kph_osm'):
+            d['speed_kph'] = max(10.0, d['speed_kph_osm'] * fator)
+    logging.info(f"  velocidade livre na escala da TomTom: fator {fator} ({len(perto)} pontos medidos)")
+    return {'fator': fator, 'pontos': len(perto)}
 
 
 def enrich_graph(G, sb, raio_m: float = RAIO_TRANSFER_M) -> dict:

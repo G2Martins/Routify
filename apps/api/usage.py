@@ -14,6 +14,7 @@ import hashlib
 import logging
 import os
 import time
+from contextvars import ContextVar
 from typing import Optional
 
 from fastapi.security import HTTPBearer
@@ -34,6 +35,24 @@ _cache_tokens: dict = {}  # sha256(token) -> (user_id | None, expira_em)
 _ultimo_aviso = 0.0
 # Experimento local contra o banco de produção: REGISTRAR_USO=0 não suja o painel ADM.
 REGISTRAR_USO = os.getenv('REGISTRAR_USO', '1') != '0'
+
+# Chamada interna (o comparador LIA × provedores, na própria EC2) não entra na
+# captura de uso: inflaria buscas e rotas do painel. Auditoria nunca é pulada.
+TABELAS_DE_USO = {'api_requisicoes', 'rotas_calculadas', 'eventos_app'}
+_interna: ContextVar[bool] = ContextVar('routify_requisicao_interna', default=False)
+
+
+def requisicao_interna(request) -> bool:
+    """Loopback, sem X-Forwarded-For (o Caddy sempre põe um) e com o cabeçalho
+    explícito. Quem vem de fora passa pelo Caddy e nunca satisfaz as três."""
+    host = request.client.host if request.client else ''
+    return (request.headers.get('x-routify-interno') == '1'
+            and 'x-forwarded-for' not in request.headers
+            and host in ('127.0.0.1', '::1'))
+
+
+def marcar_interna(valor: bool) -> None:
+    _interna.set(valor)
 
 
 def arredondar(coord: float) -> float:
@@ -86,7 +105,7 @@ def _inserir(sb, tabela: str, linha: dict) -> None:
 
 def registrar(sb, tabela: str, linha: dict) -> None:
     """Grava em segundo plano; nunca levanta nem atrasa a resposta."""
-    if sb is None or not REGISTRAR_USO:
+    if sb is None or not REGISTRAR_USO or (tabela in TABELAS_DE_USO and _interna.get()):
         return
     try:
         asyncio.get_running_loop().run_in_executor(None, _inserir, sb, tabela, linha)

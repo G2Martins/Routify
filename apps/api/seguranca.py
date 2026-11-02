@@ -9,6 +9,7 @@ from collections import defaultdict, deque
 from typing import Dict
 
 from fastapi import HTTPException, Request
+from fastapi.responses import JSONResponse
 
 import usage
 
@@ -56,6 +57,14 @@ def limitar(limitador: Limitador, ident: str, detalhe: str = 'Muitas requisiçõ
     if not limitador.permitir(ident):
         raise HTTPException(status_code=429, detail=detalhe,
                             headers={'Retry-After': str(limitador.espera_s(ident))})
+
+
+async def erro_de_validacao(request: Request, exc) -> JSONResponse:
+    """422 só com loc/msg/type. O padrão do FastAPI ecoa o `input`; um NaN ou
+    Infinity ali estoura na serialização e o cliente ganhava um 500 à vontade."""
+    return JSONResponse(status_code=422, content={'detail': [
+        {'loc': [p if isinstance(p, (int, str)) else str(p) for p in e.get('loc', ())],
+         'msg': str(e.get('msg', '')), 'type': str(e.get('type', ''))} for e in exc.errors()]})
 
 
 def ip_cliente(request: Request) -> str:

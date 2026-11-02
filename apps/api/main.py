@@ -19,6 +19,7 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
 from dotenv import load_dotenv
@@ -32,6 +33,7 @@ import contexto  # noqa: E402
 import graph_enrichment  # noqa: E402
 import lia_inference  # noqa: E402
 import openapi  # noqa: E402
+import seguranca  # noqa: E402
 import recency_cache  # noqa: E402
 import tomtom  # noqa: E402
 import trajeto  # noqa: E402
@@ -49,8 +51,9 @@ ox.settings.use_cache = True
 ox.settings.timeout = 300  # 5min por request Overpass
 
 MODELS_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'ml', 'artifacts')
-# lia_2.2 = 2.1 + contexto (vizinhos, chuva, feriado); a tese cita a 2.1. Rollback: LIA_VERSION=lia_2.1.
-MODEL_VERSION = os.getenv('LIA_VERSION', 'lia_2.2')
+# lia_2.3 = 2.2 (2.1 + contexto) + perfis fora da amostra, recência envelhecida e early stopping
+# no próprio treino (ml/artifacts/ablation_lia_2.3.json). A tese cita a 2.1. Rollback: LIA_VERSION=lia_2.2.
+MODEL_VERSION = os.getenv('LIA_VERSION', 'lia_2.3')
 # O raio entra no nome: trocar GRAPH_RADIUS_KM não reaproveita um grafo menor em
 # silêncio (o brasilia_graph.graphml antigo tinha ~15 km e não cobria Ceilândia).
 GRAPH_CACHE = os.path.join(MODELS_DIR, f"brasilia_graph_{os.getenv('GRAPH_RADIUS_KM', '38')}km.graphml")
@@ -297,12 +300,16 @@ async def lifespan(app: FastAPI):
         G.graph['atraso_semaforo_s'] = trajeto.carregar_atraso_semaforo(
             os.path.join(MODELS_DIR, 'semaforos_calibracao.json'))
         logging.info(f"{n_semaforos} cruzamentos com semáforo no grafo")
-        # Experimento (desligado por padrão: muda os números da tese): velocidade
-        # livre da TomTom nos trechos monitorados, a mesma do treino da LIA.
-        if os.getenv('VEL_LIVRE_TOMTOM', '0') == '1':
+        # Velocidade livre na escala da TomTom (a mesma do treino da LIA): a exata nos
+        # trechos monitorados e um fator único TomTom/OSM no resto (graph_enrichment).
+        # Padrão desde 2026-11-02; VEL_LIVRE_CALIBRADA=0 volta ao limite do OSM (Fase 3).
+        calibrada = os.getenv('VEL_LIVRE_CALIBRADA', '1') == '1'
+        if calibrada or os.getenv('VEL_LIVRE_TOMTOM', '0') == '1':
             with open(os.path.join(MODELS_DIR, 'velocidade_livre_tomtom.json'), encoding='utf-8') as f:
                 G.graph['vel_livre_tomtom'] = {int(k): float(v) for k, v in json.load(f)['pontos'].items()}
             logging.info(f"Velocidade livre da TomTom em {len(G.graph['vel_livre_tomtom'])} trechos monitorados")
+        if calibrada:
+            G.graph['vel_livre_calibrada'] = graph_enrichment.calibrar_velocidade_livre(G, G.graph['vel_livre_tomtom'])
         logging.info(f"Grafo enriquecido em {time.time()-t0:.1f}s")
 
         if graph_stats['vinculadas_lia'] == 0:
@@ -360,6 +367,7 @@ app = FastAPI(
     swagger_ui_parameters=openapi.SWAGGER_UI,
     lifespan=lifespan,
 )
+app.add_exception_handler(RequestValidationError, seguranca.erro_de_validacao)
 
 # Origens explícitas e sem credenciais: o app manda o JWT no header
 # Authorization, não em cookie. Em deploy, CORS_ORIGINS (vírgula) sobrescreve.
@@ -386,6 +394,7 @@ async def registrar_requisicao(request: Request, call_next):
     texto buscado no autocomplete não é guardado)."""
     inicio = time.perf_counter()
     status, erro = 500, None
+    usage.marcar_interna(usage.requisicao_interna(request))
     try:
         resposta = await call_next(request)
         status = resposta.status_code
@@ -465,7 +474,8 @@ async def health():
         "supabase_configurado": app.state.supabase is not None,
         "recencia": app.state.recencia_cache.resumo(),
         "semaforos": {"atraso_s": app.state.graph.graph.get('atraso_semaforo_s', 0.0)},
-        "velocidade_livre": "tomtom" if app.state.graph.graph.get('vel_livre_tomtom') else "osm",
+        "velocidade_livre": ("calibrada" if app.state.graph.graph.get('vel_livre_calibrada')
+                             else "tomtom" if app.state.graph.graph.get('vel_livre_tomtom') else "osm"),
         "contexto": app.state.contexto.resumo() if app.state.contexto else None,
     }
 

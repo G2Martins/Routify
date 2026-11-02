@@ -523,6 +523,16 @@ def _via_da_polyline(request: Request, G: nx.MultiDiGraph, polyline: List[List[f
     return None if nome == "Via sem nome" else nome
 
 
+def _vmax_ms(G) -> float:
+    """Maior velocidade livre do grafo (m/s), calculada uma vez. A heurística do A*
+    divide por ela para ser limite inferior do custo: com 30 m/s fixos, as arestas
+    de 110 km/h a violavam e o A* podia devolver caminho até ~2% pior."""
+    if 'vmax_ms' not in G.graph:
+        G.graph['vmax_ms'] = max((float(d.get('speed_kph') or 0.0) for _, _, d in G.edges(data=True)),
+                                 default=108.0) / 3.6
+    return G.graph['vmax_ms']
+
+
 def _snap(request: Request, G: nx.MultiDiGraph, lat: float, lon: float) -> Tuple[int, float]:
     arvore = getattr(request.app.state, 'arvore_nos', None)
     if arvore is not None:
@@ -655,9 +665,11 @@ async def calculate_route(body: RouteInput, request: Request):
     )
     atraso_sem = float(G.graph.get('atraso_semaforo_s', 0.0))
 
-    # Heurística Haversine para A* (limite inferior: 30 m/s ≈ 108 km/h)
+    # Heurística Haversine para A*: distância / maior velocidade do grafo = limite inferior
+    vmax = _vmax_ms(G)
+
     def heuristic(u, v):
-        return haversine_m(G.nodes[u]['y'], G.nodes[u]['x'], G.nodes[v]['y'], G.nodes[v]['x']) / 30
+        return haversine_m(G.nodes[u]['y'], G.nodes[u]['x'], G.nodes[v]['y'], G.nodes[v]['x']) / vmax
 
     bloqueadas = tomtom.arestas_interditadas(G, incidentes_tt) if incidentes_tt else set()
     peso = (tomtom.peso_sem_interditadas(bloqueadas, PENALTY_NON_DRIVABLE_S, atraso_sem)
