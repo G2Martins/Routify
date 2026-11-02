@@ -30,7 +30,6 @@ import statistics
 from typing import Optional, Tuple
 
 import numpy as np
-import osmnx as ox
 from sklearn.neighbors import BallTree
 
 # Vias por onde carro não passa. main.filter_drivable() remove essas arestas do
