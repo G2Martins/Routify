@@ -16,8 +16,6 @@ import traceback
 import joblib
 import osmnx as ox
 import networkx as nx
-import numpy as np
-import pandas as pd
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -69,7 +67,6 @@ VERSAO_FILTRO = 2
 
 # ⭐ PRIORITY 1.1: Controle de Cache do Grafo (6 meses)
 GRAPH_CACHE_MAX_DAYS = 180
-GRAPH_CACHE_MIN_AGE_DAYS = 30
 
 def is_cache_outdated(cache_path: str, max_days: int = 180) -> bool:
     """Verifica se cache do grafo está desatualizado."""

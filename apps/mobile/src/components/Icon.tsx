@@ -11,9 +11,7 @@ import React from 'react';
 import { Platform, View } from 'react-native';
 import {
   Ionicons,
-  MaterialIcons,
   MaterialCommunityIcons,
-  FontAwesome5,
 } from '@expo/vector-icons';
 
 // @ts-ignore — só web
