@@ -27,7 +27,7 @@ Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) 
 - Pricing (docs.tomtom.com/pricing): "Free monthly requests per API" — Flow Segment Data 20k, Incidents 2,5k, Routing 20k, Search 2,5k. A página não diz se é por conta ou por chave.
 - Dataset (`ml/artifacts/cobertura_dataset.json`): 1.513.824 linhas, 2026-03-07 → 2026-07-19, 630 pontos, 134 dias com coleta. **13 dias cheios (≥ 50 mil linhas) concentram 68,5% das linhas**; mediana 2.561 linhas/dia (4 ciclos, logo após 00:00 UTC); a hora 21h (Brasília) tem 23,3% das linhas; fim de semana = 21% do volume de um dia útil.
 - pytest API: **63 passed** (1 novo: `test_log_info_nao_contem_chave_nem_url`). Coletor: **17 passed**. `compileall` ok.
-- SSH `52.206.16.48:22` → `Connection timed out`: o security group tinha um IP antigo, e a VPN do dono sai por outro IP.
+- SSH na porta 22 da API → `Connection timed out`: o security group tinha um IP antigo, e a VPN do dono sai por outro IP.
 
 ## Verificado em 2026-11-02 (deploy)
 
