@@ -16,6 +16,7 @@ Provedores opcionais entram sozinhos quando a chave existe no config/.env:
 ORS_API_KEY (OpenRouteService), MAPBOX_TOKEN (Mapbox driving-traffic).
 """
 import argparse
+import json
 import logging
 import math
 import os
@@ -34,6 +35,9 @@ TIMEOUT = 25
 PAUSA_ENTRE_CORREDORES_S = 4  # /route aceita 20/min por IP; o OSRM público pede uso moderado
 UA = {'User-Agent': 'Routify-TCC/1.0 (comparador academico; github.com/G2Martins)'}
 TOLERANCIA_TRACO_M = 40.0
+# Rodadas que o Supabase recusou (ex.: tabela ainda sem a migration) esperam aqui e vão
+# junto na próxima gravação que der certo. Na EC2 o systemd dá o StateDirectory gravável.
+PENDENTES = os.path.join(os.getenv('STATE_DIRECTORY') or os.path.join(AQUI, 'dados'), 'comparacao_pendente.jsonl')
 
 # (id, nome, origem (lat, lon), destino (lat, lon)). Os 11 primeiros são os pares
 # da Fase 3 (ml/external_validation.py); os demais cobrem as voltas da tarde e as
@@ -258,10 +262,32 @@ def rodada(corredores=CORREDORES, sessao=None, externos=None, pausa_s=PAUSA_ENTR
     return linhas
 
 
-def gravar(linhas: list) -> None:
-    import db  # cliente service_role do coletor
-    db.get_client().table('comparacao_provedores').insert(linhas).execute()
-    logging.info(f'{len(linhas)} linhas gravadas em comparacao_provedores')
+def _pendentes() -> list:
+    if not os.path.exists(PENDENTES):
+        return []
+    with open(PENDENTES, encoding='utf-8') as f:
+        return [json.loads(l) for l in f if l.strip()]
+
+
+def gravar(linhas: list, cliente=None) -> bool:
+    """Grava a rodada mais as pendentes. Se o Supabase recusar, guarda tudo em PENDENTES."""
+    pend = _pendentes()
+    try:
+        if cliente is None:
+            import db  # cliente service_role do coletor
+            cliente = db.get_client()
+        cliente.table('comparacao_provedores').insert(pend + linhas).execute()
+    except Exception as e:
+        os.makedirs(os.path.dirname(PENDENTES), exist_ok=True)
+        with open(PENDENTES, 'a', encoding='utf-8') as f:
+            f.writelines(json.dumps(l, ensure_ascii=False) + chr(10) for l in linhas)
+        logging.warning(f'Supabase recusou a gravação ({_erro(e)}): {len(pend) + len(linhas)} linhas '
+                        f'esperam em {PENDENTES} pela próxima rodada')
+        return False
+    if pend:
+        os.remove(PENDENTES)
+    logging.info(f'{len(linhas)} linhas gravadas em comparacao_provedores (+{len(pend)} pendentes)')
+    return True
 
 
 def main():

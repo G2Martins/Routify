@@ -133,3 +133,31 @@ def test_rodada_anota_o_traco_em_comum_com_a_tomtom():
     assert linhas['routify']['detalhes']['traco_comum_tomtom_pct'] == 100.0
     assert linhas['osrm']['detalhes']['traco_comum_tomtom_pct'] == 0.0
     assert 'traco_comum_tomtom_pct' not in (linhas['tomtom']['detalhes'] or {})
+
+
+class _Banco:
+    def __init__(self, falha=False):
+        self.falha, self.inseridas = falha, []
+
+    def table(self, nome):
+        assert nome == 'comparacao_provedores'
+        return self
+
+    def insert(self, linhas):
+        self._lote = linhas
+        return self
+
+    def execute(self):
+        if self.falha:
+            raise RuntimeError('tabela ausente')
+        self.inseridas += self._lote
+
+
+def test_rodada_recusada_espera_e_vai_junto_na_proxima(tmp_path, monkeypatch):
+    monkeypatch.setattr(cp, 'PENDENTES', str(tmp_path / 'p' / 'pendente.jsonl'))
+    assert cp.gravar([{'corredor': 'a', 'provedor': 'lia'}], _Banco(falha=True)) is False
+    assert cp.gravar([{'corredor': 'b', 'provedor': 'lia'}], _Banco(falha=True)) is False
+    banco = _Banco()
+    assert cp.gravar([{'corredor': 'c', 'provedor': 'lia'}], banco) is True
+    assert [l['corredor'] for l in banco.inseridas] == ['a', 'b', 'c']
+    assert not (tmp_path / 'p' / 'pendente.jsonl').exists()

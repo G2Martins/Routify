@@ -13,6 +13,9 @@ Environment=PYTHONUNBUFFERED=1
 Environment=PYTHONDONTWRITEBYTECODE=1
 ExecStart=/opt/routify/services/collector/.venv/bin/python comparar_provedores.py
 TimeoutStartSec=15min
+# Rodadas recusadas pelo Supabase esperam em /var/lib/routify-comparador (o resto do disco é só leitura).
+StateDirectory=routify-comparador
+StateDirectoryMode=0700
 MemoryMax=200M
 NoNewPrivileges=true
 ProtectSystem=strict

@@ -163,3 +163,6 @@ id_ed25519*
 *.tfstate
 *.tfstate.*
 .terraform/
+
+# Rodadas do comparador à espera do Supabase (execução local)
+services/collector/dados/
