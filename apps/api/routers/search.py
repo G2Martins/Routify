@@ -168,22 +168,32 @@ def texto_tomtom(q: str) -> str:
 
 def variantes(qn: str) -> List[str]:
     """A consulta normalizada e, se ela cita um apelido do DF, o nome que a base usa (a original
-    vem primeiro): 'eptg' -> ['eptg', 'estrada parque taguatinga']."""
+    vem primeiro): 'eptg' -> ['eptg', 'estrada parque taguatinga']. Depois, a consulta sem o
+    qualificador ou o bairro do fim ("hospital de base do df", "pier 21 lago sul"): os nomes da base
+    não os trazem. Os apelidos vêm antes porque a malha e a 2ª consulta à TomTom usam a posição 1."""
     saida = [qn]
-    # Sem o qualificador do fim ("... do df", "... brasilia"): os nomes da base não o trazem.
-    toks = qn.split()
-    while len(toks) > 1 and toks[-1] in QUALIFICADORES:
-        toks.pop()
-        while len(toks) > 1 and toks[-1] in LIGACOES:
-            toks.pop()
-    if ' '.join(toks) != qn and len(' '.join(toks)) >= 3:
-        saida.append(' '.join(toks))
     texto = f' {qn} '
     for apelido, nome in APELIDOS.items():
         if f' {apelido} ' in texto and f' {nome} ' not in texto:
             v = texto.replace(f' {apelido} ', f' {nome} ', 1).strip()
             if v not in saida:
                 saida.append(v)
+    toks = qn.split()
+    while len(toks) > 1 and toks[-1] in QUALIFICADORES:
+        toks.pop()
+        while len(toks) > 1 and toks[-1] in LIGACOES:
+            toks.pop()
+    reduzidas = [' '.join(toks)] if len(' '.join(toks)) >= 3 else []
+    # Bairro/região no fim, só nome de lugar (sem número: "sqs 308" é endereço) e com 2+ palavras sobrando
+    # ("parque aguas claras" continua inteiro).
+    _carregar_bairros()
+    fim = max((t for t in _bairros_tok if t and all(w.isalpha() for w in t)
+               and len(t) < len(toks) - 1 and toks[-len(t):] == t), key=len, default=None)
+    if fim:
+        reduzidas.append(' '.join(toks[:-len(fim)]))
+    for v in reduzidas:
+        if v not in saida:
+            saida.append(v)
     return saida[:3]
 
 
@@ -220,16 +230,23 @@ def _quase(x: str, t: str) -> bool:
     return any(_perto(x, t[:n], k) for n in range(len(x) - 1, len(x) + 2))
 
 
-def _casa(qt: List[str], toks: List[str], junto: str = '') -> Optional[str]:
+def _casa(qt: List[str], toks: List[str], junto: str = '', curtos: bool = False) -> Optional[str]:
     """Todo termo digitado é começo de alguma palavra? 'exato', 'aprox' (algum termo com erro de
     digitação ou colado: parkshoping) ou None. `junto` = nome sem espaços, p/ consulta de 1 termo."""
     junto = junto if len(qt) == 1 else ''
-    aprox = False
+    aprox, curto = False, False
     for x in qt:
         if any(t.startswith(x) for t in toks) or (len(x) >= 5 and junto.startswith(x)):
             continue
         if len(x) >= 5 and not x.isdigit() and (any(_quase(x, t) for t in toks) or (junto and _quase(x, junto))):
             aprox = True
+            continue
+        # Erro em palavra curta ou na 1ª letra ("sull", "nrte", "bse", "stacao"): uma só por consulta,
+        # palavra inteira a 1 edição, nunca número, e o resto da consulta tem de casar. Só com `curtos`:
+        # nos bairros e quadras um código difere do vizinho por uma letra (sqs/sqn, shis/shin).
+        if curtos and len(qt) >= 2 and len(x) >= 3 and not x.isdigit() and not curto and any(
+                len(t) >= 3 and _perto(x, t, 1) for t in toks):
+            aprox = curto = True
             continue
         return None
     return 'aprox' if aprox else 'exato'
@@ -296,7 +313,7 @@ def ranquear(q: str, candidatos: List[dict], perto: Tuple[float, float], limite:
         base = 0.0
         colados = [''.join(n.split()) for n in nomes]   # "parkshopping" é "park shopping" sem o espaço
         for v in qs:
-            m = _casa(v.split(), tn, junto)
+            m = _casa(v.split(), tn, junto, curtos=True)
             if m == 'aprox':
                 base = max(base, 1.2)
             elif m:
@@ -445,7 +462,7 @@ def _pontos(vs: List[str], perto: Tuple[float, float], maximo: int = 25) -> List
     pontos = _carregar_pois()
     qts = [v.split() for v in vs]
     achados = [(p, fs) for p, fs in zip(pontos, _pois_nomes)
-               if any(_casa(qt, toks, ''.join(toks)) for _, toks in fs for qt in qts)]
+               if any(_casa(qt, toks, ''.join(toks), curtos=True) for _, toks in fs for qt in qts)]
     ref = {'lat': perto[0], 'lon': perto[1]}
     achados.sort(key=lambda pf: _km(ref, pf[0]))
     itens = []

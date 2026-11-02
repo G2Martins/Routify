@@ -61,3 +61,23 @@ def test_mesmas_palavras_em_outra_ordem_contam_como_nome_exato():
 @pytest.mark.parametrize('q, esperado', [('torre de televisao', 'torre de tv'), ('memorial juscelino kubitschek', 'memorial jk')])
 def test_apelido_por_extenso_vira_a_sigla_da_base(q, esperado):
     assert esperado in search.variantes(q)
+
+
+@pytest.mark.parametrize('q, esperado', [
+    ('estacao 102 sull', 'Estação 102 Sul'),
+    ('estacao ceilandia nrte', 'Estação Ceilândia Norte'),
+    ('stacao 108 sul', 'Estação 108 Sul'),
+    ('hospital de bse', 'Hospital de Base do Distrito Federal'),
+])
+def test_um_erro_em_palavra_curta_ainda_acha(q, esperado):
+    assert _busca(q)[0]['label'] == esperado
+
+
+def test_erro_em_numero_nao_vira_outro_lugar():
+    assert all(c['label'] != 'Estação 112 Sul' for c in _busca('estacao 113 sul'))
+
+
+def test_bairro_no_fim_vira_variante_sem_ele():
+    assert 'pier 21' in search.variantes('pier 21 lago sul')
+    assert search.variantes('parque aguas claras') == ['parque aguas claras']   # sobraria 1 palavra: fica inteiro
+    assert _busca('pier 21 lago sul')[0]['label'] == 'Pier 21'
