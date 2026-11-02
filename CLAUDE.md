@@ -130,6 +130,7 @@ CI (`.github/workflows/`):
   - O `.mcp.json` local está **sem** `read_only=true` desde 2026-09-23; o `.mcp.json.example` segue read-only.
   - Mudou a URL → o OAuth precisa ser refeito numa sessão **interativa**. Sessão não interativa não autentica, e aí o fallback é colar o arquivo no SQL Editor.
   - Nada de SQL fora de arquivo versionado. O SQL de promoção de admin (tem e-mails) fica em `supabase/.local/`, que é gitignored.
+  - Em sessão não interativa (agente sozinho), `apply_migration` e `execute_sql` de escrita voltam **"declined"**: a confirmação do MCP não tem quem responda. Leitura funciona. Migration nova = dono cola no SQL Editor.
 - **A branch `tcc2` (Pedro) era ÓRFÃ** — o commit raiz `aefb465` não tinha pai. Foi integrada em 2026-09-22 com enxerto temporário (`git replace --graft aefb465 66d30c0` → merge → `git replace -d`) no commit `0e066fb`, e agora o merge-base é `65b387a`. Commits novos do Pedro na `tcc2` mesclam normalmente. Nunca usar `--allow-unrelated-histories` (vira add/add em tudo). Regra pro time: branch nova sempre a partir de `main` atualizado, nunca de snapshot.
 - **`.gitignore` do tcc2 ignora `*.md` exceto README** (notas internas ficam fora do repo). Exceções mantidas: `CLAUDE.md`, `docs/**/*.md`, `.planning/**/*.md`. Doc viva nova em outra pasta precisa de exceção.
 - **`apps/mobile/src/lib/` sumia do git.** O `.gitignore` antigo tinha `lib/` (template Python) e engolia `api.ts`/`supabase.ts`/`responsive.ts`. Corrigido em `75c92d8`; hoje o ignore de `lib/` só vale dentro das pastas Python. O snapshot tcc2 não tem a pasta, então não builda sozinho; o tipo `RouteHistoryRow` do main não tem as colunas novas de validação.
@@ -172,6 +173,7 @@ CI (`.github/workflows/`):
   - O `features_from_point` do OSMnx 1.9 quebra (`UnboundLocalError`) quando o endpoint de status do Overpass falha, então o download é uma consulta direta ao Overpass com espelho.
 - **Traçado:** o conector entre o ponto e a via é tracejado. A busca TomTom usa `entryPoints` (entrada do POI, não o centro do prédio). Backlog: snap na aresta em vez do nó.
 - **Mapa da TomTom no app:** não usar o pool de 39 no navegador (a chave fica pública). Se quiser o estilo "night", usar 1 chave dedicada com restrição de domínio. Tiles do OSM/Esri continuam.
+- **Deploy do front pela MCP `hostinger-mcp`:** `hosting_deploy` com `type: nodejs`, `appType: other`, `buildScript: build`, `entryFile: index.js`, Node 22 (as mesmas opções gravadas no site). A ferramenta recusa arquivo dentro da pasta do usuário (C:/Users/..., inclui o scratchpad): copiar o pacote para `services/collector/dados/front/` (gitignored). Acompanhar com `hosting_get-deployment`.
 - **Login único app + painel:** o Expo web usa `createBrowserClient` (`@supabase/ssr`), que guarda a sessão em cookie, e o painel Next roda sob `/admin` lendo o mesmo cookie.
   - Em dev, `:8081` e `:3000` compartilham o cookie, porque cookie não separa porta.
   - Sem sessão, o painel manda para `NEXT_PUBLIC_APP_URL`.

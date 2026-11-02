@@ -18,7 +18,7 @@ Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) 
 | F12 LIA 2.2 (contexto) | **feita**: vizinhos + chuva + feriado, mesmo código no treino e na API; padrão da API; estresse treino × produção versionado |
 | F11 Traçado + fusão LIA × TomTom | **feita e validada ao vivo**: grafo 38 km, conector tracejado, `entryPoints`, fusão por `supportingPoints`, semáforos OSM (271 cruzamentos) + calibração |
 | F13 Coleta na EC2 (cadência pela cota) | **no ar desde 2026-11-02 00:23 (Brasília)**: `routify-collector` ativo na EC2, 1º lote = 630 linhas de 630 pontos no banco, 36 MB de RAM, API seguiu 200. Cadência de 43 min: confirmar pelo intervalo entre o 1º e o 2º lote |
-| F15 LIA 2.3 + LIA × provedores + caça a erros + auto-sugest | **código pronto e testado (2026-11-02)**: LIA 2.3 (CV 35,48 × 40,27 s), velocidade livre na escala da TomTom (viés −11,9% → −0,2% no mesmo trajeto), 10 bugs da inferência corrigidos com teste, auto-sugest reescrito (66 testes), comparador + timer, página `/admin/provedores`. Falta: aplicar a migration `20261102000000_lia_vs_provedores`, deploy do front |
+| F15 LIA 2.3 + LIA × provedores + caça a erros + auto-sugest | **código pronto e testado (2026-11-02)**: LIA 2.3 (CV 35,48 × 40,27 s), velocidade livre na escala da TomTom (viés −11,9% → −0,2% no mesmo trajeto), 10 bugs da inferência corrigidos com teste, auto-sugest reescrito (66 testes), comparador + timer, página `/admin/provedores`. **No ar desde 2026-11-02 02:23**: API com LIA 2.3 + velocidade calibrada, comparador com timer (8×/dia) e Mapbox, front com `/admin/provedores` e o auto-sugest novo, métricas publicadas. Falta: aplicar a migration `20261102000000_lia_vs_provedores` (o MCP recusa escrita sem confirmação interativa) |
 | F14 Análise de melhorias + estratégia de testes | **entregue** (4 revisões: API/segurança, ML, front, DB/CI) com backlog priorizado e evidência arquivo:linha; artefato `cobertura_dataset.json` |
 
 ## Verificado nesta sessão (2026-11-01)
@@ -72,7 +72,9 @@ Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) 
 - [ ] **Dono:** console → conta → ativar o acesso de usuários IAM ao Billing (só o root faz).
 - [ ] **Pedro:** 1º login (URL + senha temporária entregues pelo dono) → trocar senha → MFA → testar EC2 → Connect → Session Manager.
 - [x] Merge de `coleta-aws-analise` em `main` + push (2026-11-02, CI verde).
-- [ ] **Dono:** aplicar `supabase/migrations/20261102000000_lia_vs_provedores.sql` (SQL Editor, ou aprovar o MCP) → ligar o comparador: `sudo COMPARADOR=1 bash …/instalar-ec2.sh`.
+- [ ] **Dono:** colar `supabase/migrations/20261102000000_lia_vs_provedores.sql` no SQL Editor do Supabase. O MCP recusou `apply_migration` e `execute_sql` de escrita (pedem confirmação interativa). Enquanto isso o comparador guarda as rodadas em `/var/lib/routify-comparador/comparacao_pendente.jsonl` na EC2, e a 1ª rodada depois da migration manda tudo.
+- [x] Deploy da API (LIA 2.3 + velocidade calibrada) e do comparador (timer ligado, token do Mapbox num drop-in do systemd), 2026-11-02 02:23; front publicado na Hostinger; `publish_metrics.py` rodado (lia_2.3 + 7 análises).
+- [x] Rotina de validação até 12h (tarefa do Windows `Routify - rotina de validacao da LIA`, de hora em hora, `scripts/rotina_validacao.py` → `services/collector/dados/rotina/`) e agente horário desta sessão revisando cada rodada; resumo em `.planning/research/2026-11-02-rotina-madrugada.md`.
 - [ ] **Dono:** conferir no console que o RDS ficou vazio e o snapshot `database-1-final-2026-11-02` existe (o `claude-ops` não lê mais o RDS); apagar o snapshot se não quiser guardar.
 - [ ] **Dono (opcional):** token grátis do Mapbox (`MAPBOX_TOKEN` no `.env` do coletor) para ter um 2º provedor com trânsito ao vivo.
 - [ ] Dezembro: `silver.py` + `fetch_contexto.py --fim …` + `avaliar_fora_do_tempo.py` + `publish_metrics.py` → número final 2.2 × 2.3 × persistência em dados novos.

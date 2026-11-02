@@ -113,7 +113,9 @@ instala só `dependencies`, sem as devDeps do Tailwind. Então o build roda em L
    (export web do Expo com `--clear` + código do painel).
 2. Em qualquer Linux x64 com Node 22 (usamos a própria EC2, usuário `builder` **sem sudo**):
    `NEXT_PUBLIC_SUPABASE_URL=… NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=… NEXT_PUBLIC_API_URL=https://api-<app> NEXT_PUBLIC_APP_URL=/ bash montar-front-linux.sh ~/routify-front.tar.gz`.
-3. Publicar com o MCP da Hostinger: `hosting_deployJsApplication` (domínio `<app>`, arquivo do passo 2).
+3. Publicar com o MCP da Hostinger: `hosting_deploy` (domínio `<app>`, arquivo do passo 2, `type: nodejs`, `appType: other`,
+   `buildScript: build`, `entryFile: index.js`, Node 22) e acompanhar com `hosting_get-deployment`. O arquivo não pode
+   estar dentro da pasta do usuário: a ferramenta recusa. Antes de 2026-11 a operação se chamava `hosting_deployJsApplication`.
    A config sai do `package.json` (entry `index.js`, build = copiar `prebuilt_node_modules`).
 
 Pegadinhas já resolvidas:
