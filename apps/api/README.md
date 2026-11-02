@@ -327,11 +327,18 @@ As outras ações do painel (papel, bloqueio, avisos, flags) são RPCs `admin_*`
 
 ### `GET /search/places?q=...&limit=8[&lat=..&lon=..]`
 
-Autocomplete: a base local (malha de ~38 mil vias do DF, com cache de 1 h, e as 602 localidades de
-`ml/artifacts/bairros_df.json`: regiões, bairros, superquadras) e a TomTom Search (typeahead,
+Autocomplete: a base local (malha de ~38 mil vias do DF, com cache de 1 h, as 602 localidades de
+`ml/artifacts/bairros_df.json`: regiões, bairros, superquadras, e ~1.700 pontos de interesse do OSM em
+`ml/artifacts/pois_df.json`: estações de metrô, terminais, shoppings, hospitais, universidades, parques,
+atrações, com os nomes alternativos) e a TomTom Search (typeahead,
 20 resultados, cache 24 h) rodam em paralelo e são **juntadas e ranqueadas numa lista só**
 (`ranquear()` em `routers/search.py`). O Nominatim só entra se o ranking final tiver menos de
 3 resultados e a consulta, 4+ letras (a política da OSMF proíbe autocomplete).
+
+Bateria de pontos famosos (`scripts/bateria_busca.py`, 79 lugares de `services/collector/pontos_df.json`, 5 jeitos
+de digitar cada um): em 2026-11-02 a produção achava 72,7% entre as 5 primeiras e só 49,6% das estações de
+metrô; daí o índice de pontos do OSM (`ml/extrair_pois_osm.py`) e a variante sem "df"/"brasília" no fim
+("hospital de base do df"). Dados do OSM: © contribuidores do OpenStreetMap, ODbL.
 
 Entende a consulta: acento e caixa não importam, "sqs308" = "sqs 308", siglas do DF (EPTG, EPIA, Eixão,
 UnB, Rodoviária, HBDF…; tabela `APELIDOS`) viram uma 2ª consulta com o nome por extenso, e erro de

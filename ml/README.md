@@ -59,6 +59,7 @@ o Parquet já gerado (mais rápido, útil em iteração).
 | `tune_hyperparams.py` | Busca bayesiana de hiperparâmetros (Optuna), reaproveitando a mesma validação de `train.py` |
 | `calibrate_transfer.py` | Calibra a confiança do Knowledge Transfer (vias sem monitoramento direto) por regressão isotônica sobre pares reais |
 | `external_validation.py` | Compara a rota da LIA, a de menor distância e a de uma referência externa (TomTom) para o mesmo par origem-destino |
+| `extrair_pois_osm.py` | Pontos de interesse do DF (metrô, terminais, shoppings, hospitais, universidades, parques, atrações) de um recorte OSM `.osm.pbf` (Geofabrik) → `artifacts/pois_df.json`, usado pela busca da API. Requer `pip install osmium` (fora do venv da API) |
 | `calibrate_signals.py` | Contra a TomTom sem trânsito no mesmo trajeto, em N rotas sorteadas (API com `SEM_ATRASO_CALIBRADO=1`): atraso por semáforo e por cruzamento e, com mínimos quadrados não negativos no nível da rota, um fator de velocidade livre por grupo de via (expressa, arterial, coletora, local) → `artifacts/semaforos_calibracao.json` (a API aplica os dois) |
 | `free_flow_speeds.py` | Mediana da velocidade livre da TomTom por ponto → `artifacts/velocidade_livre_tomtom.json` (experimento `VEL_LIVRE_TOMTOM=1` na API) |
 | `publish_metrics.py` | Publica as métricas versionadas de cada LIA no Supabase (`lia_treinos`/`lia_analises`) para o painel ADM |

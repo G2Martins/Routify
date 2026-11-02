@@ -38,7 +38,7 @@ flowchart LR
     ROUTE -- "vias velhas do corredor,<br/>interdições" --> POOL
     ROUTE --> FUS
     FUS -- "reconstruir a rota da LIA<br/>(supportingPoints) + alternativa" --> POOL
-    SEARCH -- "malha (cache 1 h) + localidades OSM" --> SB
+    SEARCH -- "malha (cache 1 h); localidades e pontos do OSM em memória" --> SB
     SEARCH -- "em paralelo, cache 24 h" --> POOL
     SEARCH -- "último: ranking < 3 e 4+ letras,<br/>cache + 1 req/s" --> NOM
     POOL --> TT
@@ -110,7 +110,8 @@ As fontes rodam **em paralelo** e o resultado é **ranqueado numa lista só** (`
 
 1. **Base local DF** (sem rede além do Supabase):
    - `malha_completa` (~38 mil vias): consulta por regex (`imatch`) em que cada vogal aceita a forma acentuada, então "helio" acha "Hélio" (o Postgres do Supabase não expõe `unaccent`). Se o PostgREST recusar o operador, volta ao `ILIKE` (sem acento) por 10 min. Cache de 1 h;
-   - 602 localidades do OSM em memória (`ml/artifacts/bairros_df.json`: regiões administrativas, bairros, superquadras): "ceilandia", "asa norte", "sqs 308" saem daqui, e elas dão o bairro das vias.
+   - 602 localidades do OSM em memória (`ml/artifacts/bairros_df.json`: regiões administrativas, bairros, superquadras): "ceilandia", "asa norte", "sqs 308" saem daqui, e elas dão o bairro das vias;
+   - ~1.700 pontos de interesse do OSM em memória (`ml/artifacts/pois_df.json`, gerado por `ml/extrair_pois_osm.py` a partir do recorte Geofabrik): estações de metrô ("metrô 112 sul" = "Estação 112 Sul"), terminais, shoppings, hospitais, universidades, parques e atrações, casando também pelos nomes alternativos do OSM (`alt_name`, `short_name`, `official_name`).
 2. **TomTom Search v2** — `typeahead`, `countrySet=BR`, viés para quem busca (ou o centro de Brasília; raio de 40 km), 20 resultados, cache de 24 h por consulta sem acento nem pontuação ("Park-Shopping" e "park shopping" dividem a entrada; "W3" segue colado, porque a TomTom indexa "W3 Norte"). O texto do usuário é codificado no caminho da URL (`quote(..., safe="")`).
 3. **Nominatim** — último recurso: só entra se o ranking final trouxer menos de 3 resultados **e** a consulta tiver 4+ letras, com cache de 24 h e trava de 1 requisição por segundo. A política de uso da OSMF proíbe autocomplete e exige cache.
 

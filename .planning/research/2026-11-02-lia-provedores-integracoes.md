@@ -107,3 +107,30 @@ Em qualquer provedor: atribuição na página e nada de ETA de terceiro na tese 
 5. **ANP**: preço semanal do combustível para a estimativa de economia (sem efeito na LIA).
 6. Descartados ou pós-TCC: SEMOB/DFTrans (sem GTFS; GPS ao vivo sem licença), Waze for Cities (só órgão público),
    Google Popular Times (viola ToS), DETRAN-DF (acidentes sem coordenada), eventos (sem agenda estruturada).
+
+## 6. Tarde de 2026-11-02: outros provedores além do OSM e o grafo
+
+Pedido do dono: usar outros provedores além do OpenStreetMap, ver o que as APIs novas acrescentam e ajustar o grafo se ele estiver ruim.
+
+**O que entrou (no ar desde 12:23 e, a busca, depois da bateria):**
+
+| Fonte | O que dá | Uso |
+|---|---|---|
+| TomTom `computeTravelTimeFor=all` | `historicTrafficTravelTimeInSeconds`: o ETA só pelo histórico da TomTom, no mesmo trajeto da LIA (fusão) e na rota dela | comparador e painel (`admin_provedores_historicos`). É o equivalente da LIA na TomTom, sem chamada extra |
+| Mapbox `driving-traffic` | `duration_typical`: trânsito típico do horário | comparador e painel, ao lado do `duration` ao vivo |
+| OSM (Geofabrik) | ~1.700 pontos de interesse do DF (metrô, terminais, shoppings, hospitais, universidades, parques, atrações) com nomes alternativos | busca local (`pois_df.json`); a TomTom não tinha a maioria das estações |
+
+O comparador também deixou de gravar a linha `tomtom` sem o tempo sem trânsito: a chamada não pedia `computeTravelTimeFor=all` (0 de 304 linhas tinham o campo).
+
+**Descartado ou adiado:**
+- *Mapbox `annotations=maxspeed/speed` para preencher o grafo:* derivar dado de mapa de uma API comercial para guardar no nosso grafo esbarra nos termos de uso (e não casa com a ODbL do OSM). Fica só para comparar.
+- *Mapbox Search/Geocoding:* o resultado não pode ser guardado e o ganho sobre TomTom + OSM local seria pequeno.
+- *Restrições de conversão (`restriction` do OSM):* exigem grafo por aresta. Evidência: em Plano → Taguatinga a rota da LIA termina num retorno pela Avenida Comercial que a TomTom não aceita (reconstrução ×1,23 em todas as rodadas). Backlog, junto do snap com vários candidatos em via dupla.
+
+**O que estava ruim no grafo e foi corrigido:**
+1. Velocidade livre das ruas locais e coletoras: ≈ 2× o tempo do limite de via. Fatores por grupo ajustados no nível da rota contra a TomTom sem trânsito (`semaforos_calibracao.json`).
+2. Aresta sem sensor nascia em fluxo livre: o perfil global é uma mediana, 1,0 em 75% das combinações hora × dia. Agora parte da lentidão prevista no momento (`PRIOR_CONGESTIONAMENTO=corredor`).
+3. `access=no` (condomínio fechado, alça fechada): 41 arestas que o filtro `drive` do OSMnx 1.9 deixava passar.
+4. Heurística do A*: o limite de velocidade não incluía a velocidade livre da TomTom dos trechos monitorados.
+
+**Diagnóstico que não deu em correção:** os corredores com pouco traçado em comum (Cruzeiro → Asa Norte, Parque da Cidade → Torre, Lago Norte → SCS, Ceilândia) não têm via faltando nem sentido errado no grafo. A diferença vem da escolha de rota (pesos) e, no Parque da Cidade, do ponto de origem dentro do parque, a 341 m da rede de carros.

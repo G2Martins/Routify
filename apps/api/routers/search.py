@@ -6,7 +6,10 @@ Fontes, juntas e ranqueadas numa lista só (ranquear()):
      - malha_completa (~38 mil vias; consulta ao Supabase com cache de 1 h; acento e caixa
        não importam; o bairro sai do lugar OSM mais próximo);
      - as 602 localidades do OSM em ml/artifacts/bairros_df.json (regiões administrativas,
-       bairros, superquadras), em memória: "ceilandia", "asa norte", "sqs 308" saem daqui.
+       bairros, superquadras), em memória: "ceilandia", "asa norte", "sqs 308" saem daqui;
+     - ~1.700 pontos de interesse do OSM em ml/artifacts/pois_df.json (estações de metrô, terminais,
+       shoppings, hospitais, universidades, parques, atrações; ml/extrair_pois_osm.py), em memória,
+       com os nomes alternativos do OSM: "estação galeria", "metrô 112 sul" saem daqui.
   2. TomTom Search v2 (typeahead, cache 24 h) — acha POI e tolera erro de digitação.
   3. Nominatim (OSM) — só se o ranking final trouxer < 3 resultados e a consulta tiver 4+
      letras. A política da OSMF proíbe autocomplete e exige cache e ≤ 1 req/s; por isso fica
@@ -58,6 +61,9 @@ _bairros: Optional[List[dict]] = None
 _bairros_tok: List[List[str]] = []
 _B_LAT = _B_LON = np.empty(0)
 _RAS: List[Tuple[str, str]] = []  # (nome normalizado, nome) das cidades/vilas = regiões administrativas, maiores primeiro
+_POIS_JSON = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'ml', 'artifacts', 'pois_df.json')
+_pois: Optional[List[dict]] = None
+_pois_nomes: List[List[Tuple[str, List[str]]]] = []  # por ponto: (nome normalizado, palavras) de cada forma
 
 LINHAS_MALHA = 150            # a malha tem ~8 trechos por via: 150 linhas dão ~20 nomes
 _regex_pausado_ate = 0.0      # PostgREST recusou imatch: usa ILIKE (sem acento) até esta hora
@@ -105,6 +111,10 @@ APELIDOS = {
     'hrg': 'hospital regional do gama',
     'hmib': 'hospital materno infantil de brasilia',
     'hub': 'hospital universitario de brasilia',
+    # A base (OSM e TomTom) escreve a sigla: "Torre de TV", "Memorial JK" (bateria de 2026-11-02).
+    'televisao': 'tv',
+    'juscelino kubitschek': 'jk',
+    'kubitschek': 'jk',
 }
 
 # Marcos: o que alguém quer dizer ao digitar o nome (e não a loja que o cita).
@@ -123,8 +133,13 @@ CATEGORIAS = {
     'OPEN_PARKING_AREA': 'Estacionamento', 'PARKING_GARAGE': 'Estacionamento',
     'ELECTRIC_VEHICLE_STATION': 'Recarga', 'SPORTS_CENTER': 'Esporte', 'MARKET': 'Mercado',
 }
+CATEGORIAS['BUS_STATION'] = 'Terminal'  # código nosso (pontos do OSM): rodoviárias e terminais
+MARCOS.add('BUS_STATION')
 # Códigos nossos (localidades do OSM): só rotulam; não entram no nome do candidato.
 CATEGORIAS_LOCAIS = {'REGIAO': 'Região', 'BAIRRO': 'Bairro'}
+# Qualificador de lugar no fim da consulta ("hospital de base do df"): os nomes não o trazem.
+QUALIFICADORES = {'df', 'bsb', 'brasilia'}
+LIGACOES = {'do', 'de', 'da', 'em', 'no', 'na'}
 TIPO_ENDERECO = {'Point Address', 'Address Range'}
 PREFIXO_GENERICO = {'SHOPPING_CENTER', 'STADIUM', 'AIRPORT'}
 PESO_KM = 0.04          # penalidade por km de quem busca: desempata homônimos, não esconde o longe
@@ -155,6 +170,14 @@ def variantes(qn: str) -> List[str]:
     """A consulta normalizada e, se ela cita um apelido do DF, o nome que a base usa (a original
     vem primeiro): 'eptg' -> ['eptg', 'estrada parque taguatinga']."""
     saida = [qn]
+    # Sem o qualificador do fim ("... do df", "... brasilia"): os nomes da base não o trazem.
+    toks = qn.split()
+    while len(toks) > 1 and toks[-1] in QUALIFICADORES:
+        toks.pop()
+        while len(toks) > 1 and toks[-1] in LIGACOES:
+            toks.pop()
+    if ' '.join(toks) != qn and len(' '.join(toks)) >= 3:
+        saida.append(' '.join(toks))
     texto = f' {qn} '
     for apelido, nome in APELIDOS.items():
         if f' {apelido} ' in texto and f' {nome} ' not in texto:
@@ -267,7 +290,7 @@ def ranquear(q: str, candidatos: List[dict], perto: Tuple[float, float], limite:
     avaliados = []
     for c in candidatos:
         nome = normalizar(c['label'])
-        nomes = _nomes(c, nome)
+        nomes = _nomes(c, nome) + list(c.get('_nomes_extra', ()))  # alternativos do OSM (pontos de interesse)
         tn = ' '.join(nomes).split()
         junto = ''.join(nome.split())
         base = 0.0
@@ -278,7 +301,8 @@ def ranquear(q: str, candidatos: List[dict], perto: Tuple[float, float], limite:
                 base = max(base, 1.2)
             elif m:
                 vc = v.replace(' ', '')
-                exato = v in nomes or vc in colados
+                # Mesmas palavras em outra ordem também é o nome: "Pátio Brasil Shopping" = "Shopping Pátio Brasil".
+                exato = v in nomes or vc in colados or any(sorted(v.split()) == sorted(n.split()) for n in nomes)
                 comeca = any(n.startswith(v) for n in nomes) or any(n.startswith(vc) for n in colados)
                 base = max(base, 3.6 if exato else 2.2 if comeca else 1.6)
         if base == 0.0:
@@ -397,6 +421,39 @@ def _lugares(vs: List[str], perto: Tuple[float, float], maximo: int = 25) -> Lis
         itens.append({'label': b['nome'], 'sublabel': pai, 'lat': b['lat'], 'lon': b['lon'],
                       'bairro': pai or None, 'tipo': 'Place', 'score': 0.9, 'fonte': 'malha',
                       'categoria_codigo': 'REGIAO' if regiao else 'BAIRRO'})
+    return itens
+
+
+def _carregar_pois() -> List[dict]:
+    """Pontos de interesse do OSM (ml/extrair_pois_osm.py), lidos uma vez. Falha de leitura = lista vazia."""
+    global _pois, _pois_nomes
+    if _pois is None:
+        try:
+            with open(_POIS_JSON, encoding='utf-8') as f:
+                pontos = json.load(f)['pontos']
+            formas = [[(n, n.split()) for n in dict.fromkeys(normalizar(x) for x in [p['nome']] + p.get('nomes', [])) if n]
+                      for p in pontos]
+        except (OSError, ValueError, KeyError, TypeError):
+            pontos, formas = [], []
+        _pois, _pois_nomes = pontos, formas
+    return _pois
+
+
+def _pontos(vs: List[str], perto: Tuple[float, float], maximo: int = 25) -> List[dict]:
+    """Pontos de interesse do OSM que casam com a consulta por qualquer forma do nome (sem rede).
+    As outras formas vão em `_nomes_extra`, para o ranking valer o casamento por elas."""
+    pontos = _carregar_pois()
+    qts = [v.split() for v in vs]
+    achados = [(p, fs) for p, fs in zip(pontos, _pois_nomes)
+               if any(_casa(qt, toks, ''.join(toks)) for _, toks in fs for qt in qts)]
+    ref = {'lat': perto[0], 'lon': perto[1]}
+    achados.sort(key=lambda pf: _km(ref, pf[0]))
+    itens = []
+    for p, fs in achados[:maximo]:
+        bairro = _bairro_proximo(round(p['lat'], 4), round(p['lon'], 4))
+        itens.append({'label': p['nome'], 'sublabel': bairro or '', 'lat': p['lat'], 'lon': p['lon'],
+                      'bairro': bairro, 'tipo': 'POI', 'score': 0.9, 'fonte': 'malha',
+                      'categoria_codigo': p['categoria_codigo'], '_nomes_extra': [n for n, _ in fs[1:]]})
     return itens
 
 
@@ -614,7 +671,7 @@ async def autocomplete(
     achados = await asyncio.gather(_malha(sb, q) if sb is not None else _nada(), *remotas, return_exceptions=True)
     locais = _lista(achados[0], 'malha')
     remotos = [r for a in achados[1:] for r in _lista(a, 'tomtom')]
-    candidatos = locais + _lugares(vs, perto) + [dict(r, fonte='tomtom') for r in remotos]
+    candidatos = locais + _lugares(vs, perto) + _pontos(vs, perto) + [dict(r, fonte='tomtom') for r in remotos]
 
     saida = ranquear(q, candidatos, perto, limit, vs)
     # Só conta o que sobrou do ranking: três resultados fuzzy da TomTom que não casam com nada

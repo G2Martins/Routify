@@ -24,6 +24,8 @@ def _estado_limpo(monkeypatch):
     monkeypatch.setattr(search, '_regex_pausado_ate', 0.0)
     monkeypatch.setattr(search, '_cache_malha', search.CacheTTL(3600, max_itens=512))
     monkeypatch.setattr(search, '_cache_nominatim', search.CacheTTL(3600, max_itens=64))
+    # Os pontos de interesse do OSM (pois_df.json) têm teste próprio: aqui só as fontes remotas e a malha.
+    monkeypatch.setattr(search, '_pontos', lambda *a, **k: [])
     search._bairro_proximo.cache_clear()
 
 
