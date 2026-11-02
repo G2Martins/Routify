@@ -267,7 +267,7 @@ def test_consultar_tomtom_atualiza_recencia_e_devolve_incidentes_e_referencia():
     assert rc.get(1)['razao_lag1'] == 0.25 and rc.get(3) is None
     assert len(incidentes) == 1
     assert ref == {'tempo_seg': 600, 'atraso_seg': 60, 'sem_transito_seg': 540, 'historico_seg': 570,
-                   'distancia_km': 5.0,
+                   'distancia_km': 5.0, 'trafego': [0, 0],
                    'polyline': [[-15.80, -47.90], [-15.80, -47.85], [-15.80, -47.80]]}  # legs achatados
 
 

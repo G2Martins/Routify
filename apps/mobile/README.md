@@ -13,10 +13,10 @@
 
 ## 📖 Sobre o App
 
-**Última revisão:** 2026-09-23
+**Última revisão:** 2026-11-02
 
 Cliente do **Routify** rodando em **iOS, Android e Web** via Expo + React Native. Consome a `apps/api` para roteamento A\* com pesos da LIA, fundido com a TomTom. Tem:
-- mapa interativo: Leaflet na web, react-native-maps no celular;
+- mapa interativo: vetorial (MapLibre GL + OpenFreeMap) na web, com o Leaflet de reserva sem WebGL; react-native-maps no celular;
 - histórico de rotas, perfil e dashboard de métricas.
 
 **Design:** paleta da logo + linguagem Valerium. Tokens em `src/constants/Theme.ts`, peças prontas em `src/components/ui.tsx`, regras em [docs/core/design-system.md](../../docs/core/design-system.md).
@@ -31,8 +31,18 @@ Cliente do **Routify** rodando em **iOS, Android e Web** via Expo + React Native
 - eventos sem texto nem coordenada (LGPD).
 
 **Mapa:**
-- a linha sólida segue só a via;
-- o trecho até o ponto escolhido e a alternativa da fusão LIA × TomTom aparecem tracejados;
+- web: MapLibre GL 5.24 com tiles vetoriais da [OpenFreeMap](https://openfreemap.org) (grátis, sem chave). O estilo
+  `positron` é recolorido camada a camada com a paleta do app (`mapPalettes` em `constants/Theme.ts`, montagem em
+  `components/mapa/estiloMapa.ts`): escuro, padrão e satélite híbrido (Esri + nomes), prédios em 3D a partir do zoom 14;
+- rota com o gradiente da marca (azul → ciano → teal), brilho e contorno, desenhada do início ao fim; por cima, os trechos
+  com trânsito (`trafego` da API: LIA onde há sensor, TomTom nos buracos) em âmbar, laranja e vermelho; um ponto de luz
+  percorre a rota de tempos em tempos. Na navegação a câmera inclina 55° e segue o rumo;
+- a linha sólida segue só a via; o trecho até o ponto escolhido e a alternativa da fusão LIA × TomTom aparecem tracejados;
+- tudo respeita `prefers-reduced-motion`. Sem WebGL (ou se o estilo não carregar), cai no Leaflet
+  (`MapaLeaflet.web.tsx`). O CSS do MapLibre vem do jsDelivr com SRI;
+- celular: mapa escuro do Google com a mesma paleta (Android), brilho e trânsito por trecho na rota, marcadores próprios;
+- desenvolvimento: `http://localhost:8081/?preview=mapa&de=lat,lon&para=lat,lon` abre o mapa sem login e já traça a
+  rota (só com `__DEV__`; o export de produção não tem esse atalho);
 - o painel mostra a fonte da rota, os semáforos e a comparação LIA × TomTom.
 
 ## 🏗️ Estrutura
@@ -122,7 +132,7 @@ Após `npm run web`, abrir `http://localhost:8081`.
 | `useNativeDriver is not supported` | Animated em web (sem RCTAnimation) | Warning benigno em react-native-web, ignorar |
 | `Network request failed` ao chamar API | API não está rodando ou IP errado | Conferir `EXPO_PUBLIC_API_URL`. Em mobile físico, usar IP da rede, não `localhost` |
 | `shadow* style props are deprecated` | RN 0.81+ migrou para `boxShadow` | Warning, não impede execução. Migração pendente em alguns componentes |
-| Mapa branco / tiles não carregam | CDN Leaflet bloqueado ou offline | Verificar conexão. `MAP_TILE_URLS` em `constants/Theme.ts` permite trocar provider |
+| Mapa branco / tiles não carregam | OpenFreeMap ou jsDelivr bloqueados/offline | Verificar conexão. Sem o estilo vetorial o app cai no Leaflet (`MAP_TILE_URLS` em `constants/Theme.ts`) |
 | `npm install` falha com peer-dep React 19 | Conflito de versão | `npm install --legacy-peer-deps` |
 | Expo Go conecta mas tela branca | Cache antigo | `npx expo start --clear` |
 | Erro 401 em chamadas Supabase | Sessão expirada | Sair → relogar (`AuthContext` recria token) |
@@ -135,11 +145,11 @@ Após `npm run web`, abrir `http://localhost:8081`.
 
 ## 🌐 Geolocalização (Web)
 
-Cascata de fallback em [src/components/MapComponent.web.tsx](src/components/MapComponent.web.tsx):
+Cascata de fallback em [src/components/mapa/geolocalizacao.ts](src/components/mapa/geolocalizacao.ts) (comum aos dois mapas web):
 
 1. **HIGH accuracy** (GPS, timeout 8s — 4s no Edge)
 2. **LOW accuracy** (Wi-Fi/network, timeout 12s — pulado no Edge se HIGH falhar com `POSITION_UNAVAILABLE`)
-3. **IP geolocation** (`ipapi.co`, `ipwho.is`, `bigdatacloud.net`, `geolocation-db.com` — precisão de cidade)
+3. **IP geolocation** (`ipapi.co`, `ipwho.is`, `bigdatacloud.net` — precisão de cidade)
 
 Edge requer `lfsvc` ativo (Windows). Chrome/Firefox/Comet usam Google Location API próprio.
 

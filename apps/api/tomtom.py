@@ -336,7 +336,7 @@ class TomTomClient:
         pontos = f'{origem[0]:.6f},{origem[1]:.6f}:{destino[0]:.6f},{destino[1]:.6f}'
         dados = await self._get('rota', f'/routing/1/calculateRoute/{pontos}/json', {
             'traffic': 'true', 'travelMode': 'car', 'routeType': 'fastest',
-            'departAt': 'now', 'computeTravelTimeFor': 'all',
+            'departAt': 'now', 'computeTravelTimeFor': 'all', 'sectionType': 'traffic',
         })
         try:
             rota = dados['routes'][0]
@@ -353,6 +353,7 @@ class TomTomClient:
             'historico_seg': s.get('historicTrafficTravelTimeInSeconds'),
             'distancia_km': round(float(s.get('lengthInMeters') or 0) / 1000, 2),
             'polyline': polyline,
+            'trafego': niveis_trafego(rota, len(polyline)),
         }
 
     async def rota_reconstruida(self, polyline: List[List[float]], pontos_apoio: List[List[float]]) -> Optional[dict]:
@@ -366,7 +367,7 @@ class TomTomClient:
         caminho = f'/routing/1/calculateRoute/{origem[0]:.6f},{origem[1]:.6f}:{destino[0]:.6f},{destino[1]:.6f}/json'
         dados = await self._get('rota', caminho, {
             'traffic': 'true', 'travelMode': 'car', 'routeType': 'fastest', 'departAt': 'now',
-            'computeTravelTimeFor': 'all', 'maxAlternatives': 1, 'alternativeType': 'betterRoute',
+            'computeTravelTimeFor': 'all', 'maxAlternatives': 1, 'alternativeType': 'betterRoute', 'sectionType': 'traffic',
             'minDeviationDistance': 0, 'minDeviationTime': 0,
         }, corpo={'supportingPoints': [{'latitude': p[0], 'longitude': p[1]} for p in pontos_apoio]})
         rotas = (dados or {}).get('routes') or []
@@ -375,15 +376,17 @@ class TomTomClient:
 
         def extrair(rota: dict) -> dict:
             s = rota.get('summary') or {}
+            pontos = [[p['latitude'], p['longitude']]
+                      for leg in rota.get('legs') or [] for p in leg.get('points') or []
+                      if 'latitude' in p and 'longitude' in p]
             return {
                 'tempo_seg': s.get('travelTimeInSeconds'),
                 'atraso_seg': s.get('trafficDelayInSeconds'),
                 'sem_transito_seg': s.get('noTrafficTravelTimeInSeconds'),
                 'historico_seg': s.get('historicTrafficTravelTimeInSeconds'),
                 'distancia_km': round(float(s.get('lengthInMeters') or 0) / 1000, 2),
-                'polyline': [[p['latitude'], p['longitude']]
-                             for leg in rota.get('legs') or [] for p in leg.get('points') or []
-                             if 'latitude' in p and 'longitude' in p],
+                'polyline': pontos,
+                'trafego': niveis_trafego(rota, len(pontos)),
             }
         return {'nossa': extrair(rotas[0]), 'melhor': extrair(rotas[1]) if len(rotas) > 1 else None}
 
@@ -587,6 +590,24 @@ def arestas_interditadas(G, incidentes: Iterable[dict], tol_m: float = 20.0) -> 
         perto = (_dist_ponto_polilinha(px, py, lx, ly) <= tol_m).reshape(-1, 3)
         bloqueadas.update(chaves[candidatas[i]] for i in np.flatnonzero(perto.sum(axis=1) >= 2))
     return bloqueadas
+
+
+def niveis_trafego(rota: dict, n_pontos: int) -> List[int]:
+    """Nível de trânsito por trecho da rota (ponto i -> i+1) pelas seções da TomTom (sectionType=traffic):
+    0 = sem lentidão; 1-3 = magnitudeOfDelay (interdição = 3). Os índices são os dos pontos da rota."""
+    niveis = [0] * max(n_pontos - 1, 0)
+    for secao in rota.get('sections') or []:
+        if secao.get('sectionType') != 'TRAFFIC':
+            continue
+        try:
+            magnitude = int(secao.get('magnitudeOfDelay') or 0)
+            inicio, fim = int(secao.get('startPointIndex', 0)), int(secao.get('endPointIndex', 0))
+        except (TypeError, ValueError):
+            continue
+        nivel = 3 if secao.get('simpleCategory') == 'ROAD_CLOSURE' or magnitude >= 3 else max(1, magnitude)
+        for i in range(max(inicio, 0), min(fim, len(niveis))):
+            niveis[i] = max(niveis[i], nivel)
+    return niveis
 
 
 def peso_sem_interditadas(bloqueadas: Set[Tuple], penalidade: float = 1e9, atraso_semaforo: float = 0.0,

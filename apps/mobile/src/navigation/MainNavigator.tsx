@@ -180,6 +180,12 @@ function AuthStack() {
   );
 }
 
+// Só em desenvolvimento (__DEV__ some do export de produção): ?preview=mapa abre o app sem sessão,
+// para inspecionar o mapa sem criar usuário de teste no Supabase de produção.
+const PREVIEW =
+  __DEV__ && typeof window !== 'undefined' && !!window.location &&
+  new URLSearchParams(window.location.search).get('preview') === 'mapa';
+
 export default function RootNavigator() {
   const { theme, mode } = useTheme();
   const { session, loading } = useAuth();
@@ -214,7 +220,7 @@ export default function RootNavigator() {
 
   return (
     <NavigationContainer ref={navigationRef} theme={navTheme}>
-      {session ? <MainTabs /> : <AuthStack />}
+      {session || PREVIEW ? <MainTabs /> : <AuthStack />}
     </NavigationContainer>
   );
 }

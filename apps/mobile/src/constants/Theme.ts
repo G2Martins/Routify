@@ -182,6 +182,45 @@ export const buildTheme = (mode: ThemeMode) => ({
 
 export type Theme = ReturnType<typeof buildTheme>;
 
+/** Paleta do mapa vetorial (MapLibre + OpenFreeMap): mesma família de cores do app.
+ * O estilo base (positron) é recolorido por camada em components/mapa/estiloMapa.ts. */
+export interface MapPalette {
+  fundo: string; agua: string; aguaLinha: string; aguaTexto: string; verde: string; residencial: string;
+  predio: string; predioBorda: string; predio3d: string;
+  viaMenor: string; viaMaior: string; viaMaiorBorda: string; expressa: string; expressaBorda: string;
+  trilho: string; aerovia: string; limite: string;
+  texto: string; textoForte: string; halo: string;
+  vinheta: string; // borda escurecida/clareada sobre o mapa (profundidade)
+}
+
+export const mapPalettes: Record<'claro' | 'escuro', MapPalette> = {
+  claro: {
+    fundo: '#F3F6FA', agua: '#CCDDF0', aguaLinha: '#B5CDE8', aguaTexto: '#4F6F99', verde: '#DFEEE6',
+    residencial: '#EDF1F6', predio: '#E3E8EF', predioBorda: '#D7DEE8', predio3d: '#DCE3EC',
+    viaMenor: '#FFFFFF', viaMaior: '#FFFFFF', viaMaiorBorda: '#D9E0EA', expressa: '#FFFFFF', expressaBorda: '#C3CDDA',
+    trilho: '#C9D2DE', aerovia: '#E4E9F0', limite: '#BAC5D4',
+    texto: '#4A5872', textoForte: brand.navy, halo: '#F3F6FA',
+    vinheta: 'rgba(15,31,68,0.10)',
+  },
+  escuro: {
+    fundo: '#0A0F1D', agua: '#0A1930', aguaLinha: '#0F2747', aguaTexto: '#5D7FAA', verde: '#0C1C20',
+    residencial: '#0D1424', predio: '#111A2B', predioBorda: '#17223A', predio3d: '#16213A',
+    viaMenor: '#18233A', viaMaior: '#22304E', viaMaiorBorda: '#0A0F1D', expressa: '#2C3D63', expressaBorda: '#0A0F1D',
+    trilho: '#24324F', aerovia: '#141E33', limite: '#2F3D5C',
+    texto: '#8E9BB4', textoForte: '#E6ECF7', halo: '#0A0F1D',
+    vinheta: 'rgba(0,0,0,0.45)',
+  },
+};
+
+/** Nomes por cima da imagem de satélite (modo híbrido). */
+export const mapSatelite = { texto: '#FFFFFF', halo: 'rgba(0,0,0,0.85)' };
+
+/** Trânsito na rota (nível 1–3 por trecho, vindo da API). 0 = livre: fica o gradiente da marca. */
+export const trafficColors: Record<ThemeMode, [string, string, string]> = {
+  light: ['#E8A317', '#F0712C', '#D92D20'], // moderado, lento, parado
+  dark: ['#F5B544', '#FF8A4C', '#FF5A4E'],
+};
+
 // Map styles disponíveis no app
 export const MAP_STYLES = ['dark', 'street', 'satellite'] as const;
 export type MapStyle = typeof MAP_STYLES[number];

@@ -11,6 +11,7 @@ pela cobertura da LIA; a rota da TomTom só vence com ganho claro.
 """
 import json
 import logging
+import math
 import os
 from typing import List, Optional, Sequence, Tuple
 
@@ -216,6 +217,38 @@ def carregar_atraso_cruzamento(caminho: str, chave: str = 'atraso_por_cruzamento
         atraso = float(json.load(f).get(chave) or 0.0)
     logger.info(f"{chave}: {atraso:.1f} s (calibrado)")
     return max(atraso, 0.0)
+
+
+def preencher_com_tomtom(polyline: List[List[float]], niveis: List[Optional[int]],
+                        polyline_tt: Optional[List[List[float]]], niveis_tt: Optional[List[int]],
+                        raio_m: float = 30.0) -> List[Optional[int]]:
+    """Trechos sem dado da LIA (None) recebem o nível da TomTom no mesmo lugar: o meio do trecho
+    até `raio_m` do meio de um trecho da reconstrução da TomTom (seções de trânsito da mesma chamada
+    da fusão). Sem a TomTom, os buracos ficam None. Grade de ~33 m: custo linear."""
+    if not polyline_tt or not niveis_tt or None not in niveis:
+        return niveis
+    passo = 0.0003  # graus (~33 m)
+    grade: dict = {}
+    for (a, b), n in zip(zip(polyline_tt, polyline_tt[1:]), niveis_tt):
+        meio = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+        grade.setdefault((int(meio[0] // passo), int(meio[1] // passo)), []).append((meio, n))
+    lim = (raio_m / 111_320.0) ** 2
+    saida = list(niveis)
+    for i, n in enumerate(niveis):
+        if n is not None or i + 1 >= len(polyline):
+            continue
+        a, b = polyline[i], polyline[i + 1]
+        meio = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+        ci, cj = int(meio[0] // passo), int(meio[1] // passo)
+        melhor, d_melhor = None, lim
+        for di in (-1, 0, 1):
+            for dj in (-1, 0, 1):
+                for (m, nivel) in grade.get((ci + di, cj + dj), ()):
+                    d = (m[0] - meio[0]) ** 2 + ((m[1] - meio[1]) * math.cos(math.radians(meio[0]))) ** 2
+                    if d <= d_melhor:
+                        melhor, d_melhor = nivel, d
+        saida[i] = melhor
+    return saida
 
 
 def contar_semaforos(G: nx.MultiDiGraph, nos: List[int]) -> int:

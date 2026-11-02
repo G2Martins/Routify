@@ -144,6 +144,10 @@ class RouteOutput(BaseModel):
     tempo_livre_lia_seg: Optional[int] = Field(
         None, description="Tempo da rota da LIA em velocidade livre, sem a razão prevista, mais os atrasos de cruzamento. Diagnóstico: separa o erro de escala do erro de congestionamento.")
     alternativa: Optional[AlternativaRota] = Field(None, description="A candidata não escolhida, para desenho tracejado.")
+    trafego: Optional[List[Optional[int]]] = Field(
+        None, description="Trânsito por trecho da polyline (ponto i → i+1): 0 livre, 1 moderado, 2 lento, 3 parado, "
+                          "null = sem dado. LIA onde há sensor; nos buracos, as seções de trânsito da TomTom (mesma "
+                          "chamada da fusão). Rota da TomTom: as seções dela.")
     clima: Optional[Clima] = Field(None, description="Tempo em Brasília na partida (Open-Meteo) e o contexto que a LIA 2.2 usou.")
     economia: Optional[Economia] = Field(
         None, description="Combustível (Evans–Herman–Lam, ml/artifacts/consumo_combustivel.json) contra o caminho mais curto.")
@@ -424,25 +428,20 @@ def assign_lia_weights(model, encoder, profiles, G: nx.MultiDiGraph,
     return resultado
 
 
-def montar_polyline(G: nx.MultiDiGraph, nos: List[int]) -> List[List[float]]:
-    """Traça a rota seguindo a geometria real das vias.
+def _trechos(G: nx.MultiDiGraph, nos: List[int]):
+    """(pontos [lat, lon] no sentido da travessia, aresta usada) de cada aresta do caminho.
 
-    Ligar apenas os nós em linha reta ignora a curvatura: 46% das arestas têm
-    geometria própria, com desvio de 28 m no p90 e até 2 km no extremo. No mapa
-    isso aparece como a rota cortando quarteirões e atravessando edificações —
-    o traçado estava errado, não o caminho escolhido.
+    Ligar apenas os nós em linha reta ignora a curvatura: 46% das arestas têm geometria própria,
+    com desvio de 28 m no p90 e até 2 km no extremo. No mapa isso aparece como a rota cortando
+    quarteirões e atravessando edificações — o traçado estava errado, não o caminho escolhido.
     """
-    pontos: List[List[float]] = []
-
     for u, v in zip(nos[:-1], nos[1:]):
         edge = G.get_edge_data(u, v)
         if not edge:
             continue
-
         # Entre arestas paralelas, o A* percorre a de menor peso.
         d = min(edge.values(), key=lambda x: x.get('travel_time_lia', float('inf')))
         geom = d.get('geometry')
-
         trecho: List[List[float]] = []
         if geom is not None:
             try:
@@ -450,23 +449,41 @@ def montar_polyline(G: nx.MultiDiGraph, nos: List[int]) -> List[List[float]]:
                 trecho = [[float(y), float(x)] for x, y in geom.coords]
             except (AttributeError, TypeError, ValueError):
                 trecho = []
-
         if not trecho:
-            trecho = [
-                [G.nodes[u]['y'], G.nodes[u]['x']],
-                [G.nodes[v]['y'], G.nodes[v]['x']],
-            ]
+            trecho = [[G.nodes[u]['y'], G.nodes[u]['x']], [G.nodes[v]['y'], G.nodes[v]['x']]]
         # A geometria do OSM pode vir no sentido oposto ao da travessia.
         elif _dist_quadrada(trecho[0], G.nodes[u]) > _dist_quadrada(trecho[-1], G.nodes[u]):
             trecho.reverse()
+        yield trecho, d
 
+
+def montar_polyline(G: nx.MultiDiGraph, nos: List[int]) -> List[List[float]]:
+    """Traça a rota seguindo a geometria real das vias (ver _trechos)."""
+    pontos: List[List[float]] = []
+    for trecho, _ in _trechos(G, nos):
         # Evita duplicar o nó compartilhado entre arestas consecutivas.
         pontos.extend(trecho[1:] if pontos else trecho)
-
     if not pontos and nos:
         pontos = [[G.nodes[n]['y'], G.nodes[n]['x']] for n in nos]
-
     return pontos
+
+
+def nivel_da_razao(razao: float) -> int:
+    """Razão de congestionamento (atual/livre) -> 0 livre, 1 moderado, 2 lento, 3 parado."""
+    return 0 if razao >= 0.85 else 1 if razao >= 0.65 else 2 if razao >= 0.45 else 3
+
+
+def niveis_lia(G: nx.MultiDiGraph, nos: List[int]) -> List[Optional[int]]:
+    """Nível de trânsito por trecho da polyline (ponto i -> i+1), alinhado com montar_polyline.
+    Só onde a LIA tem dado (sensor ou transferência); aresta heurística = None (sem dado).
+    Ler antes de qualquer await: os pesos ficam no grafo compartilhado entre requisições."""
+    niveis: List[Optional[int]] = []
+    for trecho, d in _trechos(G, nos):
+        razao = d.get('lia_razao')
+        nivel = (nivel_da_razao(float(razao))
+                 if razao is not None and d.get('lia_source') in ('model', 'transfer') else None)
+        niveis.extend([nivel] * (len(trecho) - 1))
+    return niveis
 
 
 def _dist_quadrada(ponto: List[float], no: dict) -> float:
@@ -689,7 +706,7 @@ async def calculate_route(body: RouteInput, request: Request):
             via_principal=_via_da_polyline(request, G, ref['polyline']) or "Fora da área mapeada",
             modelo_utilizado=version, nos_visitados=0, lia_cobertura_pct=0.0,
             hora_partida=hora, dia_semana=dia_semana, tomtom=resumo_tt,
-            fonte_rota='tomtom', fora_da_malha=True, clima=clima,
+            fonte_rota='tomtom', fora_da_malha=True, clima=clima, trafego=ref.get('trafego'),
         )
 
     # Daqui até a chamada de fusão não há await: pesos (gravados no grafo
@@ -721,6 +738,7 @@ async def calculate_route(body: RouteInput, request: Request):
         raise HTTPException(status_code=422, detail=f"Nó não encontrado no grafo: {e}")
 
     polyline = montar_polyline(G, path_nodes)
+    niveis = niveis_lia(G, path_nodes)  # antes do await da fusão (pesos no grafo compartilhado)
     tempo_lia, distancia_total, cobertura_pct = _resumir_caminho(G, path_nodes)
     semaforos = trajeto.contar_semaforos(G, path_nodes)
     cruzamentos = trajeto.contar_cruzamentos(G, path_nodes)
@@ -772,6 +790,9 @@ async def calculate_route(body: RouteInput, request: Request):
             alternativa = AlternativaRota(fonte='tomtom', polyline=melhor['polyline'], tempo_seg=int(tempo_outra),
                                           distancia_km=melhor['distancia_km'])
         ref = nossa  # ETA TomTom da própria rota da LIA (mesmo trajeto)
+    # Buracos da LIA (sem sensor perto) pegam o trânsito que a TomTom vê no mesmo lugar.
+    niveis = trajeto.preencher_com_tomtom(polyline, niveis, nossa.get('polyline'), nossa.get('trafego'))
+    trafego_final = (melhor or {}).get('trafego') if fonte_rota == 'tomtom' else niveis
 
     logger.info(
         f"Rota ({fonte_rota}): {len(path_nodes)} nós, exibido {tempo_exibido:.0f}s (LIA {tempo_lia:.0f}s, "
@@ -817,6 +838,7 @@ async def calculate_route(body: RouteInput, request: Request):
         alternativa=alternativa,
         clima=clima,
         economia=economia,
+        trafego=trafego_final,
     )
 
 

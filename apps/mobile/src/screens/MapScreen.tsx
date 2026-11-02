@@ -72,6 +72,8 @@ interface RouteResult {
   semaforos_na_rota?: number | null;
   fora_da_malha?: boolean;
   alternativa?: { fonte: 'lia' | 'tomtom'; polyline: number[][]; tempo_seg: number; distancia_km: number } | null;
+  // Trânsito por trecho da polyline (0 livre … 3 parado; null = sem dado). API ≥ 2026-11-02.
+  trafego?: (number | null)[] | null;
   // Tempo em Brasília na partida e combustível contra o caminho mais curto (API ≥ 2026-09-24)
   clima?: Clima | null;
   economia?: Economia | null;
@@ -173,6 +175,31 @@ export default function MapScreen() {
     return () => clearTimeout(t);
   }, []);
 
+  // Só em desenvolvimento: ?preview=mapa&de=lat,lon&para=lat,lon já traça a rota (inspeção visual).
+  const demoRef = useRef(false);
+  useEffect(() => {
+    if (!__DEV__ || typeof window === 'undefined' || !window.location) return;
+    const q = new URLSearchParams(window.location.search);
+    const ponto = (v: string | null, label: string) => {
+      const [lat, lon] = (v ?? '').split(',').map(Number);
+      return Number.isFinite(lat) && Number.isFinite(lon) ? ({ label, sublabel: '', lat, lon, source: 'malha' } as PlaceSuggestion) : null;
+    };
+    const de = ponto(q.get('de'), 'Origem');
+    const para = ponto(q.get('para'), 'Destino');
+    if (de && para) {
+      demoRef.current = true;
+      setOrigemPlace(de);
+      setDestinoPlace(para);
+    }
+  }, []);
+  useEffect(() => {
+    if (demoRef.current && origemPlace && destinoPlace) {
+      demoRef.current = false;
+      setTimeout(() => handleOptimize(), 1500); // depois do mapa carregar
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [origemPlace, destinoPlace]);
+
   const handleOptimize = async () => {
     if (!origemPlace || !destinoPlace) {
       setError('Escolha origem e destino na lista de sugestões.');
@@ -194,7 +221,8 @@ export default function MapScreen() {
         data.polyline,
         [origemPlace.lat, origemPlace.lon],
         [destinoPlace.lat, destinoPlace.lon],
-        data.alternativa?.polyline ?? null
+        data.alternativa?.polyline ?? null,
+        data.trafego ?? null
       );
       setRoute(data);
       setLiaStatus('done');
@@ -292,7 +320,7 @@ export default function MapScreen() {
     recalcInflightRef.current = true;
     try {
       const data = await pedirRota({ lat, lon }, { lat: dest.lat, lon: dest.lon });
-      mapRef.current?.showRoute?.(data.polyline, [lat, lon], [dest.lat, dest.lon], data.alternativa?.polyline ?? null);
+      mapRef.current?.showRoute?.(data.polyline, [lat, lon], [dest.lat, dest.lon], data.alternativa?.polyline ?? null, data.trafego ?? null);
       setRoute((antes) => {
         // Só avisa quando o recálculo muda a previsão de verdade (≥ 1 min): sem spam a cada 30 s.
         if (antes && Math.abs(antes.tempo_total_seg - data.tempo_total_seg) >= 60) {
