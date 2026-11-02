@@ -2,7 +2,7 @@
 
 **Última revisão:** 2026-11-02
 
-De hora em hora até as 09:30 e, a pedido do dono, a cada 30 min até as 23h: a tarefa do Windows roda
+De hora em hora até as 09:30 e, a pedido do dono, a cada 30 min (planejado até 23h, encerrado pelo dono às 18:56): a tarefa do Windows roda
 `scripts/rotina_validacao.py` às :05 e :35 (checagens das correções da LIA em produção + uma rodada do comparador com
 traçado) e o agente desta sessão revisa a rodada logo depois.
 Tabela completa, com as rodadas manuais das 02:33 e 02:43: `services/collector/dados/rotina/relatorio.md` (fora do git).
@@ -33,3 +33,82 @@ Referência: TomTom com trânsito ao vivo. Viés / MAPE em %; traçado = % da ro
 | 17:38 | 17:05 (sem rodada) e 17:38 | 17:05: a tarefa saiu na largada com `0xC000013A` (STATUS_CONTROL_C_EXIT, `^C` no `agendador.log`): console fechado ou Ctrl+C, não é bug; a das 17:35 rodou normal (resultado 0). 17:38: 14/14 ok, recência 4,4 min, 30/30 trajetos, gravou | −12,3 / 14,9 | −9,2 / 15,2 / 52 | +1,9 / 9,2 / 57 | Nenhuma: pico da tarde, perto do limite de viés (±15%) sem passar. O OSRM, sem trânsito, fica no mesmo lugar (−12,9%) e o Mapbox concorda com a TomTom (+1,9%): congestionamento real que a LIA vê só em parte (quadro já investigado; feriado tratado como trânsito leve). O traçado da LIA cai para 52% porque a TomTom desvia do trânsito; a rota exibida (fusão) fica em 65%, já que a fusão adota o desvio da TomTom quando ele é claramente mais rápido. |
 | 18:08 | 18:08 | 14/14 ok, recência 8,2 min, 30/30 trajetos, gravou | −7,4 / 11,5 | −6,5 / 14,1 / 51 | +4,6 / 9,1 / 59 | Nenhuma. O pico alivia: viés no mesmo trajeto −12,3 → −7,4. A TomTom segue desviando do trânsito (traçado da LIA em 51%, o exibido em 63%). |
 | 18:39 | 18:39 | 14/14 ok, recência 5,8 min, 30/30 trajetos, gravou | −7,4 / 11,0 | −5,5 / 14,0 / 52 | −1,8 / 10,8 / 57 | Nenhuma. Fim do pico estável. Às 18:12 o A/B dos sensores virtuais no pico não mostrou ganho: ficaram desligados por padrão no código (`1a79333`, sem deploy; produção nunca os teve). |
+
+## Resumo do dia
+
+O dono encerrou o dia às 18:56, depois da rodada das 18:39. O plano era ir até as 23h, então a noite ficou de fora. A tarefa do Windows foi desligada; o comparador da EC2 segue gravando no Supabase (8 rodadas por dia).
+
+### Hora a hora (de `relatorio.md`)
+
+n = 16 corredores até 12:06 (12 às 10:36) e 30 trajetos a partir das 12:38 (16 corredores + 14 viagens entre pontos famosos). A rodada das 17:05 não existe: a tarefa saiu na largada com `0xC000013A`.
+
+| Hora | Checagens | Mesmo trajeto (viés / MAPE) | Rota da TomTom (viés / MAPE / traçado) | Mapbox × TomTom (viés / MAPE / traçado) | OSRM traçado | Recência | Supabase |
+|---|---|---|---|---|---|---|---|
+| 02:33 | ok | −1,9% / 10,2% | −5,3% / 13,6% / 62,1% | −0,4% / 9,4% / 63,7% | 64,8% | 3,5 min | pendente |
+| 02:43 | ok | −0,9% / 11,0% | −5,3% / 13,7% / 62,1% | 2,7% / 9,0% / 63,7% | 64,8% | 2,9 min | pendente |
+| 03:06 | ok | −2,2% / 10,4% | −6,3% / 13,6% / 62,1% | 2,6% / 9,5% / 60,4% | 64,8% | 4,3 min | pendente |
+| 04:06 | ok | −3,2% / 10,7% | −7,1% / 13,8% / 62,1% | −2,0% / 9,5% / 65% | 64,8% | 40,1 min | pendente |
+| 05:06 | ok | −2,7% / 10,2% | −6,4% / 13,4% / 62,1% | −1,7% / 8,8% / 66,7% | 64,8% | 8,3 min | pendente |
+| 06:07 | ok | −4,3% / 9,9% | −5,1% / 12,3% / 61,6% | 4,5% / 10,3% / 65,3% | 63,5% | 22,5 min | pendente |
+| 07:06 | ok | −15,3% / 13,5% | −10,8% / 12,2% / 57,7% | 1,8% / 9,4% / 66,2% | 58,9% | 36,4 min | pendente |
+| 08:06 | ok | −14,7% / 15,2% | −11,7% / 13,5% / 54,6% | −1,1% / 10,5% / 59,1% | 56,9% | 4,4 min | pendente |
+| 09:06 | ok | −8,4% / 12,5% | −9,3% / 13,3% / 58,5% | 4,3% / 9,5% / 58,4% | 59% | 18,5 min | pendente |
+| 10:06 | falhou: imatch_ok | −14,3% / 17,5% | −11,3% / 14,4% / 62,4% | −1,1% / 7,6% / 59,4% | 52,6% | 32,4 min | pendente |
+| 10:36 | falhou: imatch_ok | −21,7% / 20,4% | −13,6% / 16,4% / 56,1% | −0,9% / 6,9% / 65,1% | 52,6% | 16,2 min | gravou |
+| 11:06 | falhou: imatch_ok | −9,7% / 15,1% | −11,4% / 14,4% / 63,9% | −0,2% / 8,3% / 54,8% | 52,6% | 30,3 min | gravou |
+| 11:36 | ok | −16,0% / 20,0% | −11,7% / 14,8% / 64,2% | −3,3% / 9,1% / 58,8% | 53,2% | 30,4 min | gravou |
+| 12:06 | ok | −9,4% / 14,0% | −11,8% / 14,7% / 67,3% | −2,4% / 8,3% / 58,8% | 55,9% | 14,4 min | gravou |
+| 12:38 | ok | −3,5% / 9,0% | −6,7% / 12,5% / 68,3% | 0,2% / 9,4% / 64,5% | 64,8% | 3,9 min | gravou |
+| 13:08 | ok | −1,9% / 8,9% | −5,3% / 12,5% / 62,6% | −2,3% / 9,8% / 64,0% | 62,0% | 30,1 min | gravou |
+| 13:38 | ok | −3,0% / 9,5% | −8,2% / 13,0% / 65,6% | −3,2% / 9,7% / 67,7% | 66,2% | 14,2 min | gravou |
+| 14:08 | ok | −3,8% / 9,8% | −7,8% / 13,1% / 63,8% | −1,6% / 9,5% / 61,6% | 62,0% | 6,5 min | gravou |
+| 14:38 | ok | −4,2% / 10,0% | −8,7% / 13,2% / 67,0% | −0,8% / 9,0% / 62,4% | 64,8% | 28,1 min | gravou |
+| 15:08 | ok | −5,1% / 10,1% | −9,5% / 13,6% / 65,6% | 1,1% / 9,5% / 66,1% | 64,3% | 12,1 min | gravou |
+| 15:38 | ok | −5,7% / 10,3% | −10,2% / 13,6% / 65,7% | −0,2% / 8,8% / 72,2% | 67,0% | 30,1 min | gravou |
+| 16:08 | ok | −5,0% / 10,3% | −10,6% / 13,6% / 65,0% | −2,3% / 9,4% / 67,9% | 66,5% | 26,1 min | gravou |
+| 16:38 | ok | −6,4% / 11,7% | −10,2% / 14,4% / 66,0% | 1,7% / 9,6% / 71,1% | 66,0% | 10,2 min | gravou |
+| 17:38 | ok | −12,3% / 14,9% | −9,2% / 15,2% / 52,0% | 1,9% / 9,2% / 57,1% | 60,9% | 4,4 min | gravou |
+| 18:08 | ok | −7,4% / 11,5% | −6,5% / 14,1% / 50,6% | 4,6% / 9,1% / 59,4% | 59,2% | 8,2 min | gravou |
+| 18:39 | ok | −7,4% / 11,0% | −5,5% / 14,0% / 52,2% | −1,8% / 10,8% / 57,4% | 61,6% | 5,8 min | gravou |
+
+### Por período
+
+| Período | Rodadas | Mesmo trajeto: viés / MAPE | Traçado da LIA | Mapbox × TomTom: viés / MAPE | Leitura |
+|---|---|---|---|---|---|
+| Madrugada (02:33–06:07) | 6 | −0,9 a −4,3 / 9,9–11,0 | 62% | −2,0 a +4,5 / 8,8–10,3 | Trânsito livre: a LIA fica perto da TomTom. |
+| Pico da manhã (07:06–09:06) | 3 | −8,4 a −15,3 / 12,5–15,2 | 55–59% | −1,1 a +4,3 / 9,4–10,5 | A LIA subestima o pico (feriado tratado como trânsito leve). O OSRM, sem trânsito, também fica abaixo e o Mapbox concorda com a TomTom: o congestionamento é real. Os corredores urbanos do Plano ficam até abaixo do tempo sem trânsito da TomTom. |
+| Fim da manhã, antes do deploy (10:06–12:06) | 5 | −9,4 a −21,7 / 14,0–20,4 | 56–67% | −3,3 a −0,2 / 6,9–9,1 | O mesmo viés urbano, agravado pela velocidade livre das ruas locais e coletoras (≈ 2× o tempo do limite de via). Às 10:36 a média é de 12 corredores: 4 caíram no restart do deploy da busca. |
+| Almoço e tarde, depois do deploy das 12:23 (12:38–16:38) | 9 | −1,9 a −6,4 / 8,9–11,7 | 63–68% | −3,2 a +1,7 / 8,8–9,8 | Calibração por grupo de via e prior `corredor` no ar: viés de −2 a −6%, no nível do Mapbox. Medida pareada no mesmo conjunto: corredores −9,1%/12,7% → −2,3%/8,7% (`ml/artifacts/ab_calibracao_grafo_2026-11-02.json`), porque o conjunto de trajetos mudou às 12:38. |
+| Pico da tarde (17:38–18:39) | 3 | −7,4 a −12,3 / 11,0–14,9 | 51–52% (exibido 63–66%) | −1,8 a +4,6 / 9,1–10,8 | Volta do feriadão. A LIA subestima de novo e a TomTom desvia do trânsito. A fusão adota o desvio quando ele é claramente mais rápido, por isso a rota exibida fica mais perto da TomTom que a da LIA. |
+| Noite | — | — | — | — | Não coberta (dia encerrado às 18:56). |
+
+### Achados
+
+1. **Velocidade livre das ruas locais e coletoras** ≈ 2× o tempo do limite de via. Era a principal causa dos corredores urbanos 18–26% abaixo da TomTom (07h). Corrigido com fatores por grupo de via ajustados no nível da rota (12:23).
+2. **Busca sem acento desligada por 10 min às 10:05.** Uma conexão ociosa com o Supabase caiu (`RemoteProtocolError`), e o código tratou a queda como recusa do `imatch`. Corrigido às 10:36.
+3. **Picos:** a LIA subestima o congestionamento de feriado. O Mapbox concorda com a TomTom e o OSRM, sem trânsito, erra junto com a LIA. É limite do modelo (trata o feriado como trânsito leve) e não se corrige sem retreino: fica para a LIA 2.4, com os dados novos.
+4. **Traçado de referência instável:** em algumas viagens a rota própria da TomTom alterna entre 2 caminhos de uma rodada para outra (Metrô Samambaia → Central: 97 ↔ 3% também no Mapbox). O traçado médio tem esse ruído.
+5. **Snap no maior componente fortemente conexo** (14:20): nenhum trajeto mudou de tempo em mais de 15% na rodada seguinte, sem regressão.
+6. **Sensores virtuais:** os dois A/B do feriado (14h30 e 18h12) não mostraram ganho. Com os buracos quase livres, o Flow leu fluxo livre e deixou a LIA até 19 s mais otimista. Ficam no código, desligados por padrão.
+7. **Rodada das 17:05 perdida:** a tarefa saiu com `0xC000013A` (console fechado ou Ctrl+C). Não é bug do código.
+
+### Correções no ar hoje
+
+- 02:23: LIA 2.3, velocidade livre na escala da TomTom e 10 bugs da inferência (`661023e`, `7f270f4`).
+- 10:36: queda de conexão não desliga mais a busca sem acento (`6596039`).
+- 12:23: velocidade livre por grupo de via, δ = 8,1 s, prior `corredor`, `access=no` fora do grafo, ETA da TomTom quando a rota dela vence (`3740695`, `7d5bbfa`).
+- 12:45 em diante: busca com ~1.700 pontos do OSM, qualificadores do DF e erros de digitação curtos (`8155758`, `d13e364`, `595fdaf`).
+- 13:58 e 14:02: mapa vetorial, trânsito por trecho, MFA com aal2 e linguagem de auth do Valerium (`e5c2f2a`, `340bc81` + migration `20261102020000_mfa_aal2`).
+- 14:20: snap de origem e destino só no maior componente fortemente conexo (`ccb6919`).
+
+No `main` e fora da produção, sem efeito no ar: sensores virtuais desligados (`3c38c7c`, `1a79333`) e limpeza da auditoria ponytail (`0a27318`).
+
+### Pendências
+
+- **Dono:** decidir os cortes da auditoria ponytail (`.planning/research/2026-11-02-ponytail-audit.md`).
+- **Dono:** conferir o snapshot do RDS, liberar o Billing para usuários IAM e acompanhar o 1º login do Pedro com MFA.
+- LIA 2.4 (dezembro, com a coleta nova): pico e feriado são o maior erro restante.
+- Restrições de conversão (retorno Plano → Taguatinga) e snap com vários candidatos em via dupla.
+- Sensores virtuais: A/B em dia útil com trânsito nos buracos antes de ligar.
+- Códigos de recuperação do MFA.
+- `scripts/rotina_validacao.py` é de uma noite só: remover ou generalizar (item 19 da auditoria).
