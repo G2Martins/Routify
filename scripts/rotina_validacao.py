@@ -6,7 +6,7 @@ picos inclusos — services/collector/deploy/routify-comparador.timer).
 Cada execução:
   1. checagens contra 127.0.0.1 com X-Routify-Interno (fora da captura de uso): fuso do timestamp,
      NaN/Infinity/ano 1/override pela metade → 422, previsão na faixa, busca, erros no log da API
-     desde a execução anterior, coletor vivo;
+     desde a execução anterior, coletor vivo (≥ 1 lote inserido em 70 min; o ciclo é de 43 min);
   2. lê o log da rodada do comparador que a disparou (LIA × TomTom no mesmo trajeto e contra a rota
      própria da TomTom, Mapbox, OSRM).
 Grava em $STATE_DIRECTORY (/var/lib/routify-rotina): historico.jsonl (uma linha por execução) e
@@ -41,7 +41,7 @@ echo "CHECK health $(curl -s -m 15 $H/health | tr -d '\n' | head -c 3000)"
 echo "CHECK busca $(cj "$H/search/places?q=rodoviaria&limit=3" | grep -o '"label":"[^"]*"' | head -3 | tr '\n' ' ')"
 echo "CHECK imatch $(journalctl -u routify-api --since "$DESDE" -o cat | grep -c 'imatch recusado')"
 echo "CHECK erros_api $(journalctl -u routify-api --since "$DESDE" -o cat | grep -cE 'ERROR|Traceback')"
-echo "CHECK coletor $(systemctl is-active routify-collector) $(journalctl -u routify-collector --since '-70 min' -o cat | grep -c 'inseridos')"
+echo "CHECK coletor $(journalctl -u routify-collector --since '-70 min' -o cat | grep -c 'inseridos')"
 echo RODADA_INICIO
 if [ -n "${MONITOR_INVOCATION_ID:-}" ]; then
   journalctl "_SYSTEMD_INVOCATION_ID=$MONITOR_INVOCATION_ID" -o cat
@@ -100,7 +100,7 @@ def avaliar(saida: str) -> dict:
         'busca_responde': '"label"' in checks.get('busca', ''),
         'imatch_ok': checks.get('imatch', '0').strip() == '0',
         'sem_erro_no_log': checks.get('erros_api', '0').strip() == '0',
-        'coletor_ativo': checks.get('coletor', '').startswith('active'),
+        'coletor_ativo': checks.get('coletor', '0').strip().isdigit() and int(checks['coletor'].strip()) >= 1,
     }
     bloco = saida.split('RODADA_INICIO', 1)[-1].split('RODADA_FIM', 1)[0].strip().splitlines()
     rodada = ler_rodada(bloco)
@@ -147,7 +147,8 @@ def relatorio(historico: list) -> str:
                       f"| {f(vt.get('lia'), 'vies_mediano_pct', 'mape_pct', 'traco_comum_pct')} "
                       f"| {f(vt.get('mapbox'), 'vies_mediano_pct', 'mape_pct', 'traco_comum_pct')} "
                       f"| {f(vt.get('osrm'), 'traco_comum_pct')} "
-                      f"| {h['recencia_idade_min']} min | {'gravou' if h['gravou_no_supabase'] else 'pendente'} |")
+                      f"| {h['recencia_idade_min']} min "
+                      f"| {'gravou' if h['gravou_no_supabase'] else 'pendente' if h.get('corredores') else '—'} |")
     return '\n'.join(linhas) + '\n'
 
 
