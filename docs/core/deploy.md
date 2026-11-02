@@ -62,7 +62,7 @@ vacuum só apaga os arquivados).
 **SSH deu `Connection timed out`?** O security group só libera o IP do dono (`/32`) e IP residencial muda.
 Console → EC2 → Security Groups → Inbound → regra SSH → *Source* = **My IP** → Save. Ou, no **CloudShell** do console
 (ícone de terminal na barra superior; já autenticado como você), com o IP atual da sua máquina
-(`curl checkip.amazonaws.com` **na sua máquina**, não no CloudShell):
+(`curl checkip.amazonaws.com` **na sua máquina, com a VPN desligada**; não no CloudShell, e não o IP da VPN, que muda a cada conexão):
 ```bash
 SG=$(aws ec2 describe-instances --instance-ids <id-da-instância> --query 'Reservations[0].Instances[0].SecurityGroups[0].GroupId' --output text)
 aws ec2 describe-security-group-rules --filters Name=group-id,Values=$SG --query 'SecurityGroupRules[?FromPort==`22`].[SecurityGroupRuleId,CidrIpv4]' --output text
