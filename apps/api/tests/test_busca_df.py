@@ -280,6 +280,20 @@ def test_malha_volta_para_ilike_quando_o_postgrest_recusa_a_regex(caplog):
     assert [op for op, _ in sb.consultas] == ['ilike']
 
 
+def test_queda_de_conexao_na_regex_tenta_de_novo_e_nao_desliga_o_imatch(caplog):
+    sb = SbFalso(quedas=1)
+    assert [i['label'] for i in _malha(sb, 'sqs 308')] == ['SQS 308']
+    assert [op for op, _ in sb.consultas] == ['imatch', 'imatch']
+    assert search._regex_pausado_ate == 0 and 'imatch recusado' not in caplog.text
+
+
+def test_duas_quedas_seguidas_usam_ilike_so_nesta_consulta(caplog):
+    sb = SbFalso(quedas=2)
+    assert [i['label'] for i in _malha(sb, 'sqs 308')] == ['SQS 308']
+    assert [op for op, _ in sb.consultas] == ['imatch', 'imatch', 'ilike']
+    assert search._regex_pausado_ate == 0 and 'imatch recusado' not in caplog.text
+
+
 def test_malha_banco_fora_do_ar_devolve_vazio():
     class SbQuebrado(SbFalso):
         def table(self, nome):

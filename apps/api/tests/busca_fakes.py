@@ -23,16 +23,25 @@ VIAS = [
 ]
 
 
+class APIError(Exception):
+    """Como postgrest.exceptions.APIError: o PostgREST respondeu, com erro."""
+
+
+class RemoteProtocolError(Exception):
+    """Como httpx.RemoteProtocolError: a conexão caiu antes da resposta (nada a ver com o imatch)."""
+
+
 class SbFalso:
     """Só o que search._malha usa: table().select().filter()/ilike().limit().execute().
 
     A regex e o ILIKE rodam de verdade sobre as linhas (re.I), então o teste vê o que o
-    Postgres veria. `regex_ok=False` imita o PostgREST recusando o operador imatch (erro no execute).
+    Postgres veria. `regex_ok=False` imita o PostgREST recusando o operador imatch (erro no execute);
+    `quedas=n` faz as n primeiras consultas por regex perderem a conexão antes da resposta.
     """
 
-    def __init__(self, linhas=VIAS, regex_ok=True):
+    def __init__(self, linhas=VIAS, regex_ok=True, quedas=0):
         self.linhas = [dict(zip(('id_via', 'nome_via', 'tipo_via', 'latitude', 'longitude'), r)) for r in linhas]
-        self.regex_ok = regex_ok
+        self.regex_ok, self.quedas = regex_ok, quedas
         self.consultas = []  # [('imatch' | 'ilike', padrão)]
 
     def table(self, nome):
@@ -66,8 +75,11 @@ class _Consulta:
         return self
 
     def execute(self):
+        if self.regex and self.sb.quedas > 0:
+            self.sb.quedas -= 1
+            raise RemoteProtocolError('Server disconnected without sending a response.')
         if self.regex and not self.sb.regex_ok:
-            raise RuntimeError('operator does not exist')
+            raise APIError('operator does not exist')
         return SimpleNamespace(data=[r for r in self.sb.linhas if self.pred(r['nome_via'])][:self.n])
 
 

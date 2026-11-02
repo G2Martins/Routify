@@ -472,12 +472,21 @@ async def _consultar_malha(sb, palavras: List[List[str]], cru: Optional[str]) ->
             t = t.ilike('nome_via', '%' + '%'.join(termos) + '%')
         return t.limit(LINHAS_MALHA).execute()
 
-    resp = None
+    resp, recusada = None, False
     if usar_regex:
-        try:
-            resp = await asyncio.to_thread(consulta, True)
-        except Exception as e:
-            logger.warning(f"Malha: consulta por regex falhou ({type(e).__name__}); tentando ILIKE")
+        for tentativa in (1, 2):
+            try:
+                resp = await asyncio.to_thread(consulta, True)
+                break
+            except Exception as e:
+                # Só um erro RESPONDIDO pelo PostgREST (APIError) diz que ele não aceita o imatch.
+                # Queda de conexão (ex.: RemoteProtocolError numa conexão ociosa, visto em produção
+                # em 2026-11-02) não diz nada sobre o operador: tenta de novo uma vez.
+                recusada = type(e).__name__ == 'APIError'
+                logger.warning(f"Malha: consulta por regex falhou ({type(e).__name__}); "
+                               + ("tentando ILIKE" if recusada or tentativa == 2 else "tentando de novo"))
+                if recusada:
+                    break
     if resp is None:
         if cru is None or not re.findall(r'[^\W_]+', cru):
             return []
@@ -486,7 +495,7 @@ async def _consultar_malha(sb, palavras: List[List[str]], cru: Optional[str]) ->
         except Exception as e:
             logger.warning(f"Falha ao consultar malha_completa: {type(e).__name__}")
             return []
-        if usar_regex:  # a regex falhou e o ILIKE passou: PostgREST sem imatch (ou erro do pedido)
+        if recusada:  # o PostgREST recusou a regex e o ILIKE passou: sem imatch por 10 min
             _regex_pausado_ate = time.monotonic() + 600
             logger.warning("Malha: imatch recusado; busca da malha segue por ILIKE (sem acento) por 10 min")
     itens = _itens_malha(resp.data)
