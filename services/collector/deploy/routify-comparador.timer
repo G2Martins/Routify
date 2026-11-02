@@ -1,0 +1,17 @@
+[Unit]
+Description=Routify — rodadas do comparador LIA × provedores (picos, vale e madrugada; horário de Brasília)
+
+[Timer]
+OnCalendar=*-*-* 03:00:00 America/Sao_Paulo
+OnCalendar=*-*-* 07:30:00 America/Sao_Paulo
+OnCalendar=*-*-* 08:30:00 America/Sao_Paulo
+OnCalendar=*-*-* 12:30:00 America/Sao_Paulo
+OnCalendar=*-*-* 15:00:00 America/Sao_Paulo
+OnCalendar=*-*-* 17:30:00 America/Sao_Paulo
+OnCalendar=*-*-* 18:30:00 America/Sao_Paulo
+OnCalendar=*-*-* 22:00:00 America/Sao_Paulo
+RandomizedDelaySec=60
+Persistent=false
+
+[Install]
+WantedBy=timers.target

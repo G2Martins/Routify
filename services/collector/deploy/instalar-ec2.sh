@@ -21,7 +21,12 @@ chown -R routify:routify "$COL"
 chmod -R go-rwx "$COL/config"
 
 install -m 0644 "$COL/deploy/routify-collector.service" /etc/systemd/system/routify-collector.service
+# Comparador LIA × provedores: oneshot + timer (8 rodadas/dia). Só liga com COMPARADOR=1,
+# depois que a migration 20261102000000_lia_vs_provedores criar a tabela.
+install -m 0644 "$COL/deploy/routify-comparador.service" /etc/systemd/system/routify-comparador.service
+install -m 0644 "$COL/deploy/routify-comparador.timer" /etc/systemd/system/routify-comparador.timer
 systemctl daemon-reload
+if [ "${COMPARADOR:-0}" = 1 ]; then systemctl enable --now routify-comparador.timer >/dev/null; echo "comparador: $(systemctl list-timers routify-comparador.timer --no-pager | sed -n 2p)"; fi
 systemctl enable routify-collector >/dev/null
 systemctl restart routify-collector
 sleep 5

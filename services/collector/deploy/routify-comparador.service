@@ -1,0 +1,28 @@
+[Unit]
+Description=Routify — comparador LIA × provedores (uma rodada)
+After=network-online.target routify-api.service
+Wants=network-online.target
+ConditionPathExists=/opt/routify/services/collector/config/.env
+
+[Service]
+Type=oneshot
+User=routify
+WorkingDirectory=/opt/routify/services/collector
+Environment=TZ=America/Sao_Paulo
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/routify/services/collector/.venv/bin/python comparar_provedores.py
+TimeoutStartSec=15min
+MemoryMax=200M
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+LockPersonality=true
+UMask=0077
