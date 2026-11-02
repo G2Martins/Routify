@@ -1,14 +1,18 @@
 /**
- * Autocomplete de lugares. A API faz a fusão (GET /search/places: malha local →
- * TomTom → Nominatim); aqui só consome.
+ * Autocomplete de lugares. A API faz a fusão (GET /search/places: base local do DF → TomTom →
+ * Nominatim); aqui só consome.
  *
  * - Foco com o campo vazio: destinos recentes do usuário (route_history, RLS por dono).
- * - Digitando (≥ 2): debounce de 250 ms, requisição anterior cancelada, skeleton,
- *   trecho digitado destacado (segmentos de <Text>, nunca HTML).
- * - Teclado na web: ↑/↓ movem, Enter escolhe, Esc fecha.
+ * - Digitando (≥ 2): debounce de 250 ms, requisição anterior cancelada, skeleton, limite de 8 s,
+ *   429 respeitado (Retry-After). A resposta fica 5 min na memória: apagar uma letra não vai à rede.
+ *   Recentes que casam com o texto vêm antes. Trecho digitado destacado (segmentos de <Text>, nunca HTML).
+ * - Teclado: ↑/↓ movem, Enter escolhe (se a lista na tela ainda é da letra anterior, espera a resposta),
+ *   Esc fecha. A tecla "buscar" do teclado do celular escolhe também.
+ * - Web: padrão combobox/listbox (leitor de tela anuncia a opção ativa e quantas sugestões há) e o
+ *   histórico de digitação do navegador não cobre a lista.
  * - Analytics (LGPD): só fonte, posição e contagens. Nunca o texto nem coordenadas.
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import {
   Animated,
   NativeSyntheticEvent,
@@ -35,17 +39,25 @@ export interface PlaceSuggestion {
   lat: number;
   lon: number;
   source: 'malha' | 'tomtom' | 'nominatim' | 'recente';
-  /** Categoria em português vinda da API (Shopping, Universidade, Via, Endereço…). */
+  /** Categoria em português vinda da API (Shopping, Universidade, Via, Endereço, Região, Bairro…). */
   categoria?: string | null;
   id_ponto?: number;
 }
 
 const MIN_CHARS = 2; // mesmo min_length da API
+const MAX_CHARS = 120; // mesmo max_length da API: acima disso a API responde 422
 const DEBOUNCE_MS = 250;
 const BLUR_MS = 180; // dá tempo do clique numa linha registrar antes de fechar
+const TIMEOUT_MS = 8000; // sem resposta nesse prazo = erro com "Tentar de novo" (antes ficava no skeleton)
+const CACHE_TTL_MS = 5 * 60_000;
+const CACHE_MAX = 60;
 const LIMITE = 6; // cabe na lista sem rolagem (sem scrollIntoView no teclado)
 const MAX_RECENTES = 5;
+const MAX_RECENTES_DIGITANDO = 2;
 const NATIVO = Platform.OS !== 'web';
+const WEB = Platform.OS === 'web';
+// Mesma caixa que a API aceita em lat/lon (fora dela é 422, e o campo mostraria "não deu para buscar").
+const DF = { latMin: -16.6, latMax: -15.0, lonMin: -48.8, lonMax: -46.8 };
 
 // Estilos que só existem no DOM (RN-web): transição de 160 ms e sem outline do navegador.
 const TRANSICAO_WEB = Platform.OS === 'web'
@@ -73,12 +85,13 @@ const ICONE_CATEGORIA: Record<string, string> = {
   Hotel: 'ion:bed-outline',
   Via: 'mdi:road-variant',
   'Endereço': 'ion:home-outline',
+  'Região': 'ion:map-outline',
 };
 // Marcos ganham o destaque azul (o que a pessoa costuma querer dizer).
-const MARCOS = new Set(['Shopping', 'Aeroporto', 'Universidade', 'Escola', 'Hospital', 'Estação', 'Estádio', 'Órgão público', 'Parque']);
+const MARCOS = new Set(['Shopping', 'Aeroporto', 'Universidade', 'Escola', 'Hospital', 'Estação', 'Estádio', 'Órgão público', 'Parque', 'Região']);
 
 const semAcento = (s: string) =>
-  (typeof s.normalize === 'function' ? s.normalize('NFD') : s).replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  (typeof s.normalize === 'function' ? s.normalize('NFD') : s).replace(/[̀-ͯ]/g, '').toLowerCase();
 
 /** Minúsculas e sem acento, guardando de qual índice do original veio cada caractere. */
 function dobrar(s: string): { txt: string; idx: number[] } {
@@ -92,19 +105,79 @@ function dobrar(s: string): { txt: string; idx: number[] } {
   return { txt, idx };
 }
 
-/** Parte `label` em trechos, marcando a 1ª ocorrência de `busca` (ignora acento e caixa). */
+/**
+ * Parte `label` em trechos, marcando o que foi digitado (ignora acento e caixa): a frase inteira
+ * quando ela aparece junta; senão cada termo ("hospital base" destaca as duas palavras).
+ */
 export function trechosDestacados(label: string, busca: string): { t: string; destaque: boolean }[] {
   const q = dobrar(busca.trim()).txt;
   const { txt, idx } = dobrar(label);
-  const p = q ? txt.indexOf(q) : -1;
-  if (p < 0) return [{ t: label, destaque: false }];
-  const ini = idx[p];
-  const fim = idx[p + q.length - 1] + 1;
-  return [
-    { t: label.slice(0, ini), destaque: false },
-    { t: label.slice(ini, fim), destaque: true },
-    { t: label.slice(fim), destaque: false },
-  ].filter((x) => x.t);
+  const achar = (termos: string[]) => {
+    const faixas: [number, number][] = [];
+    for (const t of termos) {
+      const p = t ? txt.indexOf(t) : -1;
+      if (p >= 0) faixas.push([idx[p], idx[p + t.length - 1] + 1]);
+    }
+    return faixas.sort((a, b) => a[0] - b[0]);
+  };
+  let faixas = achar([q]);
+  if (!faixas.length) faixas = achar(q.split(/\s+/));
+  const partes: { t: string; destaque: boolean }[] = [];
+  let pos = 0;
+  for (const [ini, fim] of faixas) {
+    if (ini < pos) continue; // termos que se sobrepõem: o primeiro vale
+    partes.push({ t: label.slice(pos, ini), destaque: false }, { t: label.slice(ini, fim), destaque: true });
+    pos = fim;
+  }
+  partes.push({ t: label.slice(pos), destaque: false });
+  const out = partes.filter((x) => x.t);
+  return out.length ? out : [{ t: label, destaque: false }];
+}
+
+const palavras = (s: string) => semAcento(s).split(/[^a-z0-9]+/).filter(Boolean);
+
+/**
+ * Destinos recentes que casam com o digitado (cada termo é começo de alguma palavra, sem acento)
+ * vêm antes dos resultados da API; o mesmo lugar não aparece duas vezes. No máximo LIMITE linhas.
+ */
+export function combinar(q: string, recentes: PlaceSuggestion[] | null, itens: PlaceSuggestion[]): PlaceSuggestion[] {
+  const termos = palavras(q);
+  if (!recentes?.length || !termos.length) return itens;
+  const casam = recentes
+    .filter((r) => {
+      const ps = palavras(r.label);
+      return termos.every((t) => ps.some((p) => p.startsWith(t)));
+    })
+    .slice(0, MAX_RECENTES_DIGITANDO);
+  const mesmo = (a: PlaceSuggestion, b: PlaceSuggestion) =>
+    semAcento(a.label) === semAcento(b.label) && Math.abs(a.lat - b.lat) < 0.002 && Math.abs(a.lon - b.lon) < 0.002;
+  return [...casam, ...itens.filter((i) => !casam.some((r) => mesmo(r, i)))].slice(0, LIMITE);
+}
+
+// Respostas da API por (texto, viés): module-level, então origem e destino dividem. Só memória.
+const cacheBusca = new Map<string, { t: number; itens: PlaceSuggestion[] }>();
+function lerCache(chave: string): PlaceSuggestion[] | null {
+  const e = cacheBusca.get(chave);
+  if (!e) return null;
+  if (Date.now() - e.t > CACHE_TTL_MS) {
+    cacheBusca.delete(chave);
+    return null;
+  }
+  return e.itens;
+}
+function gravarCache(chave: string, itens: PlaceSuggestion[]) {
+  cacheBusca.delete(chave); // reinsere no fim: a mais antiga é sempre a primeira do Map
+  cacheBusca.set(chave, { t: Date.now(), itens });
+  if (cacheBusca.size > CACHE_MAX) cacheBusca.delete(cacheBusca.keys().next().value as string);
+}
+
+/** Viés com 3 casas (~110 m): basta para desempatar e não expõe a posição exata. Vazio se fora do DF. */
+function viesDe(perto?: { lat: number; lon: number } | null): string {
+  if (!perto) return '';
+  const lat = Number(perto.lat.toFixed(3));
+  const lon = Number(perto.lon.toFixed(3));
+  const dentro = lat >= DF.latMin && lat <= DF.latMax && lon >= DF.lonMin && lon <= DF.lonMax;
+  return dentro ? `&lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}` : '';
 }
 
 function quando(iso: string): string {
@@ -141,18 +214,22 @@ interface Props {
 }
 
 type Linha = Pick<RouteHistoryRow, 'destino_label' | 'destino_lat' | 'destino_lon' | 'created_at'>;
+type TipoErro = 'rede' | 'limite';
 
 export default function AddressAutocomplete({ placeholder, value, onChangeText, onSelect, zIndex = 50, listaStyle, perto }: Props) {
   const { theme } = useTheme();
   const c = theme.colors;
   const { user } = useAuth();
   const reduzir = useMenosMovimento();
+  const uid = useId();
+  const listaId = `${uid}-lista`;
+  const opcaoId = (i: number) => `${uid}-op-${i}`;
 
   const [focado, setFocado] = useState(false);
   const [aberto, setAberto] = useState(false);
   const [itens, setItens] = useState<PlaceSuggestion[]>([]);
   const [carregando, setCarregando] = useState(false);
-  const [erro, setErro] = useState(false);
+  const [erro, setErro] = useState<TipoErro | null>(null);
   const [semResultado, setSemResultado] = useState(false);
   const [recentes, setRecentes] = useState<PlaceSuggestion[] | null>(null);
   const [ativo, setAtivo] = useState(-1);
@@ -162,6 +239,16 @@ export default function AddressAutocomplete({ placeholder, value, onChangeText, 
   const timerBlur = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const abortRef = useRef<AbortController | null>(null);
   const ultimoSemResultado = useRef<string | null>(null); // fica só na memória, nunca é enviado
+  const bloqueadoAte = useRef(0); // 429: até quando não adianta tentar
+  const enterPendente = useRef(false); // Enter enquanto a lista ainda é da letra anterior
+  const escolhidoEm = useRef(0); // Enter e "buscar" do teclado chegam juntos em alguns aparelhos
+  // Refs com o valor mais novo: a resposta da API chega num callback criado renders atrás.
+  const onSelectRef = useRef(onSelect);
+  const recentesRef = useRef(recentes);
+  const valueRef = useRef(value);
+  onSelectRef.current = onSelect;
+  recentesRef.current = recentes;
+  valueRef.current = value;
 
   useEffect(
     () => () => {
@@ -173,12 +260,23 @@ export default function AddressAutocomplete({ placeholder, value, onChangeText, 
   );
 
   const curto = value.trim().length < MIN_CHARS;
-  const lista = curto ? recentes ?? [] : itens;
+  const lista = curto ? recentes ?? [] : combinar(value, recentes, itens);
   const carregandoRecentes = curto && recentes === null && !!user;
   const mostrar =
     focado &&
     aberto &&
-    (curto ? carregandoRecentes || lista.length > 0 : carregando || erro || semResultado || itens.length > 0);
+    // Digitando: só há lista quando uma busca está em curso ou deu resposta (refocar um campo já
+    // preenchido não reabre nada; os recentes que casam só se juntam a uma busca de verdade).
+    (curto ? carregandoRecentes || lista.length > 0 : carregando || !!erro || semResultado || itens.length > 0);
+  const anuncio = !mostrar
+    ? ''
+    : lista.length === 0 && erro
+      ? 'Não deu para buscar agora.'
+      : lista.length === 0 && semResultado
+        ? 'Nenhum lugar encontrado.'
+        : !carregando && lista.length > 0
+          ? `${lista.length} ${lista.length === 1 ? 'sugestão' : 'sugestões'}. Use as setas para cima e para baixo.`
+          : '';
 
   const carregarRecentes = async () => {
     if (!user) return;
@@ -211,64 +309,113 @@ export default function AddressAutocomplete({ placeholder, value, onChangeText, 
     setRecentes(out);
   };
 
-  const buscar = (texto: string) => {
+  const buscar = (texto: string, imediato = false) => {
     clearTimeout(timerBusca.current);
     abortRef.current?.abort();
+    enterPendente.current = false;
     setAtivo(-1);
-    setErro(false);
+    setErro(null);
     setSemResultado(false);
-    const q = texto.trim();
+    const q = texto.trim().slice(0, MAX_CHARS);
     if (q.length < MIN_CHARS) {
       setItens([]);
       setCarregando(false);
       return;
     }
+    const vies = viesDe(perto);
+    const chave = `${palavras(q).join(' ')}|${vies}`;
+    const guardado = lerCache(chave);
+    if (guardado) {
+      setItens(guardado);
+      setSemResultado(guardado.length === 0);
+      setCarregando(false);
+      return;
+    }
     setCarregando(true); // mantém os itens anteriores na tela até a nova resposta
     timerBusca.current = setTimeout(async () => {
+      if (Date.now() < bloqueadoAte.current) {
+        setItens([]);
+        setErro('limite');
+        setCarregando(false);
+        return;
+      }
       const ctrl = new AbortController();
       abortRef.current = ctrl;
+      let expirou = false;
+      const prazo = setTimeout(() => {
+        expirou = true;
+        ctrl.abort();
+      }, TIMEOUT_MS);
+      let tipo: TipoErro = 'rede';
       try {
-        // Viés com 3 casas (~110 m): basta para desempatar e não expõe a posição exata.
-        const vies = perto ? `&lat=${perto.lat.toFixed(3)}&lon=${perto.lon.toFixed(3)}` : '';
         const res = await fetch(`${API_URL}/search/places?q=${encodeURIComponent(q)}&limit=${LIMITE}${vies}`, {
           headers: await apiHeaders(false),
           signal: ctrl.signal,
         });
+        if (res.status === 429) {
+          const s = Number(res.headers.get('Retry-After'));
+          bloqueadoAte.current = Date.now() + (Number.isFinite(s) && s > 0 ? Math.min(s, 60) : 10) * 1000;
+          tipo = 'limite';
+          throw new Error('HTTP 429');
+        }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data: PlaceSuggestion[] = await res.json();
         if (ctrl.signal.aborted) return;
         const validos = Array.isArray(data) ? data.filter((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lon)) : [];
+        gravarCache(chave, validos);
         setItens(validos);
         setSemResultado(validos.length === 0);
         if (validos.length === 0 && ultimoSemResultado.current !== q) {
           ultimoSemResultado.current = q;
           enviarEvento('busca', { sem_resultado: true, n_caracteres: q.length });
         }
+        if (enterPendente.current) {
+          // Enter foi apertado antes desta resposta: escolhe o 1º da lista nova, não o da letra anterior.
+          enterPendente.current = false;
+          const nova = combinar(valueRef.current, recentesRef.current, validos);
+          if (nova.length) escolher(nova[0], 0, nova.length);
+        }
       } catch {
-        if (ctrl.signal.aborted) return;
+        if (ctrl.signal.aborted && !expirou) return; // outra tecla já cancelou esta
         setItens([]);
-        setErro(true);
+        setErro(tipo);
       } finally {
-        if (!ctrl.signal.aborted) setCarregando(false);
+        clearTimeout(prazo);
+        if (!ctrl.signal.aborted || expirou) setCarregando(false);
       }
-    }, DEBOUNCE_MS);
+    }, imediato ? 0 : DEBOUNCE_MS);
   };
 
-  const escolher = (item: PlaceSuggestion, posicao: number) => {
+  const escolher = (item: PlaceSuggestion, posicao: number, total: number = lista.length) => {
+    escolhidoEm.current = Date.now();
     enviarEvento('busca', {
       fonte: item.source,
       posicao,
-      n_resultados: lista.length,
+      n_resultados: total,
       recente: item.source === 'recente',
     });
     clearTimeout(timerBusca.current);
     abortRef.current?.abort();
+    enterPendente.current = false;
     setItens([]);
     setCarregando(false);
+    setErro(null);
     setSemResultado(false);
     setAberto(false);
     setAtivo(-1);
-    onSelect(item);
+    onSelectRef.current(item);
+  };
+
+  /** Enter (teclado) e "buscar" (teclado do celular). */
+  const confirmar = () => {
+    if (Date.now() - escolhidoEm.current < 400) return;
+    if (!curto && carregando) {
+      enterPendente.current = true; // a lista na tela é da letra anterior: espera a resposta
+      return;
+    }
+    if (!mostrar || lista.length === 0) return;
+    const i = ativo >= 0 && ativo < lista.length ? ativo : 0;
+    escolher(lista[i], i);
   };
 
   const onKeyPress = (e: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
@@ -281,19 +428,37 @@ export default function AddressAutocomplete({ placeholder, value, onChangeText, 
       setAberto(true);
       return;
     }
+    if (k === 'Enter') {
+      e.preventDefault(); // no RN-web, evita o blur do submit
+      confirmar();
+      return;
+    }
     if (!mostrar || lista.length === 0) return;
     if (k === 'ArrowDown' || k === 'ArrowUp') {
       e.preventDefault(); // não move o cursor do input
       setAtivo((a) => (k === 'ArrowDown' ? (a + 1) % lista.length : a <= 0 ? lista.length - 1 : a - 1));
-    } else if (k === 'Enter') {
-      e.preventDefault(); // no RN-web, evita o blur do submit
-      const i = ativo >= 0 && ativo < lista.length ? ativo : 0;
-      escolher(lista[i], i);
     }
   };
 
+  // Atributos que só o DOM entende (combobox/listbox). Fora da web ficam de fora: no nativo o
+  // papel "button" por linha já funciona e o RN não mapeia "option" em todas as plataformas.
+  const ariaCampo = WEB
+    ? ({
+        'aria-autocomplete': 'list',
+        'aria-haspopup': 'listbox',
+        'aria-controls': listaId,
+        'aria-activedescendant': mostrar && ativo >= 0 && ativo < lista.length ? opcaoId(ativo) : undefined,
+      } as object)
+    : {};
+  // listbox só quando há opções; erro, "nenhum lugar" e skeleton são avisos, não opções
+  const semOpcoes = carregandoRecentes || (!curto && lista.length === 0 && (carregando || !!erro || semResultado));
+  const ariaLista = WEB ? ({ nativeID: listaId, ...(semOpcoes ? null : { role: 'listbox' }) } as object) : {};
+  const ariaOpcao = (i: number, selecionada: boolean) =>
+    // tabIndex -1 (o RN-web ignora focusable:false): o foco fica no campo, como no combobox; Tab sai do campo em vez de cair na 1ª linha
+    WEB ? ({ role: 'option', 'aria-selected': selecionada, nativeID: opcaoId(i), tabIndex: -1 } as object) : {};
+
   const conteudo = () => {
-    if (carregandoRecentes || (carregando && itens.length === 0 && !curto)) {
+    if (carregandoRecentes || (carregando && lista.length === 0 && !curto)) {
       return [0, 1, 2].map((i) => (
         <View key={i} style={styles.linha}>
           <Skeleton altura={32} largura={32} raio={8} />
@@ -304,18 +469,34 @@ export default function AddressAutocomplete({ placeholder, value, onChangeText, 
         </View>
       ));
     }
-    if (!curto && erro) {
+    if (!curto && erro && lista.length === 0) {
+      const limite = erro === 'limite';
       return (
         <View style={styles.estado} accessibilityRole="alert">
           <Icon name="ion:alert-circle-outline" size={18} color={c.warning} />
           <View style={{ flex: 1 }}>
-            <Text style={[theme.typography.captionMd, { color: c.text }]}>Não deu para buscar agora.</Text>
-            <Text style={[theme.typography.caption, { color: c.textMuted }]}>Verifique a conexão e tente de novo.</Text>
+            <Text style={[theme.typography.captionMd, { color: c.text }]}>
+              {limite ? 'Muitas buscas seguidas.' : 'Não deu para buscar agora.'}
+            </Text>
+            <Text style={[theme.typography.caption, { color: c.textMuted }]}>
+              {limite ? 'Aguarde alguns segundos e continue digitando.' : 'Verifique a conexão e tente de novo.'}
+            </Text>
+            {limite ? null : (
+              <Pressable
+                onPress={() => buscar(value, true)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Tentar buscar de novo"
+                style={styles.tentar}
+              >
+                <Text style={[theme.typography.captionMd, { color: c.accent }]}>Tentar de novo</Text>
+              </Pressable>
+            )}
           </View>
         </View>
       );
     }
-    if (!curto && semResultado) {
+    if (!curto && semResultado && lista.length === 0) {
       return (
         <View style={styles.estado}>
           <Icon name="ion:map-outline" size={18} color={c.textSubtle} />
@@ -344,9 +525,10 @@ export default function AddressAutocomplete({ placeholder, value, onChangeText, 
               <Pressable
                 onPress={() => escolher(item, i)}
                 onHoverIn={() => setAtivo(i)}
-                accessibilityRole="button"
+                accessibilityRole={WEB ? undefined : 'button'}
                 accessibilityState={{ selected: selecionado }}
                 accessibilityLabel={[item.label, item.sublabel, tag].filter(Boolean).join(', ')}
+                {...ariaOpcao(i, selecionado)}
                 style={({ pressed }) => [
                   styles.linha,
                   { backgroundColor: pressed ? c.surfaceMuted : selecionado ? c.surfaceAlt : 'transparent' },
@@ -403,8 +585,14 @@ export default function AddressAutocomplete({ placeholder, value, onChangeText, 
           placeholder={placeholder}
           placeholderTextColor={c.textSubtle}
           accessibilityLabel={placeholder}
+          role="combobox"
+          aria-expanded={mostrar}
+          {...ariaCampo}
           autoCapitalize="words"
+          autoComplete="off"
           autoCorrect={false}
+          spellCheck={false}
+          maxLength={MAX_CHARS}
           returnKeyType="search"
           onChangeText={(v) => {
             onChangeText(v);
@@ -425,6 +613,7 @@ export default function AddressAutocomplete({ placeholder, value, onChangeText, 
             }, BLUR_MS);
           }}
           onKeyPress={onKeyPress}
+          onSubmitEditing={confirmar}
           style={[theme.typography.body, styles.input, { color: c.text }, SEM_OUTLINE_WEB]}
         />
         {value && focado ? (
@@ -446,9 +635,15 @@ export default function AddressAutocomplete({ placeholder, value, onChangeText, 
         ) : null}
       </View>
 
+      {/* Só para leitor de tela: quantas sugestões há / nenhum resultado / erro. */}
+      <Text aria-live="polite" accessibilityLiveRegion="polite" style={styles.soLeitor}>
+        {anuncio}
+      </Text>
+
       {mostrar ? (
         <View
           accessibilityRole="list"
+          {...ariaLista}
           style={[
             styles.lista,
             {
@@ -500,4 +695,6 @@ const styles = StyleSheet.create({
   },
   iconeCaixa: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   estado: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12 },
+  tentar: { alignSelf: 'flex-start', paddingVertical: 6 },
+  soLeitor: { position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden' },
 });

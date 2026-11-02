@@ -2,17 +2,25 @@
 GET /search/places — Autocomplete de locais.
 
 Fontes, juntas e ranqueadas numa lista só (ranquear()):
-  1. malha_completa (~38k vias do DF) — rápida e local; o bairro sai do lugar OSM
-     mais próximo (ml/artifacts/bairros_df.json).
-  2. TomTom Search v2 (typeahead, cache 24 h) — tolera erro de digitação e acha POI.
-  3. Nominatim (OSM) — só se as duas acima trouxerem < 3. A política da OSMF proíbe
-     autocomplete e exige cache e ≤ 1 req/s; por isso fica no fim, com trava de 1 s.
+  1. Base local do DF:
+     - malha_completa (~38 mil vias; consulta ao Supabase com cache de 1 h; acento e caixa
+       não importam; o bairro sai do lugar OSM mais próximo);
+     - as 602 localidades do OSM em ml/artifacts/bairros_df.json (regiões administrativas,
+       bairros, superquadras), em memória: "ceilandia", "asa norte", "sqs 308" saem daqui.
+  2. TomTom Search v2 (typeahead, cache 24 h) — acha POI e tolera erro de digitação.
+  3. Nominatim (OSM) — só se o ranking final trouxer < 3 resultados e a consulta tiver 4+
+     letras. A política da OSMF proíbe autocomplete e exige cache e ≤ 1 req/s; por isso fica
+     no fim, com trava de 1 s.
 
 Por que ranquear aqui: a nota da TomTom sai ~0,99 para tudo que contém o texto
 ("Park Shopping" de São Sebastião, o shopping de verdade e as lojas dentro dele).
 Os sinais que separam estão na resposta: o nome bate inteiro?, é um marco
 (shopping, universidade…)?, há vários resultados com o nome no mesmo ponto
 (aglomeração = o lugar de verdade)?, e quão longe está de quem busca.
+
+Apelidos do DF (EPTG, EPIA, Eixão, UnB, Rodoviária, HBDF…) viram uma 2ª consulta com o nome
+que a base usa (variantes()); erro de digitação de 1 letra ("shoping", "nacioal") e palavras
+coladas ("parkshoping") ainda casam, com nota menor que o casamento exato.
 """
 import asyncio
 import json
@@ -22,9 +30,11 @@ import re
 import time
 import logging
 import unicodedata
+from functools import lru_cache
 from typing import List, Optional, Tuple
 
 import httpx
+import numpy as np
 from fastapi import APIRouter, Query, Request, Security
 from pydantic import BaseModel, Field
 
@@ -37,12 +47,20 @@ logger = logging.getLogger(__name__)
 
 _cache_nominatim = CacheTTL(24 * 3600, max_itens=1024)
 _ultima_nominatim = 0.0
+# A malha não muda (bootstrap único do coletor): 1 h de cache poupa o Supabase a cada tecla repetida.
+_cache_malha = CacheTTL(3600, max_itens=512)
 # Autocomplete dispara a cada tecla (com debounce no app): folga para digitação
 # normal, corta robô queimando a cota de Search da TomTom.
 _limite_ip = Limitador(90)
 
 _BAIRROS_JSON = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'ml', 'artifacts', 'bairros_df.json')
 _bairros: Optional[List[dict]] = None
+_bairros_tok: List[List[str]] = []
+_B_LAT = _B_LON = np.empty(0)
+_RAS: List[Tuple[str, str]] = []  # (nome normalizado, nome) das cidades/vilas = regiões administrativas, maiores primeiro
+
+LINHAS_MALHA = 150            # a malha tem ~8 trechos por via: 150 linhas dão ~20 nomes
+_regex_pausado_ate = 0.0      # PostgREST recusou imatch: usa ILIKE (sem acento) até esta hora
 
 
 class PlaceSuggestion(BaseModel):
@@ -55,15 +73,44 @@ class PlaceSuggestion(BaseModel):
     id_ponto: Optional[int] = Field(None, description="Id da via na malha local, quando source = malha.")
 
 
-# --- Ranking (funções puras — testadas em tests/test_busca.py) ------------------
+# --- Normalização + apelidos (funções puras — testadas em tests/test_busca*.py) ---
 
 # Só abreviações que NÃO são prefixo da palavra ("av" já casa "avenida" por prefixo).
-ABREV = {'qd': 'quadra', 'cj': 'conjunto', 'lt': 'lote', 'pca': 'praca'}
+ABREV = {'qd': 'quadra', 'cj': 'conjunto', 'lt': 'lote', 'pca': 'praca', 'pq': 'parque', 'st': 'setor'}
+
+# O que as pessoas digitam -> como a base (malha / TomTom) escreve. Chave e valor já normalizados.
+# Só entra o que foi conferido na malha (backup 2026-09-23) ou na TomTom (2026-11-02): a malha
+# guarda "Estrada Parque Taguatinga", e a sigla só aparece em marginais e acessos.
+# ponytail: tabela curada à mão; crescer conforme aparecer consulta sem resultado.
+APELIDOS = {
+    'eptg': 'estrada parque taguatinga',
+    'epia': 'estrada parque industria e abastecimento',
+    'epnb': 'estrada parque nucleo bandeirante',
+    'epcl': 'estrada parque ceilandia',
+    'epvp': 'estrada parque vicente pires',
+    'epdb': 'estrada parque dom bosco',
+    'epgu': 'estrada parque guara',
+    'epjk': 'estrada parque juscelino kubitschek',
+    'epct': 'estrada parque contorno',
+    'epar': 'estrada parque aeroporto',
+    'epig': 'estrada parque industrias graficas',
+    'eixao': 'eixo rodoviario',
+    'unb': 'universidade de brasilia',
+    'rodoviaria': 'rodoviaria do plano piloto',
+    'hbdf': 'hospital de base',
+    'hran': 'hospital regional da asa norte',
+    'hras': 'hospital regional da asa sul',
+    'hrt': 'hospital regional de taguatinga',
+    'hrc': 'hospital regional de ceilandia',
+    'hrg': 'hospital regional do gama',
+    'hmib': 'hospital materno infantil de brasilia',
+    'hub': 'hospital universitario de brasilia',
+}
 
 # Marcos: o que alguém quer dizer ao digitar o nome (e não a loja que o cita).
 MARCOS = {'SHOPPING_CENTER', 'AIRPORT', 'COLLEGE_UNIVERSITY', 'SCHOOL', 'HOSPITAL_POLYCLINIC',
           'RAILWAY_STATION', 'STADIUM', 'GOVERNMENT_OFFICE', 'TOURIST_ATTRACTION', 'MUSEUM',
-          'PARK_RECREATION_AREA', 'EXHIBITION_CONVENTION_CENTER', 'THEATER', 'CINEMA'}
+          'PARK_RECREATION_AREA', 'EXHIBITION_CONVENTION_CENTER', 'THEATER', 'CINEMA', 'REGIAO'}
 
 CATEGORIAS = {
     'SHOPPING_CENTER': 'Shopping', 'AIRPORT': 'Aeroporto', 'COLLEGE_UNIVERSITY': 'Universidade',
@@ -76,20 +123,93 @@ CATEGORIAS = {
     'OPEN_PARKING_AREA': 'Estacionamento', 'PARKING_GARAGE': 'Estacionamento',
     'ELECTRIC_VEHICLE_STATION': 'Recarga', 'SPORTS_CENTER': 'Esporte', 'MARKET': 'Mercado',
 }
+# Códigos nossos (localidades do OSM): só rotulam; não entram no nome do candidato.
+CATEGORIAS_LOCAIS = {'REGIAO': 'Região', 'BAIRRO': 'Bairro'}
 TIPO_ENDERECO = {'Point Address', 'Address Range'}
-PESO_KM = 0.04  # penalidade por km de quem busca: desempata homônimos, não esconde o longe
+PREFIXO_GENERICO = {'SHOPPING_CENTER', 'STADIUM', 'AIRPORT'}
+PESO_KM = 0.04          # penalidade por km de quem busca: desempata homônimos, não esconde o longe
+KM_MAX_PENALIDADE = 15  # além disso é tudo "longe": um nome exato a 25 km não perde para um homônimo parcial
+
+
+def _palavras(texto: str) -> List[List[str]]:
+    """Palavras digitadas, cada uma quebrada em letras/números e com a abreviação expandida:
+    'SQS308 Qd5' -> [['sqs', '308'], ['quadra', '5']]."""
+    s = unicodedata.normalize('NFKD', texto or '').encode('ascii', 'ignore').decode().lower()
+    return [[ABREV.get(t, t) for t in re.findall(r'[a-z]+|\d+', p)] for p in re.findall(r'[a-z0-9]+', s)]
 
 
 def normalizar(s: str) -> str:
-    """Minúsculas, sem acento nem pontuação, abreviações comuns expandidas."""
-    s = unicodedata.normalize('NFKD', s or '').encode('ascii', 'ignore').decode().lower()
-    return ' '.join(ABREV.get(t, t) for t in re.findall(r'[a-z0-9]+', s))
+    """Minúsculas, sem acento nem pontuação, letras e números separados (sqs308 = sqs 308),
+    abreviações comuns expandidas."""
+    return ' '.join(t for p in _palavras(s) for t in p)
+
+
+def texto_tomtom(q: str) -> str:
+    """O que a TomTom recebe: as palavras como foram digitadas (sem acento, caixa nem pontuação),
+    SEM separar letra de número. A TomTom indexa "W3 Norte"; "w 3 norte" a perderia."""
+    s = unicodedata.normalize('NFKD', q or '').encode('ascii', 'ignore').decode().lower()
+    return ' '.join(ABREV.get(w, w) for w in re.findall(r'[a-z0-9]+', s))
+
+
+def variantes(qn: str) -> List[str]:
+    """A consulta normalizada e, se ela cita um apelido do DF, o nome que a base usa (a original
+    vem primeiro): 'eptg' -> ['eptg', 'estrada parque taguatinga']."""
+    saida = [qn]
+    texto = f' {qn} '
+    for apelido, nome in APELIDOS.items():
+        if f' {apelido} ' in texto and f' {nome} ' not in texto:
+            v = texto.replace(f' {apelido} ', f' {nome} ', 1).strip()
+            if v not in saida:
+                saida.append(v)
+    return saida[:3]
 
 
 def _km(a: dict, b: dict) -> float:
     dy = (a['lat'] - b['lat']) * 110.6
     dx = (a['lon'] - b['lon']) * 111.3 * math.cos(math.radians(a['lat']))
     return math.hypot(dx, dy)
+
+
+def _perto(a: str, b: str, k: int) -> bool:
+    """Distância de edição entre a e b (com troca de letras vizinhas, versão OSA) <= k?
+    Sai assim que a linha inteira passa de k: quase toda comparação falha nas 2-3 primeiras letras."""
+    if abs(len(a) - len(b)) > k:
+        return False
+    prev2, prev = [], list(range(len(b) + 1))
+    for i in range(1, len(a) + 1):
+        cur = [i] + [0] * len(b)
+        for j in range(1, len(b) + 1):
+            cur[j] = min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] != b[j - 1]))
+            if i > 1 and j > 1 and a[i - 1] == b[j - 2] and a[i - 2] == b[j - 1]:
+                cur[j] = min(cur[j], prev2[j - 2] + 1)
+        if min(cur) > k:
+            return False
+        prev2, prev = prev, cur
+    return prev[-1] <= k
+
+
+def _quase(x: str, t: str) -> bool:
+    """x (5+ letras) é o começo de t com 1 erro de digitação (2 se x tem 12+)? A 1ª letra tem de
+    bater: erro de digitação raramente cai nela, e isso poda quase todas as comparações."""
+    k = 1 if len(x) < 12 else 2
+    if x[0] != t[:1] or len(t) + k < len(x):
+        return False
+    return any(_perto(x, t[:n], k) for n in range(len(x) - 1, len(x) + 2))
+
+
+def _casa(qt: List[str], toks: List[str], junto: str = '') -> Optional[str]:
+    """Todo termo digitado é começo de alguma palavra? 'exato', 'aprox' (algum termo com erro de
+    digitação ou colado: parkshoping) ou None. `junto` = nome sem espaços, p/ consulta de 1 termo."""
+    junto = junto if len(qt) == 1 else ''
+    aprox = False
+    for x in qt:
+        if any(t.startswith(x) for t in toks) or (len(x) >= 5 and junto.startswith(x)):
+            continue
+        if len(x) >= 5 and not x.isdigit() and (any(_quase(x, t) for t in toks) or (junto and _quase(x, junto))):
+            aprox = True
+            continue
+        return None
+    return 'aprox' if aprox else 'exato'
 
 
 def rotulo(c: dict) -> str:
@@ -101,8 +221,11 @@ def rotulo(c: dict) -> str:
 
 
 def categoria(c: dict) -> str:
-    if c.get('categoria_codigo') in CATEGORIAS:
-        return CATEGORIAS[c['categoria_codigo']]
+    codigo = c.get('categoria_codigo')
+    if codigo in CATEGORIAS:
+        return CATEGORIAS[codigo]
+    if codigo in CATEGORIAS_LOCAIS:
+        return CATEGORIAS_LOCAIS[codigo]
     if c.get('tipo') in TIPO_ENDERECO:
         return 'Endereço'
     if c.get('tipo') == 'Street' or c.get('fonte') == 'malha':
@@ -110,41 +233,77 @@ def categoria(c: dict) -> str:
     return 'Lugar'
 
 
-def ranquear(q: str, candidatos: List[dict], perto: Tuple[float, float], limite: int) -> List[dict]:
-    """Ordena por casamento de nome, marco, aglomeração, distância e nota da fonte."""
-    qn = normalizar(q)
-    qt = qn.split()
-    if not qt:
-        return []
-    tem_numero = any(t.isdigit() for t in qt)
-    ref = {'lat': perto[0], 'lon': perto[1]}
+def _nomes(c: dict, nome: str) -> List[str]:
+    """Formas do nome que valem como "o nome". A TomTom tira a palavra da categoria do marco
+    ("Internacional de Brasília-Presidente JK" é o AIRPORT) e a põe de prefixo em outros
+    ("Shopping Conjunto Nacional" também é "Conjunto Nacional")."""
+    cat = normalizar(CATEGORIAS.get(c.get('categoria_codigo'), ''))
+    if not cat:
+        return [nome]
+    if cat not in nome.split():
+        return [nome, f'{cat} {nome}']
+    # Só nestes a palavra é genérica e cai na fala ("Hospital Lago Sul" é um hospital NO Lago Sul,
+    # não o Lago Sul): shopping, estádio e aeroporto.
+    if c.get('categoria_codigo') in PREFIXO_GENERICO and nome.startswith(cat + ' '):
+        return [nome, nome[len(cat) + 1:]]
+    return [nome]
 
-    def casa(toks: List[str]) -> bool:  # cada termo digitado é prefixo de alguma palavra
-        return all(any(t.startswith(x) for t in toks) for x in qt)
+
+def ranquear(q: str, candidatos: List[dict], perto: Tuple[float, float], limite: int,
+             variantes: Optional[List[str]] = None) -> List[dict]:
+    """Ordena por casamento de nome, marco, aglomeração, distância e nota da fonte.
+
+    `variantes` = outras formas da mesma consulta (apelidos do DF, ver variantes()): vale a
+    melhor nota entre elas.
+    """
+    qn = normalizar(q)
+    if not qn:
+        return []
+    qs = [qn] + [v for v in (variantes or []) if v and v != qn]
+    palavras_q = {t for v in qs for t in v.split()}
+    tem_numero = any(t.isdigit() for t in qn.split())
+    ref = {'lat': perto[0], 'lon': perto[1]}
 
     avaliados = []
     for c in candidatos:
         nome = normalizar(c['label'])
-        # A TomTom tira a palavra da categoria do nome ("Internacional de Brasília-Presidente
-        # JK" é o AIRPORT): a categoria em português também conta como nome.
-        cat = normalizar(CATEGORIAS.get(c.get('categoria_codigo'), ''))
-        nomes = [nome] + ([f'{cat} {nome}'] if cat and cat not in nome.split() else [])
+        nomes = _nomes(c, nome)
         tn = ' '.join(nomes).split()
-        if casa(tn):
-            base = 3.0 if qn in nomes else 2.2 if any(n.startswith(qn) for n in nomes) else 1.6
-        elif casa(tn + normalizar(f"{c.get('sublabel', '')} {c.get('bairro') or ''}").split()):
-            base = 0.6  # o texto bate só no endereço
-        else:
-            continue  # nada do que foi digitado (fuzzy da fonte): fora
-        avaliados.append({**c, '_nome': nome, '_base': base, '_no_nome': base > 1.0})
+        junto = ''.join(nome.split())
+        base = 0.0
+        colados = [''.join(n.split()) for n in nomes]   # "parkshopping" é "park shopping" sem o espaço
+        for v in qs:
+            m = _casa(v.split(), tn, junto)
+            if m == 'aprox':
+                base = max(base, 1.2)
+            elif m:
+                vc = v.replace(' ', '')
+                exato = v in nomes or vc in colados
+                comeca = any(n.startswith(v) for n in nomes) or any(n.startswith(vc) for n in colados)
+                base = max(base, 3.6 if exato else 2.2 if comeca else 1.6)
+        if base == 0.0:
+            ender = tn + normalizar(f"{c.get('sublabel', '')} {c.get('bairro') or ''}").split()
+            if any(_casa(v.split(), ender) for v in qs):
+                base = 0.6  # o texto bate só no endereço
+            else:
+                continue  # nada do que foi digitado (fuzzy da fonte): fora
+        cat = normalizar(CATEGORIAS.get(c.get('categoria_codigo'), ''))
+        # Marco só pesa quando o NOME bate forte ("Ceilândia" não vira a escola que a cita) ou
+        # quando a pessoa digitou a categoria ("hospital taguatinga").
+        marco = c.get('categoria_codigo') in MARCOS
+        bonus = 0.8 if marco and (base >= 2.2 or (cat and all(w in palavras_q for w in cat.split()))) else 0.0
+        avaliados.append({**c, '_nome': nome, '_base': base, '_no_nome': base > 1.0, '_marco': marco, '_bonus': bonus})
 
     for c in avaliados:
-        vizinhos = sum(1 for o in avaliados if o is not c and o['_no_nome'] and _km(c, o) < 0.4)
+        # Aglomeração só conta para quem É o nome (exato/começo): lojas que citam o shopping não
+        # herdam o bônus de estar perto de outras lojas que o citam.
+        vizinhos = (sum(1 for o in avaliados if o is not c and o['_no_nome']
+                        and abs(o['lat'] - c['lat']) < 0.004 and _km(c, o) < 0.4)  # 0,004° ≈ 440 m: poda barata
+                    if c['_base'] >= 2.2 else 0)
         c['_pontos'] = (
-            c['_base'] + float(c.get('score') or 0.0)
-            + (0.8 if c.get('categoria_codigo') in MARCOS else 0.0)
+            c['_base'] + min(max(float(c.get('score') or 0.0), 0.0), 1.0) + c['_bonus']
             + 0.25 * min(vizinhos, 4)
-            - PESO_KM * _km(c, ref)
+            - PESO_KM * min(_km(c, ref), KM_MAX_PENALIDADE)
             + (1.0 if tem_numero and c.get('tipo') in TIPO_ENDERECO else 0.0)
         )
     avaliados.sort(key=lambda c: -c['_pontos'])
@@ -152,16 +311,25 @@ def ranquear(q: str, candidatos: List[dict], perto: Tuple[float, float], limite:
     corte = max(1.0, avaliados[0]['_pontos'] - 2.5) if avaliados else 0.0
 
     def repetido(o: dict, c: dict) -> bool:
-        # Mesmo lugar por outra fonte, sub-ponto dele ("Park Shopping Brasília", o carregador
-        # a 50 m do "Park Shopping") ou a mesma via em outro trecho do mesmo bairro.
-        perto_mesmo = _km(o, c) < 0.3 and (o['_nome'] == c['_nome'] or c['_nome'].startswith(o['_nome'] + ' '))
-        mesma_via = (o.get('tipo') == c.get('tipo') == 'Street' and o['_nome'] == c['_nome']
-                     and o.get('bairro') == c.get('bairro'))
-        return perto_mesmo or mesma_via
+        d = _km(o, c)
+        mesmo = o['_nome'] == c['_nome']
+        return (
+            # Mesmo lugar por outra fonte ou sub-ponto dele ("Park Shopping Brasília", o carregador
+            # a 50 m do "Park Shopping")...
+            (d < 0.3 and (mesmo or c['_nome'].startswith(o['_nome'] + ' ')))
+            or (mesmo and d < 0.6)
+            # ...a mesma via em outro trecho (mesmo bairro, ou a menos de 1,5 km)...
+            or (mesmo and o.get('tipo') == c.get('tipo') == 'Street' and (d < 1.5 or o.get('bairro') == c.get('bairro')))
+            # ...ou o que é só parte do marco já escolhido (loja no shopping, setor do hospital).
+            or (o['_marco'] and o['_base'] >= 2.2 and d < 0.25 and c['_base'] < 2.2)
+        )
 
     saida: List[dict] = []
     for c in avaliados:
-        if c['_pontos'] < corte or any(repetido(o, c) for o in saida):
+        if c['_pontos'] < corte:
+            break  # lista ordenada: o resto é pior
+        # No máximo 3 por nome: "W3 Sul" em 8 bairros não é lista, é a mesma via repetida.
+        if any(repetido(o, c) for o in saida) or sum(o['_nome'] == c['_nome'] for o in saida) >= 3:
             continue
         saida.append(c)
         if len(saida) >= limite:
@@ -171,19 +339,65 @@ def ranquear(q: str, candidatos: List[dict], perto: Tuple[float, float], limite:
 
 # --- Fontes ---------------------------------------------------------------------
 
-def _bairro_proximo(lat: float, lon: float, max_km: float = 3.0) -> Optional[str]:
-    """Bairro/setor OSM mais próximo (602 pontos do DF). ponytail: ponto mais próximo,
-    não polígono — erra perto de divisa; trocar por polígonos das RAs se incomodar."""
-    global _bairros
+def _carregar_bairros() -> List[dict]:
+    """602 localidades do OSM, lidas uma vez. Falha de leitura = lista vazia (sem bairro, sem erro)."""
+    global _bairros, _bairros_tok, _B_LAT, _B_LON, _RAS
     if _bairros is None:
         try:
             with open(_BAIRROS_JSON, encoding='utf-8') as f:
-                _bairros = json.load(f)['lugares']
-        except (OSError, ValueError, KeyError):
-            _bairros = []
-    alvo = {'lat': lat, 'lon': lon}
-    melhor = min(_bairros, key=lambda b: _km(alvo, b), default=None)
-    return melhor['nome'] if melhor is not None and _km(alvo, melhor) <= max_km else None
+                lugares = json.load(f)['lugares']
+            toks = [normalizar(b['nome']).split() for b in lugares]
+            lat = np.array([b['lat'] for b in lugares], dtype=float)
+            lon = np.array([b['lon'] for b in lugares], dtype=float)
+            ras = sorted({(' '.join(t), b['nome']) for t, b in zip(toks, lugares) if b.get('tipo') in ('city', 'town')},
+                         key=lambda r: -len(r[0]))
+        except (OSError, ValueError, KeyError, TypeError):
+            lugares, toks, lat, lon, ras = [], [], np.empty(0), np.empty(0), []
+        _bairros, _bairros_tok, _B_LAT, _B_LON, _RAS = lugares, toks, lat, lon, ras
+    return _bairros
+
+
+@lru_cache(maxsize=8192)
+def _bairro_proximo(lat: float, lon: float, max_km: float = 3.0) -> Optional[str]:
+    """Bairro/setor OSM mais próximo (602 pontos do DF). ponytail: ponto mais próximo,
+    não polígono — erra perto de divisa; trocar por polígonos das RAs se incomodar."""
+    if not _carregar_bairros():
+        return None
+    dy = (_B_LAT - lat) * 110.6
+    dx = (_B_LON - lon) * 111.3 * math.cos(math.radians(lat))
+    d = np.hypot(dx, dy)
+    i = int(d.argmin())
+    return _bairros[i]['nome'] if d[i] <= max_km else None
+
+
+def _regiao_de(nome_norm: str) -> str:
+    """Região administrativa que o próprio nome cita ("Ceilândia Norte" -> Ceilândia); superquadra
+    e comércio local -> Plano Piloto. Pelo nome, não pelo ponto mais próximo: a RA mais próxima de
+    uma superquadra da Asa Sul era o Sudoeste."""
+    texto = f' {nome_norm} '
+    for ra_norm, ra in _RAS:
+        if ra_norm != nome_norm and f' {ra_norm} ' in texto:
+            return ra
+    return 'Plano Piloto' if nome_norm.split()[0] in ('sqs', 'sqn', 'cls', 'cln') else ''
+
+
+def _lugares(vs: List[str], perto: Tuple[float, float], maximo: int = 25) -> List[dict]:
+    """Regiões administrativas, bairros e superquadras do OSM que casam com a consulta (sem rede).
+    ponytail: foto de 2026-09-24; refazer com a consulta Overpass gravada no próprio JSON."""
+    lugares = _carregar_bairros()
+    qts = [v.split() for v in vs]
+    achados = [(b, i) for i, (b, toks) in enumerate(zip(lugares, _bairros_tok))
+               if any(_casa(qt, toks, ''.join(toks)) for qt in qts)]
+    ref = {'lat': perto[0], 'lon': perto[1]}
+    achados.sort(key=lambda bi: _km(ref, bi[0]))
+    itens = []
+    for b, i in achados[:maximo]:
+        regiao = b.get('tipo') in ('city', 'town')
+        pai = '' if regiao else _regiao_de(' '.join(_bairros_tok[i]))
+        itens.append({'label': b['nome'], 'sublabel': pai, 'lat': b['lat'], 'lon': b['lon'],
+                      'bairro': pai or None, 'tipo': 'Place', 'score': 0.9, 'fonte': 'malha',
+                      'categoria_codigo': 'REGIAO' if regiao else 'BAIRRO'})
+    return itens
 
 
 def _via_sublabel(tipo_via: Optional[str]) -> str:
@@ -202,23 +416,27 @@ def _via_sublabel(tipo_via: Optional[str]) -> str:
     return mapa.get((tipo_via or '').lower(), 'Via')
 
 
-async def _malha(sb, q: str, limite: int) -> List[dict]:
-    """Vias da malha local cujo nome contém os termos, na ordem digitada."""
-    # [^\W_] = letra ou dígito (com acento): % e _ do usuário nunca viram curinga do ILIKE.
-    termos = [ABREV.get(t, t) for t in re.findall(r'[^\W_]+', q.lower())]
-    if not termos:
-        return []
-    padrao = '%' + '%'.join(termos) + '%'
-    try:
-        resp = await asyncio.to_thread(
-            lambda: sb.table('malha_completa').select('id_via, nome_via, tipo_via, latitude, longitude')
-            .ilike('nome_via', padrao).limit(limite * 6).execute()
-        )
-    except Exception as e:
-        logger.warning(f"Falha ao consultar malha_completa: {e}")
-        return []
+# O Postgres do Supabase não tem unaccent exposto no PostgREST; o jeito sem DDL é uma regex em
+# que cada vogal vira a classe com as formas acentuadas (a caixa fica por conta do imatch).
+_ACENTOS = {
+    'a': 'aáàâãäAÁÀÂÃÄ', 'e': 'eéèêëEÉÈÊË', 'i': 'iíìîïIÍÌÎÏ', 'o': 'oóòôõöOÓÒÔÕÖ',
+    'u': 'uúùûüUÚÙÛÜ', 'c': 'cçCÇ', 'n': 'nñNÑ',
+}
+
+
+# \s e não um espaço literal: na URL o espaço vira "+", e o PostgREST não precisa adivinhar.
+SEPARADOR = r'[\s./-]*'
+
+
+def _regex_palavra(tokens: List[str]) -> str:
+    """Regex de UMA palavra digitada. Os tokens (sqs + 308) aceitam separador entre si ("SQS 308").
+    Só entra [a-z0-9]: nada que o usuário digite vira operador de regex."""
+    return SEPARADOR.join(''.join(f'[{_ACENTOS[ch]}]' if ch in _ACENTOS else ch for ch in t) for t in tokens)
+
+
+def _itens_malha(rows: list) -> List[dict]:
     vistos, itens = set(), []
-    for row in resp.data or []:
+    for row in rows or []:
         nome = (row.get('nome_via') or '').strip()
         if not nome or row.get('latitude') is None or row.get('longitude') is None:
             continue
@@ -230,6 +448,66 @@ async def _malha(sb, q: str, limite: int) -> List[dict]:
         itens.append({'label': nome, 'sublabel': ' · '.join(x for x in (bairro, _via_sublabel(row.get('tipo_via'))) if x),
                       'lat': lat, 'lon': lon, 'bairro': bairro, 'tipo': 'Street', 'score': 0.9,
                       'fonte': 'malha', 'id_ponto': row.get('id_via')})
+    return itens
+
+
+async def _consultar_malha(sb, palavras: List[List[str]], cru: Optional[str]) -> List[dict]:
+    """Uma consulta à malha: regex sem acento; se o PostgREST a recusar, ILIKE como antes
+    (`cru` = texto digitado; sem ele, só a regex é possível)."""
+    global _regex_pausado_ate
+    regex = '.*'.join(_regex_palavra(p) for p in palavras[:6])
+    usar_regex = time.monotonic() >= _regex_pausado_ate
+    chave = (usar_regex, regex if usar_regex else cru)
+    em_cache = _cache_malha.get(chave)
+    if em_cache is not None:
+        return em_cache
+
+    def consulta(com_regex: bool):
+        t = sb.table('malha_completa').select('id_via, nome_via, tipo_via, latitude, longitude')
+        if com_regex:
+            t = t.filter('nome_via', 'imatch', regex)
+        else:
+            # [^\W_] = letra ou dígito (com acento): % e _ do usuário nunca viram curinga do ILIKE.
+            termos = [ABREV.get(t_, t_) for t_ in re.findall(r'[^\W_]+', cru.lower())]
+            t = t.ilike('nome_via', '%' + '%'.join(termos) + '%')
+        return t.limit(LINHAS_MALHA).execute()
+
+    resp = None
+    if usar_regex:
+        try:
+            resp = await asyncio.to_thread(consulta, True)
+        except Exception as e:
+            logger.warning(f"Malha: consulta por regex falhou ({type(e).__name__}); tentando ILIKE")
+    if resp is None:
+        if cru is None or not re.findall(r'[^\W_]+', cru):
+            return []
+        try:
+            resp = await asyncio.to_thread(consulta, False)
+        except Exception as e:
+            logger.warning(f"Falha ao consultar malha_completa: {type(e).__name__}")
+            return []
+        if usar_regex:  # a regex falhou e o ILIKE passou: PostgREST sem imatch (ou erro do pedido)
+            _regex_pausado_ate = time.monotonic() + 600
+            logger.warning("Malha: imatch recusado; busca da malha segue por ILIKE (sem acento) por 10 min")
+    itens = _itens_malha(resp.data)
+    _cache_malha.set(chave, itens)
+    return itens
+
+
+async def _malha(sb, q: str) -> List[dict]:
+    """Vias da malha local cujo nome contém os termos, na ordem digitada (acento e caixa
+    indiferentes), mais as do 1º apelido do DF quando a consulta cita um."""
+    alts = [a for a in [_palavras(q)] + [_palavras(v) for v in variantes(normalizar(q))[1:2]] if a]
+    if not alts:
+        return []
+    lotes = await asyncio.gather(*[_consultar_malha(sb, a, q if i == 0 else None) for i, a in enumerate(alts)])
+    vistos, itens = set(), []
+    for lote in lotes:
+        for it in lote:
+            chave = (it['label'].lower(), it['bairro'])
+            if chave not in vistos:
+                vistos.add(chave)
+                itens.append(it)
     return itens
 
 
@@ -256,18 +534,29 @@ async def _nominatim(q: str, limite: int) -> List[dict]:
                 headers={'User-Agent': 'Routify/1.0 TCC'},
             )
     except Exception as e:
-        logger.warning(f"Falha Nominatim: {e}")
+        logger.warning(f"Falha Nominatim: {type(e).__name__}")
         return []
     if resp.status_code != 200:
         return []
     itens = []
-    for item in resp.json():
-        label = (item.get('display_name') or '').split(',')[0].strip()
-        if label:
-            itens.append({'label': label, 'sublabel': (item.get('display_name') or '')[:120],
-                          'lat': float(item['lat']), 'lon': float(item['lon']), 'score': 0.5})
+    try:
+        for item in resp.json():
+            label = (item.get('display_name') or '').split(',')[0].strip()
+            if label:
+                itens.append({'label': label, 'sublabel': (item.get('display_name') or '')[:120],
+                              'lat': float(item['lat']), 'lon': float(item['lon']), 'score': 0.5})
+    except (ValueError, KeyError, TypeError, AttributeError):
+        return []  # resposta torta não derruba o autocomplete (e não entra no cache)
     _cache_nominatim.set(chave, itens)
     return itens
+
+
+def _lista(resultado, fonte: str) -> List[dict]:
+    """Uma fonte que quebra vale lista vazia: as outras seguem respondendo."""
+    if isinstance(resultado, BaseException):
+        logger.warning(f"Busca: fonte '{fonte}' falhou ({type(resultado).__name__})")
+        return []
+    return resultado or []
 
 
 @router.get(
@@ -275,12 +564,15 @@ async def _nominatim(q: str, limite: int) -> List[dict]:
     response_model=List[PlaceSuggestion],
     summary="Autocomplete de endereços",
     description=(
-        "Junta a malha local (~38 mil vias do DF) e a busca da TomTom (cache de 24 h) e ranqueia "
-        "tudo junto: nome que bate inteiro > começo do nome > termos no nome > termos só no endereço; "
-        "marcos (shopping, universidade, hospital…) sobem; vários resultados com o nome no mesmo "
-        "ponto indicam o lugar de verdade; homônimos desempatam pela distância de `lat`/`lon` "
-        "(quem busca) ou do centro de Brasília. O Nominatim só entra com menos de 3 resultados "
-        "(a política da OSMF proíbe autocomplete).\n\nO texto digitado **não** é gravado."
+        "Junta a base local (malha de ~38 mil vias e 602 regiões/bairros/superquadras do DF), a busca "
+        "da TomTom (cache de 24 h) e, em último caso, o Nominatim, e ranqueia tudo junto: nome que bate "
+        "inteiro > começo do nome > termos no nome > termos só no endereço; marcos (shopping, "
+        "universidade, hospital…) sobem; vários resultados com o nome no mesmo ponto indicam o lugar de "
+        "verdade; homônimos desempatam pela distância de `lat`/`lon` (quem busca) ou do centro de "
+        "Brasília. Acento e caixa não importam; siglas do DF (EPTG, EPIA, Eixão, UnB, HBDF…) e erro de "
+        "digitação de uma letra são entendidos. Lojas dentro de um marco e a mesma via repetida saem. "
+        "O Nominatim só entra com menos de 3 resultados e 4+ letras (a política da OSMF proíbe "
+        "autocomplete).\n\nO texto digitado **não** é gravado."
     ),
 )
 async def autocomplete(
@@ -291,6 +583,9 @@ async def autocomplete(
     lon: Optional[float] = Query(None, ge=-48.8, le=-46.8, description="Posição de quem busca (viés)."),
 ):
     limitar(_limite_ip, ip_cliente(request))
+    qn = normalizar(q)
+    if not qn:  # só pontuação/símbolo: nada a buscar, nem cota da TomTom a gastar
+        return []
     sb = getattr(request.app.state, 'supabase', None)
     # Só associa a requisição à conta (api_requisicoes); o texto digitado não é gravado.
     request.state.user_id = await usage.usuario_do_token_async(sb, request.headers.get('authorization'))
@@ -299,21 +594,29 @@ async def autocomplete(
     if config is not None:
         await config.atualizar(sb, tt)
     perto = (lat, lon) if lat is not None and lon is not None else CENTRO_BRASILIA
+    vs = variantes(qn)
 
     async def _nada() -> List[dict]:
         return []
 
-    locais, remotos = await asyncio.gather(
-        _malha(sb, q, limit) if sb is not None else _nada(),
-        # 20 = recall: com 10, lojas "...Aeroporto" empurravam o aeroporto para fora. Mesma chamada.
-        tt.buscar(q, 20, perto) if tt is not None and tt.ativo else _nada(),
-    )
-    candidatos = locais + [dict(r, fonte='tomtom') for r in remotos]
-    if len(candidatos) < 3:
-        candidatos += [dict(r, fonte='nominatim') for r in await _nominatim(q, limit)]
+    # 20 = recall: com 10, lojas "...Aeroporto" empurravam o aeroporto para fora. Mesma chamada.
+    # Sem acento nem pontuação: "Park-Shopping" e "park shopping" dividem o cache de 24 h (e a cota).
+    remotas = [tt.buscar(t, 20, perto) for t in [texto_tomtom(q)] + vs[1:2]] if tt is not None and tt.ativo else []
+    achados = await asyncio.gather(_malha(sb, q) if sb is not None else _nada(), *remotas, return_exceptions=True)
+    locais = _lista(achados[0], 'malha')
+    remotos = [r for a in achados[1:] for r in _lista(a, 'tomtom')]
+    candidatos = locais + _lugares(vs, perto) + [dict(r, fonte='tomtom') for r in remotos]
+
+    saida = ranquear(q, candidatos, perto, limit, vs)
+    # Só conta o que sobrou do ranking: três resultados fuzzy da TomTom que não casam com nada
+    # não impedem o último recurso. A trava de 1 s e o cache de 24 h seguem valendo.
+    if len(saida) < 3 and len(qn) >= 4:
+        extras = await _nominatim(q, limit)
+        if extras:
+            saida = ranquear(q, candidatos + [dict(r, fonte='nominatim') for r in extras], perto, limit, vs)
 
     return [
         PlaceSuggestion(label=rotulo(c), sublabel=c.get('sublabel') or '', lat=c['lat'], lon=c['lon'],
                         source=c.get('fonte', 'tomtom'), categoria=categoria(c), id_ponto=c.get('id_ponto'))
-        for c in ranquear(q, candidatos, perto, limit)
+        for c in saida
     ]

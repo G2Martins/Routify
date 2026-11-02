@@ -1,8 +1,17 @@
 """Ranking do autocomplete (routers/search.py): caso real "park shopping" (2026-09-23)."""
 import asyncio
 
+import pytest
+
 from routers import search
 from tomtom import CENTRO_BRASILIA
+
+
+@pytest.fixture(autouse=True)
+def _estado_limpo(monkeypatch):
+    """A pausa da regex e o cache da malha são do processo: um teste não pode vazar para o outro."""
+    monkeypatch.setattr(search, '_regex_pausado_ate', 0.0)
+    monkeypatch.setattr(search, '_cache_malha', search.CacheTTL(3600, max_itens=512))
 
 # Resposta real da TomTom (nota ~0,99 para todos): a 1ª era uma loja de São Sebastião.
 PARK = [
@@ -49,6 +58,7 @@ def test_normalizar_acento_pontuacao_abreviacao():
 
 
 def test_malha_nao_deixa_curinga_do_usuario():
+    # Este fake só tem ILIKE: a consulta por regex falha e a malha recua para o ILIKE de antes.
     padroes = []
 
     class _Consulta:
@@ -69,7 +79,7 @@ def test_malha_nao_deixa_curinga_do_usuario():
         def table(self, _):
             return _Consulta()
 
-    asyncio.run(search._malha(_Sb(), 'eptg%_x qd 5', 6))
+    asyncio.run(search._malha(_Sb(), 'eptg%_x qd 5'))
     assert padroes == ['%eptg%x%quadra%5%']
 
 

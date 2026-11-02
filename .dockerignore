@@ -29,3 +29,4 @@ ml/artifacts/*
 !ml/artifacts/semaforos_osm_38km.json
 !ml/artifacts/semaforos_calibracao.json
 !ml/artifacts/velocidade_livre_tomtom.json
+!ml/artifacts/bairros_df.json
