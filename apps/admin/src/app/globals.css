@@ -106,7 +106,8 @@
   --color-alerta: hsl(var(--alerta));
   --font-sans: var(--font-geist-sans), system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
-  --font-display: var(--font-kalam), cursive;
+  /* Títulos: Geist leve com tracking negativo (o Valerium largou a Kalam em 2026-10-10; o Routify, em 2026-11-02). */
+  --font-display: var(--font-geist-sans), system-ui, sans-serif;
   --radius-lg: var(--radius);
   --radius-xl: 0.75rem;
   --shadow-card: 0 1px 3px hsl(var(--sombra) / 0.08), 0 0 0 1px hsl(var(--sombra) / 0.05);
@@ -160,6 +161,7 @@ body::before {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: none; }
 }
+.font-display { font-weight: 400; letter-spacing: -0.03em; }
 .surgir { animation: surgir 0.76s var(--ease-out-expo) both; }
 /* Diálogo: troca de estado (240 ms). */
 dialog[open] { animation: surgir 0.24s var(--ease-out-expo) both; }

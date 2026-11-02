@@ -95,6 +95,11 @@ CI (`.github/workflows/`):
   - papel ADM em `app_metadata.role` + `is_admin()` nas RPCs e policies;
   - rate limit por IP em `/route` (20/min) e `/search` (90/min), com 429 + `Retry-After`. O IP vem do `X-Forwarded-For` só com `TRUST_PROXY=1`;
   - ações de admin auditadas: RPC com advisory lock + intervalo mínimo + `admin_auditoria` append-only na mesma transação. Não rebaixa a si mesmo nem o último admin.
+- **Verificação em duas etapas (2026-11-02):** TOTP do Supabase Auth, opcional para todos (Perfil → Segurança).
+  Quem ativou precisa de sessão aal2: o app mostra a etapa 2 (`MfaVerificarScreen`) depois da senha; o banco exige
+  `aal_ok()` no `is_admin()` e nas policies de `route_history` (migration `20261102020000_mfa_aal2.sql`); a API
+  repete em `seguranca.exigir_admin`; o painel manda a sessão aal1 de volta ao app. Quem não ativou nunca é barrado.
+  Sem códigos de recuperação ainda: perdeu o celular, um admin remove o fator no painel do Supabase (Auth → Users).
 - **Ainda aberto:**
   - os limites ficam em memória: zeram em restart e não valem entre réplicas. Com mais de 1 réplica, mover pra tabela ou Redis;
   - `/route` e `/search` seguem aceitando chamada anônima (limitada por IP).

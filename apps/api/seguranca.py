@@ -3,6 +3,8 @@ exigência de admin. Cliente é hostil por padrão — nada aqui confia em dado 
 corpo da requisição para decidir quem é quem.
 """
 import asyncio
+import base64
+import json
 import os
 import time
 from collections import defaultdict, deque
@@ -75,6 +77,16 @@ def ip_cliente(request: Request) -> str:
     return request.client.host if request.client else 'desconhecido'
 
 
+def aal_do_token(token: str) -> str:
+    """Claim `aal` do JWT. Só leitura do payload: chamar depois de validar o token no Supabase
+    (get_user), nunca como prova de identidade."""
+    try:
+        payload = token.split('.')[1]
+        return json.loads(base64.urlsafe_b64decode(payload + '=' * (-len(payload) % 4))).get('aal') or 'aal1'
+    except (IndexError, ValueError, AttributeError):
+        return 'aal1'
+
+
 async def exigir_admin(request: Request) -> str:
     """Dependência dos endpoints /admin: valida o JWT no Supabase Auth a cada
     chamada (sem cache — um admin rebaixado perde o acesso na hora) e exige
@@ -94,6 +106,10 @@ async def exigir_admin(request: Request) -> str:
         raise HTTPException(status_code=401, detail='Sessão inválida ou expirada.')
     if (getattr(user, 'app_metadata', None) or {}).get('role') != 'admin':
         raise HTTPException(status_code=403, detail='Acesso restrito a administradores.')
+    # Quem ativou a verificação em duas etapas precisa de sessão aal2 (mesma regra do aal_ok() no banco).
+    if any(getattr(f, 'status', None) == 'verified' for f in (getattr(user, 'factors', None) or [])) \
+            and aal_do_token(auth[7:].strip()) != 'aal2':
+        raise HTTPException(status_code=403, detail='Confirme o código da verificação em duas etapas.')
     request.state.user_id = str(user.id)
     return str(user.id)
 

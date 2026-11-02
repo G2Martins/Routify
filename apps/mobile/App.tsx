@@ -9,7 +9,6 @@ import { Geist_600SemiBold } from '@expo-google-fonts/geist/600SemiBold';
 import { Geist_700Bold } from '@expo-google-fonts/geist/700Bold';
 import { GeistMono_500Medium } from '@expo-google-fonts/geist-mono/500Medium';
 import { GeistMono_700Bold } from '@expo-google-fonts/geist-mono/700Bold';
-import { Kalam_700Bold } from '@expo-google-fonts/kalam/700Bold';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { AuthProvider } from './src/context/AuthContext';
 import RootNavigator from './src/navigation/MainNavigator';
@@ -50,7 +49,6 @@ export default function App() {
     Geist_700Bold,
     GeistMono_500Medium,
     GeistMono_700Bold,
-    Kalam_700Bold,
   });
 
   // Sem as fontes o layout "pula" ao trocar; com erro, segue com a do sistema.

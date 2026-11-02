@@ -21,6 +21,8 @@ import DashboardScreen from '../screens/DashboardScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import LoginScreen from '../screens/LoginScreen';
+import MfaVerificarScreen from '../screens/MfaVerificarScreen';
+import SegurancaScreen from '../screens/SegurancaScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import EditProfileScreen from '../screens/EditProfileScreen';
 import PrivacyScreen from '../screens/PrivacyScreen';
@@ -47,6 +49,7 @@ function ProfileStackNavigator() {
       <ProfileStack.Screen name="ProfileHome" component={ProfileScreen} />
       <ProfileStack.Screen name="EditProfile" component={EditProfileScreen} />
       <ProfileStack.Screen name="Privacy" component={PrivacyScreen} />
+      <ProfileStack.Screen name="Seguranca" component={SegurancaScreen} />
     </ProfileStack.Navigator>
   );
 }
@@ -182,13 +185,16 @@ function AuthStack() {
 
 // Só em desenvolvimento (__DEV__ some do export de produção): ?preview=mapa abre o app sem sessão,
 // para inspecionar o mapa sem criar usuário de teste no Supabase de produção.
-const PREVIEW =
-  __DEV__ && typeof window !== 'undefined' && !!window.location &&
-  new URLSearchParams(window.location.search).get('preview') === 'mapa';
+const PREVIEW_PARAM =
+  __DEV__ && typeof window !== 'undefined' && !!window.location
+    ? new URLSearchParams(window.location.search).get('preview')
+    : null;
+const PREVIEW = PREVIEW_PARAM === 'mapa';
+const PREVIEW_MFA = PREVIEW_PARAM === 'mfa';
 
 export default function RootNavigator() {
   const { theme, mode } = useTheme();
-  const { session, loading } = useAuth();
+  const { session, loading, mfaPendente } = useAuth();
   const c = theme.colors;
 
   if (loading) {
@@ -220,7 +226,7 @@ export default function RootNavigator() {
 
   return (
     <NavigationContainer ref={navigationRef} theme={navTheme}>
-      {session || PREVIEW ? <MainTabs /> : <AuthStack />}
+      {PREVIEW_MFA || (session && mfaPendente) ? <MfaVerificarScreen /> : session || PREVIEW ? <MainTabs /> : <AuthStack />}
     </NavigationContainer>
   );
 }

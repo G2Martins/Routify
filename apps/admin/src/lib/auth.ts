@@ -14,6 +14,10 @@ export async function exigirAdmin() {
     data: { user },
   } = await sb.auth.getUser();
   if (!user) redirect(APP_URL);
+  // Quem ativou a verificação em duas etapas e só passou a senha: o app mostra a etapa 2.
+  // O banco (aal_ok() no is_admin) barraria as RPCs de qualquer jeito; isto evita a tela "sem acesso".
+  const { data: aal } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (aal?.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') redirect(APP_URL);
   if (user.app_metadata?.role !== 'admin') redirect('/admin/sem-acesso');
   return { sb, user };
 }

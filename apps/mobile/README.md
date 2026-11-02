@@ -30,6 +30,14 @@ Cliente do **Routify** rodando em **iOS, Android e Web** via Expo + React Native
 - web: padrão combobox/listbox para leitor de tela; sem o histórico do navegador por cima da lista;
 - eventos sem texto nem coordenada (LGPD).
 
+**Login e verificação em duas etapas:**
+- login e cadastro na linguagem de auth do Valerium: títulos em Geist leve, rótulo técnico em mono, cartão elevado,
+  entrada `Surgir auth` (480 ms, 70 ms por item); erro genérico (não revela se a conta existe);
+- Perfil → Segurança ativa o TOTP: QR na web (fundo branco fixo), "Abrir no app autenticador" e chave no celular;
+  o primeiro código confirma. Quem ativou cai na etapa 2 (`MfaVerificarScreen`) depois da senha: `CodigoOtp`
+  com envio automático, tremida no erro, pausa de 30 s depois de 5 erros e "Entrar com outra conta";
+- em dev, `?preview=mfa` abre a etapa 2 sem sessão (só para ver a tela).
+
 **Mapa:**
 - web: MapLibre GL 5.24 com tiles vetoriais da [OpenFreeMap](https://openfreemap.org) (grátis, sem chave). O estilo
   `positron` é recolorido camada a camada com a paleta do app (`mapPalettes` em `constants/Theme.ts`, montagem em

@@ -129,6 +129,13 @@ export default function ProfileScreen({ navigation }: any) {
               sub="O que coletamos e seus direitos (LGPD)"
               onPress={() => navigation?.navigate('Privacy')}
             />
+            <View style={[styles.divisor, { backgroundColor: c.border }]} />
+            <LinhaConta
+              icone="ion:shield-checkmark-outline"
+              titulo="Segurança"
+              sub="Verificação em duas etapas"
+              onPress={() => navigation?.navigate('Seguranca')}
+            />
           </Cartao>
         </Surgir>
 

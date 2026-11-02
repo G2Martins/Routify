@@ -1,6 +1,6 @@
 # Design system — Routify
 
-**Última revisão:** 2026-09-23
+**Última revisão:** 2026-11-02
 
 Duas fontes de verdade, que precisam ficar espelhadas:
 - app (Expo): [apps/mobile/src/constants/Theme.ts](../../apps/mobile/src/constants/Theme.ts);
@@ -42,9 +42,10 @@ Mudou um token num lugar → muda no outro no mesmo PR.
 | --- | --- |
 | UI e texto | **Geist Sans** (400/500/600/700) |
 | Números (tempo, km, RMSE, contagens) | **Geist Mono**, sempre com alinhamento tabular |
-| Títulos de página e de cartão | **Kalam** 700 — **nunca** em números ou em texto corrido |
+| Títulos de página e de cartão | **Geist Sans 400** com tracking negativo (h1 −0,9 · h2 −0,6; h3 em 500). A Kalam saiu em 2026-11-02, como no Valerium em 2026-10-10 ("lia como rascunho") |
+| Rótulo técnico acima do título (`eyebrow`) | **Geist Mono** 11 px, caixa-alta, espaçamento 1,8 ("ETAPA 2 DE 2 · VERIFICAÇÃO") |
 
-- **Escala (px):** display 40 · h1 32 · h2 26 · h3 21 · h4 16 · corpo 15 · legenda 13 · micro 11 (caixa-alta, +0,6 de espaçamento).
+- **Escala (px):** display 40 · h1 32 · h2 26 · h3 20 · h4 16 · corpo 15 · legenda 13 · micro 11 (caixa-alta, +0,6 de espaçamento).
 - **Carregamento:** app via `@expo-google-fonts/*` (em `App.tsx`); painel via `next/font`.
 
 ## Forma
@@ -70,6 +71,9 @@ Mudou um token num lugar → muda no outro no mesmo PR.
 | troca de estado | 240 ms | ease-out-expo `cubic-bezier(.16,1,.3,1)` |
 | entrada de tela e cartões | 760 ms | ease-out-expo; sobe 12 px + opacidade, escalonado em 60 ms por item |
 | carregamento | loop de 1,4 s | skeleton com brilho deslizante (nunca spinner solto em lista) |
+| telas de auth (`Surgir auth`) | 480 ms | ease-out-expo; sobe 10 px + opacidade, 70 ms por item (o `auth-rise` do Valerium) |
+| código de verificação (`CodigoOtp`) | dígito 220 ms · tremida 420 ms · varredura 1,1 s · cursor 1,25 s | pop escala 0,55 → 1,08 → 1; erro `cubic-bezier(.36,.07,.19,.97)` com −2/4/−6/6/−6/6/−6/4/−2 px, limpa e refoca |
+| mapa (web) | rota 1,4 s · cometa 2,4 s a cada 1,6 s | a rota "se desenha" (gradiente azul → ciano → teal); entrada do mapa com desfoque de 10 px em 760 ms; pino cai com mola `cubic-bezier(.34,1.56,.64,1)` |
 
 - Blur só em entrada, nunca em hover (custo de GPU).
 - `prefers-reduced-motion` desliga entradas e loops (`useMenosMovimento`).
@@ -78,7 +82,9 @@ Mudou um token num lugar → muda no outro no mesmo PR.
 
 [apps/mobile/src/components/ui.tsx](../../apps/mobile/src/components/ui.tsx):
 - `Container`, `Surgir`, `Cartao`, `TituloPagina`, `RotuloSecao`;
-- `Selo`, `Kpi` + `GradeKpi`, `Segmentado`, `Skeleton`, `FaixaMarca`;
+- `Selo`, `Kpi` + `GradeKpi`, `Segmentado`, `Skeleton`, `FaixaMarca`; `Cartao elevado` (raio 16 e sombra longa `0 24px 70px -40px`) para login e verificação;
+- [`CodigoOtp`](../../apps/mobile/src/components/CodigoOtp.tsx): 6 tiles com um `TextInput` invisível por cima (colar e autopreenchimento funcionam), envia sozinho no último dígito;
+- o mapa web: paleta `mapPalettes` e cores de trânsito `trafficColors` em `constants/Theme.ts` (estilo em `components/mapa/estiloMapa.ts`);
 - mais o [`Button`](../../apps/mobile/src/components/Button.tsx).
 
 Tela nova monta com elas. Estilo solto só para o que é específico da tela.

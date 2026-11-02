@@ -13,13 +13,14 @@ import trajeto
 CHAVES = [{'id': 'k1', 'key': 'SEGREDO-1'}, {'id': 'k2', 'key': 'SEGREDO-2'}]
 
 
-def _request(auth=None, papel=None, erro=False):
-    """Request mínimo com um Supabase falso: get_user devolve o papel pedido."""
+def _request(auth=None, papel=None, erro=False, fatores=()):
+    """Request mínimo com um Supabase falso: get_user devolve o papel (e os fatores de MFA) pedidos."""
     def get_user(_token):
         if erro:
             raise RuntimeError('token inválido')
         meta = {'role': papel} if papel else {}
-        return types.SimpleNamespace(user=types.SimpleNamespace(id='u-1', app_metadata=meta))
+        return types.SimpleNamespace(user=types.SimpleNamespace(
+            id='u-1', app_metadata=meta, factors=[types.SimpleNamespace(status=s) for s in fatores]))
     sb = types.SimpleNamespace(auth=types.SimpleNamespace(get_user=get_user))
     return types.SimpleNamespace(
         app=types.SimpleNamespace(state=types.SimpleNamespace(supabase=sb)),
@@ -113,3 +114,25 @@ def test_peso_soma_atraso_de_semaforo_e_respeita_interdicao():
     assert nx.astar_path(G, 1, 3, weight=tomtom.peso_sem_interditadas(set())) == [1, 2, 3]
     assert nx.astar_path(G, 1, 3, weight=tomtom.peso_sem_interditadas(set(), atraso_semaforo=10)) == [1, 3]
     assert nx.astar_path(G, 1, 3, weight=tomtom.peso_sem_interditadas({(1, 3, 0)}, atraso_semaforo=10)) == [1, 2, 3]
+
+
+def _jwt(aal):
+    """Token com o claim aal (assinatura irrelevante: o get_user falso já 'validou')."""
+    import base64
+    import json
+    corpo = base64.urlsafe_b64encode(json.dumps({'sub': 'u-1', 'aal': aal}).encode()).decode().rstrip('=')
+    return f'Bearer eyJhbGciOiJIUzI1NiJ9.{corpo}.assinatura'
+
+
+def test_admin_com_mfa_ativo_precisa_de_sessao_aal2():
+    assert _status(seguranca.exigir_admin(_request(_jwt('aal1'), papel='admin', fatores=['verified']))) == 403
+    assert asyncio.run(seguranca.exigir_admin(_request(_jwt('aal2'), papel='admin', fatores=['verified']))) == 'u-1'
+    # Fator abandonado (não verificado) não conta; sem MFA, aal1 basta (ninguém fica trancado fora).
+    assert asyncio.run(seguranca.exigir_admin(_request(_jwt('aal1'), papel='admin', fatores=['unverified']))) == 'u-1'
+    assert asyncio.run(seguranca.exigir_admin(_request(_jwt('aal1'), papel='admin'))) == 'u-1'
+
+
+def test_aal_do_token_lixo_vira_aal1():
+    assert seguranca.aal_do_token('nao-e-jwt') == 'aal1'
+    assert seguranca.aal_do_token('a.%%%.c') == 'aal1'
+    assert seguranca.aal_do_token(_jwt('aal2')[7:]) == 'aal2'

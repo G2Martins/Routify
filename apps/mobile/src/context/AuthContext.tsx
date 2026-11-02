@@ -13,6 +13,11 @@ interface AuthContextValue {
   signUp: (email: string, password: string, nome: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  /** Tem 2º fator (TOTP) verificado e a sessão ainda é só senha (aal1): falta a etapa 2 do login.
+   *  Porta da interface; quem barra de fato é o banco (aal_ok() nas policies) e a API. */
+  mfaPendente: boolean;
+  /** Relê o nível de garantia (depois de verificar, ativar ou desativar o 2º fator). */
+  atualizarAal: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -21,6 +26,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mfaPendente, setMfaPendente] = useState(false);
+  const [aalPronto, setAalPronto] = useState(false);
+
+  // Lê do próprio JWT e dos fatores da sessão (sem rede). Em erro, não trava a interface: o
+  // banco e a API seguem exigindo aal2 de quem tem o 2º fator.
+  const atualizarAal = async () => {
+    try {
+      const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      setMfaPendente(!!data && data.nextLevel === 'aal2' && data.currentLevel !== 'aal2');
+    } catch {
+      setMfaPendente(false);
+    } finally {
+      setAalPronto(true);
+    }
+  };
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -43,6 +63,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .maybeSingle();
     setProfile((data as ProfileRow) || null);
   };
+
+  useEffect(() => {
+    if (!session) {
+      setMfaPendente(false);
+      setAalPronto(true);
+      return;
+    }
+    setAalPronto(false);
+    atualizarAal();
+  }, [session?.access_token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -78,12 +108,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     session,
     user: session?.user ?? null,
     profile,
-    loading,
+    loading: loading || (!!session && !aalPronto),
     isAdmin: session?.user?.app_metadata?.role === 'admin',
     signIn,
     signUp,
     signOut,
     refreshProfile,
+    mfaPendente,
+    atualizarAal,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

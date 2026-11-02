@@ -244,7 +244,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
   const form = (
     <View style={styles.formCol}>
       {desktop ? (
-        <Cartao padding={32}>{children}</Cartao>
+        <Cartao elevado padding={32}>{children}</Cartao>
       ) : (
         <>
           <Surgir ordem={0} style={styles.logoMobile}>
@@ -376,12 +376,13 @@ export default function LoginScreen({ navigation }: any) {
 
   return (
     <AuthShell>
-      <Surgir ordem={1}>
-        <Text style={[theme.typography.h2, { color: c.text }]}>Bem-vindo de volta</Text>
+      <Surgir auth ordem={1}>
+        <Text style={[theme.typography.eyebrow, { color: c.textSubtle }]}>Rotas previstas pela LIA</Text>
+        <Text style={[theme.typography.h2, { color: c.text, marginTop: 8 }]}>Bem-vindo de volta</Text>
         <Text style={[theme.typography.body, { color: c.textMuted, marginTop: 4 }]}>Entre para ver suas rotas e o histórico.</Text>
       </Surgir>
 
-      <Surgir ordem={2} style={{ marginTop: 24 }}>
+      <Surgir auth ordem={2} style={{ marginTop: 24 }}>
         <Input
           label="E-mail"
           iconLeft="ion:mail-outline"
@@ -420,7 +421,7 @@ export default function LoginScreen({ navigation }: any) {
         />
       </Surgir>
 
-      <Surgir ordem={3} style={{ gap: 16 }}>
+      <Surgir auth ordem={3} style={{ gap: 16 }}>
         {erro ? (
           <Aviso tom="erro" detalhe={erro === MSG_INVALIDO ? 'Acabou de criar a conta? Confirme o e-mail antes de entrar.' : undefined}>
             {erro}
@@ -442,7 +443,7 @@ export default function LoginScreen({ navigation }: any) {
         ) : null}
       </Surgir>
 
-      <Surgir ordem={4} style={[styles.rodape, { borderTopColor: c.border }]}>
+      <Surgir auth ordem={4} style={[styles.rodape, { borderTopColor: c.border }]}>
         <Text style={[theme.typography.caption, { color: c.textMuted }]}>Não tem conta?</Text>
         <LinkTexto onPress={() => navigation.navigate('Register')}>Criar conta</LinkTexto>
       </Surgir>

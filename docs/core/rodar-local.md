@@ -45,6 +45,7 @@ As migrations de `supabase/migrations/` precisam estar aplicadas, na ordem:
 7. `20260923040000_minutos_economizados.sql` — minutos economizados nos painéis.
 8. `20261102000000_lia_vs_provedores.sql` — tabela do comparador LIA × provedores e a RPC da página `/admin/provedores` (sem ela a página mostra o aviso de migration pendente).
 9. `20261102010000_provedores_historicos.sql` — RPC `admin_provedores_historicos`: a LIA contra o ETA histórico da TomTom no mesmo trajeto e o típico do Mapbox (cartão da página `/admin/provedores`).
+10. `20261102020000_mfa_aal2.sql` — verificação em duas etapas: `aal_ok()` no `is_admin()` e nas policies de `route_history` (quem ativou o TOTP precisa de sessão aal2; quem não ativou não muda nada).
 
 **Opção A — SQL Editor (mais simples).** No painel do Supabase → **SQL Editor** → **New query**, cole o conteúdo dos arquivos (nessa ordem) e clique em **Run**. Tudo é idempotente: rodar de novo não estraga nada.
 

@@ -33,15 +33,18 @@ export function useMenosMovimento(): boolean {
   return reduzir;
 }
 
-/** Entrada: sobe 12 px e aparece, ease-out-expo. `ordem` escalona listas. */
+/** Entrada: sobe 12 px e aparece, ease-out-expo. `ordem` escalona listas. `auth`: 480 ms, 10 px e
+ * 70 ms por item (auth-rise do Valerium), para login, cadastro e verificação. */
 export function Surgir({
   children,
   ordem = 0,
   style,
+  auth = false,
 }: {
   children: React.ReactNode;
   ordem?: number;
   style?: StyleProp<ViewStyle>;
+  auth?: boolean;
 }) {
   const { theme } = useTheme();
   const reduzir = useMenosMovimento();
@@ -50,8 +53,8 @@ export function Surgir({
   useEffect(() => {
     const anim = Animated.timing(v, {
       toValue: 1,
-      duration: reduzir ? 0 : theme.motion.entrada,
-      delay: reduzir ? 0 : ordem * theme.motion.passo,
+      duration: reduzir ? 0 : auth ? theme.motion.auth.duracao : theme.motion.entrada,
+      delay: reduzir ? 0 : ordem * (auth ? theme.motion.auth.passo : theme.motion.passo),
       easing: theme.motion.easeOutExpo,
       useNativeDriver: NATIVO,
     });
@@ -59,7 +62,7 @@ export function Surgir({
     return () => anim.stop();
   }, [reduzir]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const translateY = v.interpolate({ inputRange: [0, 1], outputRange: [12, 0] });
+  const translateY = v.interpolate({ inputRange: [0, 1], outputRange: [auth ? theme.motion.auth.deslocamento : 12, 0] });
   return <Animated.View style={[{ opacity: v, transform: [{ translateY }] }, style]}>{children}</Animated.View>;
 }
 
@@ -79,11 +82,14 @@ export function Cartao({
   onPress,
   style,
   padding = 20,
+  elevado = false,
 }: {
   children: React.ReactNode;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
   padding?: number;
+  /** Raio 16 e sombra longa (cartão de login/verificação, como no Valerium). */
+  elevado?: boolean;
 }) {
   const { theme } = useTheme();
   const c = theme.colors;
@@ -91,9 +97,11 @@ export function Cartao({
     backgroundColor: c.surface,
     borderColor: c.border,
     borderWidth: StyleSheet.hairlineWidth * 2,
-    borderRadius: theme.radius.md,
+    borderRadius: elevado ? theme.radius.lg : theme.radius.md,
     padding,
-    boxShadow: `0 1px 3px ${c.shadowLight}, 0 0 0 1px ${c.shadowLight}`,
+    boxShadow: elevado
+      ? `0 24px 70px -40px ${c.shadowMedium}, 0 1px 3px ${c.shadowLight}`
+      : `0 1px 3px ${c.shadowLight}, 0 0 0 1px ${c.shadowLight}`,
   };
   if (!onPress) return <View style={[base, style]}>{children}</View>;
   return (
@@ -126,7 +134,7 @@ export function RotuloSecao({ children, style }: { children: string; style?: Sty
   );
 }
 
-/** Título de página em Kalam + subtítulo; `direita` para ações. */
+/** Título de página (Geist leve) + subtítulo; `direita` para ações. */
 export function TituloPagina({ titulo, sub, direita }: { titulo: string; sub?: string; direita?: React.ReactNode }) {
   const { theme } = useTheme();
   return (

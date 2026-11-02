@@ -2,7 +2,8 @@
  * Tokens do Routify — espelho de docs/core/design-system.md.
  *
  * Paleta = logo (azul → ciano → teal, wordmark navy). Forma, tipografia e
- * motion = linguagem Valerium: Geist para UI e números, Kalam só em títulos,
+ * motion = linguagem Valerium: só Geist (títulos leves com tracking negativo; a Kalam saiu em 2026-11-02,
+ * como no Valerium em 2026-10-10),
  * raio 8/12, sombras de cartão tingidas de navy, entradas ease-out-expo.
  * Componentes consomem daqui — nunca hex solto em tela.
  */
@@ -45,15 +46,15 @@ export const fonts = {
   sansBold: 'Geist_700Bold',
   mono: 'GeistMono_500Medium',
   monoBold: 'GeistMono_700Bold',
-  display: 'Kalam_700Bold',
+  display: 'Geist_400Regular', // títulos grandes: Geist leve, tracking negativo
 };
 
 // Com fonte custom, o peso vem da família (fontWeight junto quebra no Android).
 export const typography = {
   display: { fontFamily: fonts.sansBold, fontSize: 40, lineHeight: 46, letterSpacing: -1 },
-  h1: { fontFamily: fonts.display, fontSize: 32, lineHeight: 40 },
-  h2: { fontFamily: fonts.display, fontSize: 26, lineHeight: 34 },
-  h3: { fontFamily: fonts.display, fontSize: 21, lineHeight: 28 },
+  h1: { fontFamily: fonts.display, fontSize: 32, lineHeight: 38, letterSpacing: -0.9 },
+  h2: { fontFamily: fonts.display, fontSize: 26, lineHeight: 32, letterSpacing: -0.6 },
+  h3: { fontFamily: fonts.sansMedium, fontSize: 20, lineHeight: 26, letterSpacing: -0.3 },
   h4: { fontFamily: fonts.sansSemi, fontSize: 16, lineHeight: 22, letterSpacing: -0.2 },
   navLg: { fontFamily: fonts.sansMedium, fontSize: 15, lineHeight: 20 },
   body: { fontFamily: fonts.sans, fontSize: 15, lineHeight: 22 },
@@ -62,6 +63,8 @@ export const typography = {
   captionMd: { fontFamily: fonts.sansMedium, fontSize: 13, lineHeight: 18 },
   micro: { fontFamily: fonts.sansMedium, fontSize: 11, lineHeight: 14, letterSpacing: 0.6 },
   num: { fontFamily: fonts.monoBold, fontSize: 28, lineHeight: 32, letterSpacing: -0.5 },
+  // Rótulo técnico acima do título ("ETAPA 2 DE 2 · VERIFICAÇÃO"): mono, caixa-alta espaçada.
+  eyebrow: { fontFamily: fonts.mono, fontSize: 11, lineHeight: 14, letterSpacing: 1.8, textTransform: 'uppercase' as const },
 };
 
 export const motion = {
@@ -70,6 +73,10 @@ export const motion = {
   entrada: 760, // revelação de tela/cartão
   passo: 60, // atraso entre itens de uma lista escalonada
   easeOutExpo: Easing.bezier(0.16, 1, 0.3, 1),
+  // Telas de auth (auth-rise do Valerium): mais curta e mais próxima que a entrada padrão.
+  auth: { duracao: 480, passo: 70, deslocamento: 10 },
+  // Erro de código: tremida de 420 ms com curva de mola amortecida.
+  easeShake: Easing.bezier(0.36, 0.07, 0.19, 0.97),
   pressScale: 0.98,
 };
 
@@ -211,6 +218,9 @@ export const mapPalettes: Record<'claro' | 'escuro', MapPalette> = {
     vinheta: 'rgba(0,0,0,0.45)',
   },
 };
+
+/** Fundo do QR da verificação em duas etapas: claro em qualquer tema (a câmera falha no escuro). */
+export const qrFundo = '#FFFFFF';
 
 /** Nomes por cima da imagem de satélite (modo híbrido). */
 export const mapSatelite = { texto: '#FFFFFF', halo: 'rgba(0,0,0,0.85)' };
