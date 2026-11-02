@@ -10,7 +10,7 @@
 
 <br/>
 
-**Última revisão:** 2026-11-01
+**Última revisão:** 2026-11-02
 
 ## 📖 Sobre o Módulo
 Este é o motor de dados do projeto **Routify**. Ele constrói e atualiza o *dataset* contínuo
@@ -32,6 +32,11 @@ como serviço `routify-collector` (ver [`deploy/README.md`](deploy/README.md)).
   24 h fora; 403 sem texto de cota = chave inválida, 10 min fora; falha de rede não queima chave.
   Tudo em memória — reinício re-sonda as chaves.
 * **Inserções em Lote:** um INSERT por ciclo (≈ 630 linhas).
+* **Comparador LIA × provedores** (`comparar_provedores.py`): 8 rodadas por dia (timer `routify-comparador`),
+  16 corredores fixos. Pede a mesma viagem à LIA de produção (127.0.0.1, sem entrar na captura de uso), à TomTom
+  com trânsito (referência) e ao OSRM (sem trânsito); Mapbox e OpenRouteService entram sozinhos se houver
+  `MAPBOX_TOKEN`/`ORS_API_KEY` no `.env`. Grava em `comparacao_provedores` (painel `/admin/provedores`). Erro HTTP
+  vira só o status: a URL da TomTom traz a chave.
 * **Validação experimental (Fase 3), opcional:** `COLETOR_FASE3=1` agenda `ml/external_validation.py`
   4×/dia (7h, 12h, 18h, 22h). Carrega grafo + modelo (~1,4 GB): não cabe ao lado da API numa máquina de 2 GB.
 
@@ -46,6 +51,7 @@ como serviço `routify-collector` (ver [`deploy/README.md`](deploy/README.md)).
  ┣ 📜 db.py                    # Conexão e queries em lote para o Supabase
  ┣ 📜 map_extractor.py         # Extração OpenStreetMap (Overpass) — só no bootstrap
  ┣ 📜 traffic_collector.py     # Consumo da API TomTom (rotação de chaves, intervalo_minutos)
+ ┣ 📜 comparar_provedores.py   # LIA × TomTom × OSRM nos mesmos corredores (timer na EC2)
  ┣ 📜 main.py                  # Orquestrador: coleta (cadência pela cota) + Fase 3 opt-in
  ┗ 📜 requirements.txt         # dev local (inclui OSMnx pro bootstrap)
 ```
@@ -72,6 +78,7 @@ leem esses mesmos dois arquivos.
 python main.py                       # cadência calculada pela cota (log mostra "Cadência: 1 ciclo a cada N min")
 COLETOR_INTERVALO_MIN=8 python main.py   # forçar 8 min (ex.: teste curto com poucas chaves)
 COLETOR_FASE3=1 python main.py       # também agenda a Fase 3 (precisa de ml/ e apps/api/ no mesmo clone)
+python comparar_provedores.py --sem-gravar   # uma rodada do comparador, só no log (API em ROUTIFY_API_INTERNA)
 python -m pytest -q tests            # testes (rede e banco simulados)
 ```
 Encerrar com `Ctrl + C`.
@@ -83,6 +90,8 @@ Encerrar com `Ctrl + C`.
 | `COLETOR_RESERVA_API` | fatia do pool reservada pra API | `0.15` |
 | `COLETOR_FASE3` | `1` liga a Fase 3 | `0` |
 | `TOMTOM_KEYS_FILE` | outro arquivo de chaves (subconjunto do pool) | `config/tomtom_keys.json` |
+| `ROUTIFY_API_INTERNA` | API que o comparador consulta | `http://127.0.0.1:8000` |
+| `MAPBOX_TOKEN` / `ORS_API_KEY` | ligam Mapbox (trânsito ao vivo) e OpenRouteService no comparador | ausentes |
 
 ## 🚨 Troubleshooting
 

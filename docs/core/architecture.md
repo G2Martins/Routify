@@ -1,6 +1,6 @@
 # Arquitetura — Routify
 
-**Última revisão:** 2026-11-01
+**Última revisão:** 2026-11-02
 
 Visão de ponta a ponta do sistema na fase final do TCC 2: a coleta contínua para e a TomTom passa a ser consultada **sob demanda**, complementando a LIA (XGBoost) na hora de cada rota. Este documento atende ao item 3 do orientador: fluxo da API com o cache de recência, a rotação defensiva de chaves e o fallback da busca de endereços.
 
@@ -38,9 +38,9 @@ flowchart LR
     ROUTE -- "vias velhas do corredor,<br/>interdições" --> POOL
     ROUTE --> FUS
     FUS -- "reconstruir a rota da LIA<br/>(supportingPoints) + alternativa" --> POOL
-    SEARCH -- "1º" --> SB
-    SEARCH -- "2º se < 3 resultados" --> POOL
-    SEARCH -- "3º, cache + 1 req/s" --> NOM
+    SEARCH -- "malha (cache 1 h) + localidades OSM" --> SB
+    SEARCH -- "em paralelo, cache 24 h" --> POOL
+    SEARCH -- "último: ranking < 3 e 4+ letras,<br/>cache + 1 req/s" --> NOM
     POOL --> TT
     RC -. "refresh (backoff se fora do ar)" .-> SB
 ```
@@ -106,9 +106,20 @@ O coletor (`services/collector/traffic_collector.py`, de volta na EC2 desde 2026
 
 ## 4. Busca de endereços (autocomplete)
 
-1. **Base local DF** — `malha_completa` (~38 mil vias), `ILIKE` no Supabase.
-2. **TomTom Search v2** — só se a base local trouxe menos de 3 resultados; `typeahead`, `countrySet=BR`, viés para Brasília (raio de 40 km), cache de 24 h por consulta normalizada. O texto do usuário é codificado no caminho da URL (`quote(..., safe="")`).
-3. **Nominatim** — último recurso, com cache de 24 h e trava de 1 requisição por segundo. A política de uso da OSMF proíbe autocomplete e exige cache.
+As fontes rodam **em paralelo** e o resultado é **ranqueado numa lista só** (`ranquear()` em `apps/api/routers/search.py`), porque a nota da TomTom sai ~0,99 para tudo que contém o texto.
+
+1. **Base local DF** (sem rede além do Supabase):
+   - `malha_completa` (~38 mil vias): consulta por regex (`imatch`) em que cada vogal aceita a forma acentuada, então "helio" acha "Hélio" (o Postgres do Supabase não expõe `unaccent`). Se o PostgREST recusar o operador, volta ao `ILIKE` (sem acento) por 10 min. Cache de 1 h;
+   - 602 localidades do OSM em memória (`ml/artifacts/bairros_df.json`: regiões administrativas, bairros, superquadras): "ceilandia", "asa norte", "sqs 308" saem daqui, e elas dão o bairro das vias.
+2. **TomTom Search v2** — `typeahead`, `countrySet=BR`, viés para quem busca (ou o centro de Brasília; raio de 40 km), 20 resultados, cache de 24 h por consulta sem acento nem pontuação ("Park-Shopping" e "park shopping" dividem a entrada; "W3" segue colado, porque a TomTom indexa "W3 Norte"). O texto do usuário é codificado no caminho da URL (`quote(..., safe="")`).
+3. **Nominatim** — último recurso: só entra se o ranking final trouxer menos de 3 resultados **e** a consulta tiver 4+ letras, com cache de 24 h e trava de 1 requisição por segundo. A política de uso da OSMF proíbe autocomplete e exige cache.
+
+**Entendimento da consulta** (`normalizar`, `variantes`, `_casa`):
+- sem acento nem pontuação, letras e números separados ("sqs308" = "sqs 308"), abreviações ("qd" = quadra);
+- apelidos do DF viram uma 2ª consulta com o nome que a base usa: EPTG, EPIA e outras Estradas Parque, Eixão, UnB, Rodoviária, HBDF e hospitais regionais (tabela `APELIDOS`, conferida na malha e na TomTom);
+- erro de digitação de 1 letra e palavras coladas ("shoping", "parkshoping") ainda casam, com nota menor que o casamento exato; termos de até 4 letras não ganham tolerância.
+
+**Ranking**: nome exato > começo do nome > termos no nome > só no endereço; marco (shopping, hospital…) sobe quando o nome bate forte ou a categoria foi digitada; aglomeração só conta para quem é o nome; distância desempata homônimos (teto de 15 km). Saem: loja ou setor colado num marco, o mesmo lugar por duas fontes, a mesma via em mais de 3 trechos. Cada fonte que quebra vira lista vazia, não erro.
 
 ## 5. Dados e treino (offline)
 

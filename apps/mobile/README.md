@@ -24,8 +24,10 @@ Cliente do **Routify** rodando em **iOS, Android e Web** via Expo + React Native
 **Sessão:** na web, a sessão Supabase fica em **cookie** (`@supabase/ssr`), a mesma que o painel ADM (`/admin`) lê. O login é único, e o item "Painel ADM" aparece só para `app_metadata.role = admin`. No celular, a sessão fica no AsyncStorage.
 
 **Busca:**
-- destinos recentes ao focar o campo;
-- debounce de 250 ms com cancelamento, trecho digitado destacado, teclado ↑ ↓ Enter Esc na web;
+- destinos recentes ao focar o campo, e os que casam com o texto vêm antes dos resultados;
+- debounce de 250 ms com cancelamento, limite de 8 s, 429 respeitado, resposta guardada 5 min na memória, trecho digitado destacado;
+- teclado: ↑ ↓ Enter Esc (Enter durante a busca espera a resposta nova) e a tecla "buscar" do celular escolhe;
+- web: padrão combobox/listbox para leitor de tela; sem o histórico do navegador por cima da lista;
 - eventos sem texto nem coordenada (LGPD).
 
 **Mapa:**

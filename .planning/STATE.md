@@ -2,7 +2,7 @@
 
 **Última revisão:** 2026-11-02
 
-Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) · Pesquisa de traçado/contexto/APIs: [research/2026-09-23-tracado-contexto-apis.md](research/2026-09-23-tracado-contexto-apis.md) · **Análise de melhorias + estratégia de testes (2026-11-01):** [research/2026-11-01-analise-melhorias-e-testes.md](research/2026-11-01-analise-melhorias-e-testes.md)
+Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) · Pesquisa de traçado/contexto/APIs: [research/2026-09-23-tracado-contexto-apis.md](research/2026-09-23-tracado-contexto-apis.md) · **Análise de melhorias + estratégia de testes (2026-11-01):** [research/2026-11-01-analise-melhorias-e-testes.md](research/2026-11-01-analise-melhorias-e-testes.md) · **LIA 2.3, provedores, caça a erros, integrações (2026-11-02):** [research/2026-11-02-lia-provedores-integracoes.md](research/2026-11-02-lia-provedores-integracoes.md)
 
 ## Onde estamos
 
@@ -18,6 +18,7 @@ Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) 
 | F12 LIA 2.2 (contexto) | **feita**: vizinhos + chuva + feriado, mesmo código no treino e na API; padrão da API; estresse treino × produção versionado |
 | F11 Traçado + fusão LIA × TomTom | **feita e validada ao vivo**: grafo 38 km, conector tracejado, `entryPoints`, fusão por `supportingPoints`, semáforos OSM (271 cruzamentos) + calibração |
 | F13 Coleta na EC2 (cadência pela cota) | **no ar desde 2026-11-02 00:23 (Brasília)**: `routify-collector` ativo na EC2, 1º lote = 630 linhas de 630 pontos no banco, 36 MB de RAM, API seguiu 200. Cadência de 43 min: confirmar pelo intervalo entre o 1º e o 2º lote |
+| F15 LIA 2.3 + LIA × provedores + caça a erros + auto-sugest | **código pronto e testado (2026-11-02)**: LIA 2.3 (CV 35,48 × 40,27 s), velocidade livre na escala da TomTom (viés −11,9% → −0,2% no mesmo trajeto), 10 bugs da inferência corrigidos com teste, auto-sugest reescrito (66 testes), comparador + timer, página `/admin/provedores`. Falta: aplicar a migration `20261102000000_lia_vs_provedores`, deploy do front |
 | F14 Análise de melhorias + estratégia de testes | **entregue** (4 revisões: API/segurança, ML, front, DB/CI) com backlog priorizado e evidência arquivo:linha; artefato `cobertura_dataset.json` |
 
 ## Verificado nesta sessão (2026-11-01)
@@ -36,6 +37,14 @@ Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) 
 - Journal rotacionado e limpo: 0 linhas com `key=` depois da coleta ligada.
 - Profile `routify` = `user/claude-ops`: SSM Online, Run Command ok (`routify-collector`, `routify-api` e `caddy` ativos) e SSH por dentro do SSM ok, sem a porta 22 externa. Security group: 80/443 abertos, 22 só o IP de casa.
 - `historico_trafego`: 630 linhas novas (630 pontos, `03:25:57` UTC), 0 inválidas; razão média 1,000 × 0,999 no histórico da mesma hora (0h de Brasília).
+
+## Decisões tomadas (2026-11-02)
+
+- **LIA 2.3 é o padrão da API** (rollback `LIA_VERSION=lia_2.2`): perfis fora da amostra, recência envelhecida, early stopping no próprio treino; modelo final com a mediana das paradas da CV (600 árvores). Evidência: `ablation_lia_2.3.json`.
+- **Velocidade livre na escala da TomTom** por fator único (0,883), padrão ligado (`VEL_LIVRE_CALIBRADA=0` volta à Fase 3). Fator por classe rejeitado (muda as rotas). Evidência: `experimento_velocidade_livre.json`.
+- **Comparador sem Valhalla** (termos do Stadia proíbem benchmark; o da FOSSGIS não foi lido) e sem HERE/Google/Azure (termos). Ficam TomTom (referência), OSRM e, com token, Mapbox.
+- Chamada interna (loopback + `X-Routify-Interno` + sem `X-Forwarded-For`) fica fora da captura de uso; auditoria nunca.
+- Aurora `database-1` (criado em 2026-11-01 23:12, sem uso no Routify): exclusão pedida pelo dono e executada com snapshot final `database-1-final-2026-11-02`. Verificado: nenhuma interface de rede do RDS restou na conta (instância apagada). Não verificado: o estado final do cluster e do snapshot (a liberação temporária de RDS no `claude-ops` já tinha sido removida).
 
 ## Decisões tomadas (2026-11-01)
 
@@ -62,7 +71,13 @@ Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) 
 - [ ] Aurora `database-1` (não é do Routify): o dono pediu para apagar em 2026-11-02. O `claude-ops` não tem RDS; precisa de política temporária, que o próprio assistente remove no fim.
 - [ ] **Dono:** console → conta → ativar o acesso de usuários IAM ao Billing (só o root faz).
 - [ ] **Pedro:** 1º login (URL + senha temporária entregues pelo dono) → trocar senha → MFA → testar EC2 → Connect → Session Manager.
-- [ ] Merge de `coleta-aws-analise` em `main` + push (o CI roda os testes do coletor). Pede OK do dono.
+- [x] Merge de `coleta-aws-analise` em `main` + push (2026-11-02, CI verde).
+- [ ] **Dono:** aplicar `supabase/migrations/20261102000000_lia_vs_provedores.sql` (SQL Editor, ou aprovar o MCP) → ligar o comparador: `sudo COMPARADOR=1 bash …/instalar-ec2.sh`.
+- [ ] **Dono:** conferir no console que o RDS ficou vazio e o snapshot `database-1-final-2026-11-02` existe (o `claude-ops` não lê mais o RDS); apagar o snapshot se não quiser guardar.
+- [ ] **Dono (opcional):** token grátis do Mapbox (`MAPBOX_TOKEN` no `.env` do coletor) para ter um 2º provedor com trânsito ao vivo.
+- [ ] Dezembro: `silver.py` + `fetch_contexto.py --fim …` + `avaliar_fora_do_tempo.py` + `publish_metrics.py` → número final 2.2 × 2.3 × persistência em dados novos.
+- [ ] Depois do deploy: procurar "imatch recusado" no log da API (busca da malha cai no ILIKE se o PostgREST recusar).
+- [ ] LIA 2.4 (pós-novembro): calendário escolar SEEDF/UnB + dados de novembro; recalibrar o semáforo com a velocidade calibrada.
 - [ ] Testes P0 da análise: limite por IP antes do auth em `/eventos` e `/admin`; TestClient HTTP (422 com NaN/extra/fora do DF, 429 com `Retry-After`, 401/403 do admin); contrato modelo ↔ metadata; migrations + RLS no CI (pgTAP).
 - [ ] `route_history`: grant de INSERT por coluna + CHECKs (ou a API persiste).
 - [ ] Backup semanal do dataset (Action com `pg_dump` cifrado).

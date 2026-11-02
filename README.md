@@ -296,7 +296,7 @@ Status da API e métricas reais do modelo carregado (usado pelo `DashboardScreen
 → `polyline`, `tempo_total_seg`, `distancia_km`, `via_principal`, mais os campos de instrumentação para a Fase 3 (`tempo_rota_curta_seg`, `rotas_diferentes`, `lia_cobertura_pct`).
 
 ### `GET /search/places?q=...`
-Autocomplete de endereços — busca primeiro na malha viária local (Supabase), cai para Nominatim (OSM) só quando a busca local não é suficiente.
+Autocomplete de endereços — junta a base local do DF (malha viária no Supabase + regiões/bairros do OSM) e a TomTom Search, ranqueia tudo numa lista só (apelidos como EPTG e UnB, sem acento, com tolerância a erro de digitação) e cai para o Nominatim (OSM) só se sobrarem menos de 3 resultados. Detalhe em [docs/core/architecture.md §4](docs/core/architecture.md).
 
 ---
 

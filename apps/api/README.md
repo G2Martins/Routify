@@ -13,6 +13,8 @@
 
 ---
 
+**Última revisão:** 2026-11-02
+
 ## 🎯 Função
 
 Servir a **LIA** (modelo treinado em `../../ml`) através de uma API REST, alimentando o algoritmo **A\*** com pesos de aresta dinâmicos para retornar rotas otimizadas, e oferecer autocomplete de endereços para o app.
@@ -61,11 +63,19 @@ python -m venv .venv                                     # primeira vez
 ```
 
 **Pré-requisito:** modelo treinado existir em `../ml/artifacts/`:
-`lia_2.2.pkl`, `_encoder.pkl`, `_profiles.pkl`, `_metadata.json` e `_vizinhos.json`, mais `feriados.json`.
+`lia_2.3.pkl`, `_encoder.pkl`, `_profiles.pkl`, `_metadata.json` e `_vizinhos.json`, mais `feriados.json`
+e `velocidade_livre_tomtom.json`.
 
-**Modelo (`LIA_VERSION`, padrão `lia_2.2`):** a 2.2 é a 2.1 + contexto (vizinhos, chuva,
-feriado; ver [ml/README](../../ml/README.md)). A tese cita a 2.1; rollback com
-`LIA_VERSION=lia_2.1`. A ordem das features vem do próprio modelo (`feature_names_in_`)
+**Modelo (`LIA_VERSION`, padrão `lia_2.3`):** a 2.3 é a 2.2 (2.1 + vizinhos, chuva, feriado) treinada com perfis
+fora da amostra, recência envelhecida e early stopping no próprio treino (ver [ml/README](../../ml/README.md) e
+`ml/artifacts/ablation_lia_2.3.json`). A tese cita a 2.1; rollback com `LIA_VERSION=lia_2.2`.
+
+**Velocidade livre (`VEL_LIVRE_CALIBRADA`, padrão `1`):** a LIA foi treinada com a velocidade livre da TomTom, e o
+limite do OSM é mais alto. Na subida, `graph_enrichment.calibrar_velocidade_livre` mede a razão TomTom/OSM na via
+de cada sensor (mediana ≈ 0,88) e aplica um fator único a todas as arestas; nos trechos monitorados vale a da
+TomTom. Um fator só não muda qual rota é a mais rápida. Contra a TomTom no mesmo trajeto, o viés caiu de −11,9%
+para −0,2% (`ml/artifacts/experimento_velocidade_livre.json`). `VEL_LIVRE_CALIBRADA=0` volta ao limite do OSM
+(números da Fase 3). `/health.velocidade_livre` diz qual está valendo. A ordem das features vem do próprio modelo (`feature_names_in_`)
 e a subida faz uma predição de teste: contrato treino × API quebrado derruba o startup,
 não a primeira rota. Chuva ao vivo: previsão horária do [Open-Meteo](https://open-meteo.com)
 (CC BY 4.0), cache de 15 min, ≤ 96 chamadas/dia; fora do ar → chuva 0.
@@ -119,6 +129,13 @@ A API grava o uso com a service_role (o cliente nunca escreve nessas tabelas). A
 
 O `user_id` vem do JWT Supabase (`Authorization: Bearer`), validado em `sb.auth.get_user` com cache de 5 min. Token inválido ou ausente = anônimo em `/route` e `/search`; em `/eventos` = 401. Retenção: 90 dias (`pg_cron` diário).
 
+**Chamada interna não é uso:** o comparador LIA × provedores (na própria EC2) chama `127.0.0.1:8000` com o
+cabeçalho `X-Routify-Interno: 1`. Loopback + cabeçalho + sem `X-Forwarded-For` (o Caddy sempre põe um) = fora de
+`api_requisicoes`, `rotas_calculadas` e `eventos_app`. A trilha de auditoria nunca é pulada (`tests/test_uso_interno.py`).
+
+**Entrada hostil:** o 422 devolve só `loc`/`msg`/`type` (o padrão ecoava o valor, e um `NaN` virava 500); floats
+recusam `NaN`/`Infinity` e têm teto.
+
 ---
 
 ## 🌍 Grafo OSM
@@ -169,6 +186,10 @@ Métricas reais do modelo (usadas pelo `DashboardScreen` do app): RMSE de valida
 ### `POST /predict`
 
 Inferência LIA para **um único segmento** (debug / dashboards). O modelo prevê a **razão de congestionamento** (`velocidade_atual / velocidade_livre`), não segundos diretamente — o tempo de viagem só é calculado se `comprimento_m` for informado.
+
+`timestamp_brasilia` com offset (`Z`, `+00:00`) é convertido para Brasília; aceita 2000–2099. A leitura ao vivo
+envelhece até o instante pedido e some acima de 24 h (vira o perfil); instante no passado não usa leitura ao vivo.
+`razao_ultima_observacao` e `minutos_desde_ultima_observacao` vêm juntos ou não vêm.
 
 **Request:**
 ```json
@@ -292,19 +313,29 @@ As outras ações do painel (papel, bloqueio, avisos, flags) são RPCs `admin_*`
 
 ### `GET /search/places?q=...&limit=8[&lat=..&lon=..]`
 
-Autocomplete: a malha local (~38 mil vias do DF, bairro pelo lugar OSM mais próximo em
-`ml/artifacts/bairros_df.json`) e a TomTom Search (typeahead, 20 resultados, cache 24 h) são
-**juntadas e ranqueadas numa lista só** (`ranquear()` em `routers/search.py`). O Nominatim só
-entra com menos de 3 resultados (a política da OSMF proíbe autocomplete).
+Autocomplete: a base local (malha de ~38 mil vias do DF, com cache de 1 h, e as 602 localidades de
+`ml/artifacts/bairros_df.json`: regiões, bairros, superquadras) e a TomTom Search (typeahead,
+20 resultados, cache 24 h) rodam em paralelo e são **juntadas e ranqueadas numa lista só**
+(`ranquear()` em `routers/search.py`). O Nominatim só entra se o ranking final tiver menos de
+3 resultados e a consulta, 4+ letras (a política da OSMF proíbe autocomplete).
+
+Entende a consulta: acento e caixa não importam, "sqs308" = "sqs 308", siglas do DF (EPTG, EPIA, Eixão,
+UnB, Rodoviária, HBDF…; tabela `APELIDOS`) viram uma 2ª consulta com o nome por extenso, e erro de
+digitação de 1 letra ("shoping") ainda casa. A malha usa regex (`imatch`) para ignorar acento; se o
+PostgREST recusar o operador, ela recua para `ILIKE` por 10 min (aviso no log).
 
 Por que ranquear na API: a TomTom dá nota ~0,99 para tudo que contém o texto — em "park shopping"
 vinha primeiro uma loja de São Sebastião. Sinais usados:
-- casamento de nome: igual > começa com > termos no nome > termos só no endereço (sem termo nenhum = fora);
-- marco (shopping, aeroporto, universidade, hospital…) sobe; a categoria em português conta como nome
-  (a TomTom devolve o aeroporto sem a palavra "Aeroporto");
-- aglomeração: vários resultados com o nome no mesmo ponto = o lugar de verdade;
-- distância de `lat`/`lon` (quem busca; o app manda o outro ponto da rota) ou do centro;
-- corte relativo (ruído muito atrás do melhor sai) e deduplicação (mesmo lugar, sub-ponto, mesma via no mesmo bairro).
+- casamento de nome: igual > começa com > termos no nome > aproximado (erro de digitação) > termos só no
+  endereço (sem termo nenhum = fora);
+- marco (shopping, aeroporto, universidade, hospital…) sobe quando o nome bate forte ou a categoria foi
+  digitada; a categoria em português conta como nome (a TomTom devolve o aeroporto sem a palavra
+  "Aeroporto" e o shopping com ela: "Shopping Conjunto Nacional" também é "Conjunto Nacional");
+- aglomeração (vários resultados com o nome no mesmo ponto = o lugar de verdade) só conta para quem é o nome;
+- distância de `lat`/`lon` (quem busca; o app manda o outro ponto da rota) ou do centro, com teto de 15 km;
+- corte relativo (ruído muito atrás do melhor sai) e deduplicação: mesmo lugar por outra fonte, sub-ponto,
+  loja ou setor a menos de 250 m de um marco que já entrou, mesma via em outro trecho (a menos de 1,5 km ou no
+  mesmo bairro) e no máximo 3 resultados com o mesmo nome.
 
 **Response:**
 ```json
@@ -312,6 +343,8 @@ vinha primeiro uma loja de São Sebastião. Sinais usados:
   { "label": "Park Shopping", "sublabel": "Guará", "lat": -15.834, "lon": -47.956, "source": "tomtom", "categoria": "Shopping" }
 ]
 ```
+`categoria` também pode ser `Região` ou `Bairro` (localidades do OSM, `source: "malha"`). Consulta só de
+pontuação devolve `[]` sem gastar cota. Limite de 90/min por IP (429 com `Retry-After`).
 
 ---
 

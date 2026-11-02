@@ -1,6 +1,6 @@
 # Deploy 24/7 do coletor
 
-**Última revisão:** 2026-11-01
+**Última revisão:** 2026-11-02
 
 Desde 2026-11-01 o coletor roda **na mesma EC2 da API** (custo zero): mesmo `.env` e
 `tomtom_keys.json`, serviço systemd `routify-collector`. O passo a passo completo, com o
@@ -11,6 +11,7 @@ contexto da cota e da memória, está em [docs/core/deploy.md §1.1](../../../do
 | `instalar-ec2.sh` | cria o venv mínimo, instala a unidade e sobe o serviço (idempotente, roda como root) |
 | `routify-collector.service` | unidade systemd: usuário `routify`, `MemoryMax=300M`, hardening, `COLETOR_FASE3=0` |
 | `requirements-ec2.txt` | só `requests`, `python-dotenv`, `schedule`, `supabase` |
+| `routify-comparador.service` + `.timer` | comparador LIA × provedores: uma rodada às 03:00, 07:30, 08:30, 12:30, 15:00, 17:30, 18:30 e 22:00 (Brasília) |
 | `requirements-vm.txt` | pilha completa (coletor + Fase 3 + API) para uma VM própria com ≥ 4 GB |
 
 ## Na EC2
@@ -20,6 +21,10 @@ contexto da cota e da memória, está em [docs/core/deploy.md §1.1](../../../do
 sudo bash /opt/routify/services/collector/deploy/instalar-ec2.sh
 journalctl -u routify-collector -f
 ```
+
+Comparador: depois que a migration `20261102000000_lia_vs_provedores.sql` criar a tabela,
+`sudo COMPARADOR=1 bash /opt/routify/services/collector/deploy/instalar-ec2.sh` liga o timer
+(`systemctl list-timers routify-comparador.timer`; log em `journalctl -u routify-comparador`).
 
 Esperado no log: `Cadência: 1 ciclo a cada 43 min — 39 chaves × 20000/mês, 630 pontos, reserva de 15% pra API`
 e, uns 6 min depois, `Salvando lote de 6xx registros`. Parar: `sudo systemctl disable --now routify-collector`.

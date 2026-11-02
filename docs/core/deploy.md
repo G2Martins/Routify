@@ -30,7 +30,7 @@ Não ativar AWS Organizations nem AMI do Marketplace: a conta vira plano pago.
 **Provisionar** (do repo local, com a chave `.pem` do par criado):
 1. Código do commit implantado: `git -c core.autocrlf=false archive --format=tar.gz -o code.tgz HEAD` → `scp` → extrair em `/opt/routify`.
 2. Artefatos fora do git → `/opt/routify/ml/artifacts/`:
-   - `lia_2.2*.pkl` e `lia_2.1*.pkl` (rollback);
+   - `lia_2.3*.pkl` (padrão), `lia_2.2*.pkl` e `lia_2.1*.pkl` (rollback);
    - `transfer_confidence_isotonic.pkl`;
    - `brasilia_graph_38km.pkl` + `.graphml` (reserva).
    Depois, `touch` no `.pkl` para ele ficar mais novo que o GraphML.
@@ -45,7 +45,7 @@ Não ativar AWS Organizations nem AMI do Marketplace: a conta vira plano pago.
    A unidade `routify-api.path` sobe a API sozinha quando o `.env` chega. Sem ele, o serviço nem tenta
    (`ConditionPathExists`).
 
-**Verificar:** `curl https://api-<app>/health` deve responder `modelo_ativo: lia_2.2`, `contexto` e as contagens da TomTom.
+**Verificar:** `curl https://api-<app>/health` deve responder `modelo_ativo: lia_2.3`, `velocidade_livre: calibrada`, `contexto` e as contagens da TomTom.
 Logs: `journalctl -u routify-api -f`.
 
 **Atualizar o código** (qualquer commit novo; a extração por cima preserva `.venv`, `ml/artifacts` e `config/`):
@@ -95,6 +95,11 @@ systemctl show routify-collector -p MemoryCurrent
 ```
 No Supabase: `select count(*) from historico_trafego where data_hora_coleta > now() - interval '1 hour'`
 cresce ~630 por ciclo. O painel ADM (Qualidade dos dados) mostra a recência por via.
+
+**Comparador LIA × provedores** (mesmo diretório e venv): depois da migration
+`20261102000000_lia_vs_provedores.sql`, `sudo COMPARADOR=1 bash /opt/routify/services/collector/deploy/instalar-ec2.sh`
+liga o timer (8 rodadas por dia). Teste manual sem gravar:
+`sudo -u routify bash -c 'cd /opt/routify/services/collector && .venv/bin/python comparar_provedores.py --sem-gravar'`.
 
 Parar: `sudo systemctl disable --now routify-collector`. Pausar chaves no painel ADM **não** afeta o coletor
 (ele não lê `config_runtime`); para tirar chaves dele, aponte `TOMTOM_KEYS_FILE` para um JSON com o subconjunto.
@@ -146,7 +151,8 @@ Resend, grátis até 3 mil e-mails por mês, com o domínio já verificado.
 
 ## 4. Rollback e desligamento
 
-- API: `LIA_VERSION=lia_2.1` num drop-in do systemd → `systemctl restart routify-api`.
+- API: `LIA_VERSION=lia_2.2` (ou `lia_2.1`) e/ou `VEL_LIVRE_CALIBRADA=0` num drop-in do systemd → `systemctl restart routify-api`.
+- Comparador: `sudo systemctl disable --now routify-comparador.timer`.
 - Coletor: `sudo systemctl disable --now routify-collector` (a API continua chamando a TomTom sob demanda).
 - Front: republicar o pacote anterior pelo mesmo MCP.
 - Fim do projeto (dez/2026): terminar a EC2, liberar o IP elástico (IP parado também consome crédito), apagar o site na Hostinger e os registros DNS. O código fica no GitHub.

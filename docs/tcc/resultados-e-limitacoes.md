@@ -1,6 +1,6 @@
 # Resultados, calibração e limitações — rascunho para o texto final
 
-**Última revisão:** 2026-11-01
+**Última revisão:** 2026-11-02
 
 > **Status: rascunho.** Redigido com apoio de IA a partir dos artefatos versionados do repositório (`ml/artifacts/*.json`), para atender às recomendações do orientador sobre a seção de Resultados e Discussão. A equipe deve revisar, reescrever com a própria voz e declarar o uso de IA conforme as normas da instituição. Todo número abaixo aponta para a chave do JSON de origem; as figuras são geradas por `ml/thesis_figures.py` e se atualizam sozinhas quando os JSONs mudarem.
 
@@ -29,6 +29,8 @@ Reportar as duas métricas mostra se um ganho vem de reduzir erros típicos (MAE
 | LIA 2.1 | temporal | 14,6 | 40,7 | **−28,8%** | `lia_2.1_metadata.json` › `cv.modelo_mae_seg`, `cv.modelo_rmse_seg` |
 | LIA 2.1 (reprodução) | temporal | 14,5 | 40,9 | −28,5% | `lia_2.1_repro_metadata.json` › `cv.modelo_mae_seg`, `cv.modelo_rmse_seg` |
 | LIA 2.2 (+ contexto) | temporal | 14,4 | 40,3 | **−29,6%** | `lia_2.2_metadata.json` › `cv.modelo_mae_seg`, `cv.modelo_rmse_seg` |
+| Persistência (repetir a última leitura) | temporal | 12,0 | 40,0 | −30,1% | `lia_2.3_metadata.json` › `cv.persistencia_mae_seg`, `cv.persistencia_rmse_seg` |
+| LIA 2.3 (receita corrigida) | temporal | 13,3 | 35,5 | **−37,9%** | `lia_2.3_metadata.json` › `cv.modelo_mae_seg`, `cv.modelo_rmse_seg` |
 
 ![Figura 1](../figuras/fig1_erro_versoes.png)
 
@@ -45,7 +47,15 @@ Reportar as duas métricas mostra se um ganho vem de reduzir erros típicos (MAE
 - **RMSE:** 40,88 → 40,27 s (−1,5%), menor nos **5 de 5 folds** (`cv_folds` dos dois metadados). RMSE no congestionado: 88,14 → 86,74 s.
 - **MAE:** 14,51 → 14,44 s, mas menor em só 3 de 5 folds. Leitura: o contexto reduz os **erros grandes** (episódios de congestionamento), não o erro típico.
 - **Estresse treino × produção** (`lia_2.2_estresse.json`, fold 5): sem coleta contínua, a API nem sempre tem vizinhos com leitura recente. Com leitura da via e dos vizinhos, a 2.2 ganha (RMSE 33,73 × 34,55 s). Com tudo velho (fora do corredor consultado na TomTom), também ganha (42,99 × 43,43 s). Com a via lida agora e **nenhum** vizinho recente, perde por pouco (34,88 × 34,55 s). Com chuva ausente enviada como NaN, perde (34,18 s); por isso a API manda 0.
-- Decisão: a 2.2 é o padrão da API (reversível com `LIA_VERSION=lia_2.1`). A tese continua citando a 2.1 como modelo principal e reporta a 2.2 como ablação.
+- Decisão (2026-09-23): a 2.2 vira o padrão da API. Substituída pela 2.3 em 2026-11-02.
+
+**LIA 2.3 — receita corrigida** *(2026-11-02; `ablation_lia_2.3.json`, uma mudança por vez nos mesmos 5 folds)*.
+- **O baseline que faltava:** repetir a última leitura da via (persistência) tem RMSE 39,96 s e MAE 12,04 s, empatando com a 2.2 no RMSE e ganhando no MAE. Isso acontece porque, nos dias cheios, a última leitura tem ~8 min. Na API ela chega com 0–48 min (coleta a cada 43 min), e aí a persistência despenca: RMSE 64,8 s com leitura de 30 min e 88,0 s com 60 min.
+- **Três correções de método:** (1) perfis históricos fora da amostra no treino (o perfil de cada linha incluía o próprio alvo); (2) metade do treino com a recência envelhecida (15–480 min), como ela chega na API; (3) early stopping no fim do próprio treino, e não na validação que depois é medida.
+- **Efeito (RMSE em s, fresca / leitura de 30 min / 60 min):** 2.2 = 40,27 / 52,5 / 56,7; + perfis fora da amostra = 35,30 / 51,4 / 57,1; **2.3 = 35,48 / 43,8 / 47,2**; persistência = 39,96 / 64,8 / 88,0.
+- Leitura: os perfis fora da amostra explicam o ganho com leitura fresca; o envelhecimento explica o ganho com a leitura como ela chega na API. Em toda idade realista a 2.3 ganha da persistência. Com leitura de poucos minutos, a persistência ainda ganha no MAE (12,04 × 13,31 s): declarar.
+- **Velocidade livre:** a LIA aprende com a velocidade livre da TomTom, e a rota usava o limite do OSM, mais alto. Um fator único (0,883, mediana TomTom/OSM na via de cada sensor) leva o tempo da rota à escala da TomTom sem mudar a escolha de rota. Contra a TomTom no mesmo trajeto (14 corredores, madrugada): viés −11,9% → −0,2% e MAPE 16,1% → 10,2% (`experimento_velocidade_livre.json`).
+- **Pendente para o texto final:** a avaliação fora do tempo (`avaliacao_fora_do_tempo.json`), em leituras de novembro que nenhum modelo viu, é o número que deve fechar a comparação 2.2 × 2.3 × persistência.
 
 **Cuidados antes da versão final:**
 - Os números da LIA 2.0 vêm do benchmark (XGBoost sem recência, mesmos cortes temporais), porque o `lia_2.0_metadata.json` não persistiu o CV.
