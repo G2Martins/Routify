@@ -86,8 +86,8 @@ Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) 
 - [ ] `/route` fora do event loop (cache dos pesos por hora/dia) — p95 e `/health` sob carga.
 - [ ] Deploy contínuo (GitHub Actions): build do front em runner Linux + deploy da API por SSM.
 - [ ] Dono: validar visualmente app + painel em produção.
-- [ ] Recalibrar semáforo em horário comercial (a calibração atual foi de madrugada).
-- [ ] Velocidade livre por classe de via (viés β ≈ 22,9 s/km) e depois recalibrar δ.
+- [x] Recalibrar semáforo em horário comercial (2026-11-02, 12h; o tempo sem trânsito da TomTom não depende da hora).
+- [x] Velocidade livre por grupo de via e δ recalibrado (2026-11-02, 135 rotas, MAPE do tempo livre 20,5% → 10,4%; A/B em `ab_calibracao_grafo_2026-11-02.json`).
 - [ ] Figura 1 com a LIA 2.2 (opcional: a tese cita a 2.1).
 - [ ] Snap na aresta (em vez do nó) para eliminar o conector.
 - [ ] F9 restante (CSP, suíte de segurança, trava de login, sessão ociosa).

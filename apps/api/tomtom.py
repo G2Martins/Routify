@@ -350,6 +350,7 @@ class TomTomClient:
             'tempo_seg': s.get('travelTimeInSeconds'),
             'atraso_seg': s.get('trafficDelayInSeconds'),
             'sem_transito_seg': s.get('noTrafficTravelTimeInSeconds'),
+            'historico_seg': s.get('historicTrafficTravelTimeInSeconds'),
             'distancia_km': round(float(s.get('lengthInMeters') or 0) / 1000, 2),
             'polyline': polyline,
         }
@@ -378,6 +379,7 @@ class TomTomClient:
                 'tempo_seg': s.get('travelTimeInSeconds'),
                 'atraso_seg': s.get('trafficDelayInSeconds'),
                 'sem_transito_seg': s.get('noTrafficTravelTimeInSeconds'),
+                'historico_seg': s.get('historicTrafficTravelTimeInSeconds'),
                 'distancia_km': round(float(s.get('lengthInMeters') or 0) / 1000, 2),
                 'polyline': [[p['latitude'], p['longitude']]
                              for leg in rota.get('legs') or [] for p in leg.get('points') or []
@@ -587,7 +589,8 @@ def arestas_interditadas(G, incidentes: Iterable[dict], tol_m: float = 20.0) -> 
     return bloqueadas
 
 
-def peso_sem_interditadas(bloqueadas: Set[Tuple], penalidade: float = 1e9, atraso_semaforo: float = 0.0):
+def peso_sem_interditadas(bloqueadas: Set[Tuple], penalidade: float = 1e9, atraso_semaforo: float = 0.0,
+                          atraso_cruzamento: float = 0.0, atraso_cruzamento_via: float = 0.0):
     """Peso do A* que tira as arestas interditadas sem mutar o grafo
     compartilhado (networkx passa {chave: atributos} das arestas paralelas).
     Com atraso_semaforo > 0, soma o atraso médio ao chegar num cruzamento
@@ -595,6 +598,8 @@ def peso_sem_interditadas(bloqueadas: Set[Tuple], penalidade: float = 1e9, atras
     def peso(u, v, paralelas):
         return min(penalidade if (u, v, k) in bloqueadas
                    else d.get('travel_time_lia', 1.0) + atraso_semaforo * d.get('semaforo', 0)
+                   + atraso_cruzamento * d.get('cruzamento', 0)
+                   + atraso_cruzamento_via * d.get('cruzamento_via', 0)
                    for k, d in paralelas.items())
     return peso
 

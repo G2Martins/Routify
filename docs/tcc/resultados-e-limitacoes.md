@@ -127,7 +127,7 @@ A Fase 3 compara, para o mesmo par origem-destino e no mesmo instante:
 
 ## 6. Limitações conhecidas
 
-1. **Semáforos e velocidade livre** *(atualizado em 2026-09-23 — números em `ml/artifacts/semaforos_calibracao.json`; a validar pelo grupo)*.
+1. **Semáforos e velocidade livre** *(números de 2026-09-23 em `ml/artifacts/semaforos_calibracao_2026-09-23.json`; atualização de 2026-11-02 em `ml/artifacts/semaforos_calibracao.json` e `ml/artifacts/ab_calibracao_grafo_2026-11-02.json`; a validar pelo grupo)*.
    - A soma de arestas não modela a espera em cruzamento semaforizado, o que gera viés proporcional à distância no tempo total (Fase 3). Por isso a validação externa usa o atraso por congestionamento, não o tempo absoluto.
    - **Tratamento implementado:**
      - semáforos do OSM (`highway=traffic_signals`, 423 no DF) encaixados no cruzamento do grafo (271 cruzamentos; a simplificação do OSMnx guardava só 114);
@@ -139,6 +139,12 @@ A Fase 3 compara, para o mesmo par origem-destino e no mesmo instante:
      - Teste A/B com a velocidade livre da TomTom só nos trechos monitorados (`VEL_LIVRE_TOMTOM=1`), nos mesmos 60 pares: a LIA ficou 29,2% abaixo da TomTom, contra 29,7% na versão atual.
        - O ganho é desprezível porque esses trechos são poucos: o viés está nas arestas por transferência e heurística.
        - Próximo passo: calibrar a velocidade livre por classe de via.
+   - **Atualização 2026-11-02 — velocidade livre por grupo de via:**
+     - Método: `TomTom sem trânsito ≈ Σ g·(tempo livre do grupo) + δ·semáforos + atrasos de cruzamento`, mínimos quadrados não negativos no nível da rota, 135 rotas sorteadas (semente 42; 15 descartadas porque a TomTom desviou mais de 10% ao reconstruir o trajeto). Fator novo do grupo = fator atual / g.
+     - Resultado (`fatores_velocidade_grupo`, `ajuste_por_grupo`): expressa 0,909, arterial 0,897, coletora 0,508, local 0,425 (sobre o limite de via do OSM); δ = 8,1 s por semáforo; MAPE do tempo livre na amostra de 20,5% para 10,4%.
+     - Leitura: o viés estava nas ruas locais e coletoras, que levam ≈ 2× o tempo do limite de via (quebra-molas, rotatórias e cruzamentos embutidos). Expressas e arteriais quase não mudam. O atraso por cruzamento sem semáforo, colinear com o tempo das ruas locais, saiu ≈ 0.
+     - Validação fora da amostra (`ab_calibracao_grafo_2026-11-02.json`, A/B/C no mesmo instante; feriado, ~12h): nos 16 corredores, LIA × TomTom ao vivo no mesmo trajeto foi de −9,1% de viés mediano e 12,7% de MAPE (produção) para −4,0% / 9,6% (grupos) e −2,3% / 8,7% (grupos + prior de congestionamento: aresta sem sensor parte da lentidão prevista agora nos trechos monitorados, não da mediana histórica do horário, que é 1,0 em 3 de cada 4 combinações hora × dia); em 40 rotas sorteadas com outra semente, de −14,7% / 18,7% para −6,4% / 10,7% e −3,3% / 9,5%. Amostra pequena (14–15 pares no mesmo trajeto) e um só horário.
+   - **Restrições de conversão:** o OSMnx ignora as relações `restriction` do OSM e o snap pega a pista mais próxima de uma via dupla. Em Plano → Taguatinga a rota da LIA termina com um retorno pela Avenida Comercial que a TomTom não aceita; ao reconstruir o trajeto ela dá uma volta de 4,8 km (×1,23 na distância, em todas as rodadas). É o único corredor com desvio sistemático. Correção possível: grafo por aresta (restrições) ou snap com vários candidatos.
    - **Limitação da coleta:** a calibração foi feita de madrugada; repetir em horário comercial e estratificar por região.
 2. **Subestimação em congestionamento extremo** (Figura 4).
    - No subconjunto congestionado (razão < 0,95; 17,1% das amostras), o RMSE da LIA 2.1 sobe de 40,7 s para 87,5 s (2,1×).

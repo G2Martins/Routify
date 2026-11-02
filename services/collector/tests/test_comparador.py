@@ -5,7 +5,7 @@ import comparar_provedores as cp
 
 ROTA = {'tempo_lia_seg': 1500, 'tempo_total_seg': 1450, 'distancia_km': 21.3, 'fonte_rota': 'lia',
         'lia_cobertura_pct': 88.0, 'modelo_utilizado': 'lia_2.3', 'hora_partida': 18, 'alternativa': None,
-        'tomtom': {'referencia_tempo_seg': 1600, 'referencia_atraso_seg': 300},
+        'tomtom': {'referencia_tempo_seg': 1600, 'referencia_atraso_seg': 300, 'referencia_historico_seg': 1550},
         'polyline': [[-15.8, -48.0], [-15.8, -47.98]]}
 
 
@@ -41,6 +41,7 @@ def test_routify_devolve_lia_rota_exibida_e_tomtom_no_mesmo_trajeto():
     assert set(r) == {'lia', 'routify', 'tomtom_mesmo_trajeto'}
     assert (r['lia']['tempo_s'], r['lia']['distancia_km']) == (1500, 21.3)
     assert r['routify']['tempo_s'] == 1450 and r['tomtom_mesmo_trajeto']['tempo_s'] == 1600
+    assert r['tomtom_mesmo_trajeto']['detalhes']['historico_s'] == 1550
     assert s.chamadas[0][1]['headers']['X-Routify-Interno'] == '1'
 
 
@@ -62,16 +63,20 @@ def test_cada_provedor_externo_le_tempo_e_distancia():
     s = _Sessao({
         'project-osrm': _Resp({'routes': [{'duration': 1200.44, 'distance': 20500}]}),
         'openrouteservice': _Resp({'features': [{'properties': {'summary': {'duration': 1250, 'distance': 20800}}}]}),
-        'mapbox': _Resp({'routes': [{'duration': 1580, 'distance': 21100}]}),
+        'mapbox': _Resp({'routes': [{'duration': 1580, 'distance': 21100, 'duration_typical': 1500}]}),
         'tomtom': _Resp({'routes': [{'summary': {'travelTimeInSeconds': 1600, 'lengthInMeters': 21000,
-                                                 'noTrafficTravelTimeInSeconds': 1250, 'trafficDelayInSeconds': 350}}]}),
+                                                 'noTrafficTravelTimeInSeconds': 1250, 'trafficDelayInSeconds': 350,
+                                                 'historicTrafficTravelTimeInSeconds': 1450}}]}),
     })
     o, d = (-15.8, -48.0), (-15.79, -47.88)
     assert cp.osrm(o, d, s)['tempo_s'] == 1200.4 and cp.osrm(o, d, s)['distancia_km'] == 20.5
     assert cp.openrouteservice(o, d, 'k', s)['distancia_km'] == 20.8
-    assert cp.mapbox(o, d, 't', s)['tempo_s'] == 1580
+    mb = cp.mapbox(o, d, 't', s)
+    assert mb['tempo_s'] == 1580 and mb['detalhes'] == {'tipico_s': 1500}
     tt = cp.tomtom(o, d, 'k', s)
-    assert tt['tempo_s'] == 1600 and tt['detalhes'] == {'sem_transito_s': 1250, 'atraso_transito_s': 350}
+    assert tt['tempo_s'] == 1600
+    assert tt['detalhes'] == {'sem_transito_s': 1250, 'atraso_transito_s': 350, 'historico_s': 1450}
+    assert s.chamadas[-1][1]['params']['computeTravelTimeFor'] == 'all'  # sem ele, sem_transito vinha vazio
 
 
 def test_erro_http_nunca_grava_a_url_com_a_chave():
@@ -161,3 +166,11 @@ def test_rodada_recusada_espera_e_vai_junto_na_proxima(tmp_path, monkeypatch):
     assert cp.gravar([{'corredor': 'c', 'provedor': 'lia'}], banco) is True
     assert [l['corredor'] for l in banco.inseridas] == ['a', 'b', 'c']
     assert not (tmp_path / 'p' / 'pendente.jsonl').exists()
+
+
+def test_viagens_poi_tem_slug_unico_curto_e_ficam_no_df():
+    ids = [c[0] for c in cp.TODOS]
+    assert len(ids) == len(set(ids)) and all(len(i) <= 60 for i in ids)  # corredor text <= 60 na tabela
+    assert all(i.startswith('poi-') for i, *_ in cp.CORREDORES_POI)
+    for _, _, o, d in cp.TODOS:
+        assert all(-16.1 < p[0] < -15.5 and -48.3 < p[1] < -47.3 for p in (o, d))

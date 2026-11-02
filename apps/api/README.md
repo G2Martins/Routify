@@ -75,7 +75,21 @@ limite do OSM é mais alto. Na subida, `graph_enrichment.calibrar_velocidade_liv
 de cada sensor (mediana ≈ 0,88) e aplica um fator único a todas as arestas; nos trechos monitorados vale a da
 TomTom. Um fator só não muda qual rota é a mais rápida. Contra a TomTom no mesmo trajeto, o viés caiu de −11,9%
 para −0,2% (`ml/artifacts/experimento_velocidade_livre.json`). `VEL_LIVRE_CALIBRADA=0` volta ao limite do OSM
-(números da Fase 3). `/health.velocidade_livre` diz qual está valendo. A ordem das features vem do próprio modelo (`feature_names_in_`)
+(números da Fase 3). `/health.velocidade_livre` diz qual está valendo.
+
+**Velocidade livre por grupo de via (desde 2026-11-02):** `semaforos_calibracao.json` traz `fatores_velocidade_grupo`
+(expressa 0,909, arterial 0,897, coletora 0,508, local 0,425), ajustados no nível da rota contra a TomTom sem trânsito
+por `ml/calibrate_signals.py`. Ruas locais e coletoras levavam ≈ 2× o tempo do limite de via. Validação fora da amostra em
+`ml/artifacts/ab_calibracao_grafo_2026-11-02.json`. `/health.velocidade_livre_fatores` mostra os fatores em uso.
+
+**Prior de congestionamento (`PRIOR_CONGESTIONAMENTO`, padrão `corredor`):** aresta sem sensor em 500 m usava a mediana
+histórica da razão no horário, que é 1,0 (fluxo livre) em 3 de cada 4 combinações hora × dia; a transferência encolhia
+para 1,0. Agora as duas partem da lentidão que o modelo prevê no momento nos trechos monitorados (média harmônica
+ponderada pelo tempo livre). `PRIOR_CONGESTIONAMENTO=perfil` volta ao comportamento da tese.
+
+**Vias proibidas para carro:** o filtro `drive` do OSMnx 1.9 só tira `access=private`. Na carga do grafo saem também
+`access=no` (condomínio fechado, alça fechada; 41 arestas) e os `busway`. Mudou o filtro, `VERSAO_FILTRO` muda e o
+pickle enxuto é refeito uma vez a partir do GraphML (pico de ~1,3 GB: na EC2, gere localmente e copie o `.pkl`). A ordem das features vem do próprio modelo (`feature_names_in_`)
 e a subida faz uma predição de teste: contrato treino × API quebrado derruba o startup,
 não a primeira rota. Chuva ao vivo: previsão horária do [Open-Meteo](https://open-meteo.com)
 (CC BY 4.0), cache de 15 min, ≤ 96 chamadas/dia; fora do ar → chuva 0.
@@ -264,7 +278,7 @@ Campos extras são rejeitados (422). O ETA da TomTom vem sempre pela fusão, ent
         "interdicao": false, "lat": -15.80, "lon": -47.89 }
     ],
     "referencia_tempo_seg": 1043, "referencia_atraso_seg": 163,
-    "referencia_sem_transito_seg": 790, "referencia_distancia_km": 13.39
+    "referencia_sem_transito_seg": 790, "referencia_historico_seg": 980, "referencia_distancia_km": 13.39
   },
 
   "fonte_rota": "lia",

@@ -7,7 +7,7 @@ import math
 import logging
 import time
 from datetime import datetime
-from typing import List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional
 
 import networkx as nx
 import osmnx as ox
@@ -72,6 +72,7 @@ class TomTomResumo(BaseModel):
     referencia_tempo_seg: Optional[int] = Field(None, description="ETA da TomTom com trânsito para o trajeto da LIA (reconstruído na fusão); fora da malha, para a rota da própria TomTom.")
     referencia_atraso_seg: Optional[int] = Field(None, description="Atraso por trânsito segundo a TomTom.")
     referencia_sem_transito_seg: Optional[int] = Field(None, description="ETA da TomTom sem trânsito.")
+    referencia_historico_seg: Optional[int] = Field(None, description="ETA da TomTom pelo histórico dela, sem a leitura ao vivo: o equivalente da LIA na TomTom.")
     referencia_distancia_km: Optional[float] = Field(None, description="Distância da rota da TomTom.")
 
 
@@ -133,6 +134,15 @@ class RouteOutput(BaseModel):
     fora_da_malha: bool = Field(False, description="Origem/destino além da malha coberta (raio de 38 km); rota só da TomTom.")
     semaforos_na_rota: Optional[int] = Field(
         None, description="Cruzamentos com semáforo (OSM traffic_signals) na rota da LIA; entram no tempo com o atraso médio calibrado.")
+    cruzamentos_na_rota: Optional[int] = Field(
+        None, description="Cruzamentos sem semáforo na rota da LIA (nó com 3+ vizinhos, fora de via expressa); entram no tempo com o atraso médio calibrado.")
+    cruzamentos_via_na_rota: Optional[int] = Field(
+        None, description="Cruzamentos sem semáforo chegando por via arterial (primária, secundária); atraso próprio.")
+    tempo_livre_por_grupo_s: Optional[Dict[str, float]] = Field(
+        None, description="Tempo livre da rota da LIA por grupo de via (expressa, arterial, coletora, local), sem atrasos. "
+                          "Diagnóstico para calibrar a velocidade livre do grafo contra a TomTom.")
+    tempo_livre_lia_seg: Optional[int] = Field(
+        None, description="Tempo da rota da LIA em velocidade livre, sem a razão prevista, mais os atrasos de cruzamento. Diagnóstico: separa o erro de escala do erro de congestionamento.")
     alternativa: Optional[AlternativaRota] = Field(None, description="A candidata não escolhida, para desenho tracejado.")
     clima: Optional[Clima] = Field(None, description="Tempo em Brasília na partida (Open-Meteo) e o contexto que a LIA 2.2 usou.")
     economia: Optional[Economia] = Field(
@@ -298,6 +308,13 @@ def assign_lia_weights(model, encoder, profiles, G: nx.MultiDiGraph,
     razao_global = lia_inf.clamp_razao(
         lia_inf.lookup_perfis(profiles, None, hora, dia_semana)['perfil_hora_dow']
     )
+    # PRIOR_CONGESTIONAMENTO=corredor (main.py): a mediana acima é 1,0 (fluxo livre) em 3 de cada 4
+    # combinações hora × dia, porque a razão concentra massa em 1. Para somar tempo, o que vale é a
+    # média: o prior passa a ser a lentidão que o modelo prevê AGORA nos trechos monitorados (média
+    # harmônica ponderada pelo tempo livre). Vale para as arestas sem sensor e é o alvo para onde a
+    # transferência encolhe com a distância (antes: 1,0, mais livre que o sensor e que a cidade).
+    prior_vivo = G.graph.get('prior_congestionamento') == 'corredor'
+    heuristicas = []  # (índice, comprimento, vel. livre): no modo corredor, o prior só sai depois da predição
 
     # --- Template por via, não por aresta ---
     # Fixados hora e dia_semana, a única feature que varia entre arestas da
@@ -355,17 +372,27 @@ def assign_lia_weights(model, encoder, profiles, G: nx.MultiDiGraph,
             # Sem via monitorada em 500 m: adota a razão global do horário.
             # Mesma fórmula do ramo do modelo, então as duas famílias de aresta
             # ficam comparáveis e o A* não é enviesado por escolha de esquema.
+            if prior_vivo:
+                heuristicas.append((i, length_m, vel_livre))
+                resultado['heuristic'] += 1
+                continue
             d['travel_time_lia'] = lia_inf.tempo_de_razao(length_m, vel_livre, razao_global)
             d['lia_source'] = 'heuristic'
             d['lia_razao'] = round(razao_global, 4)
             resultado['heuristic'] += 1
 
     # --- Uma única chamada ao modelo para todas as arestas vinculadas ---
+    prior = razao_global
     if linhas:
         razoes = np.clip(
             model.predict(np.vstack(linhas)),
             lia_inf.RAZAO_MIN, lia_inf.RAZAO_MAX,
         )
+        if prior_vivo:
+            eh_modelo = np.array([f[0] == 'model' for f in fontes])
+            if eh_modelo.any():
+                t_livre = np.array([f[3] / max(f[2], 1.0) for f in fontes])[eh_modelo]  # ∝ tempo livre
+                prior = float(lia_inf.clamp_razao(t_livre.sum() / (t_livre / razoes[eh_modelo]).sum()))
 
         # Confiança da transferência, vetorizada: quanto mais longe a via de
         # referência, mais a razão volta para fluxo livre (1.0).
@@ -373,7 +400,7 @@ def assign_lia_weights(model, encoder, profiles, G: nx.MultiDiGraph,
         eh_transfer = np.array([f[0] == 'transfer' for f in fontes])
         conf = _confianca_transfer(dists, transfer_confidence)
         conf = np.where(eh_transfer, conf, 1.0)
-        razoes = razoes * conf + (1.0 - conf)
+        razoes = razoes * conf + (prior if prior_vivo else 1.0) * (1.0 - conf)
 
         for idx, razao, (fonte, _, vel_livre, length_m) in zip(indices, razoes, fontes):
             _, _, _, d = arestas[idx]
@@ -381,8 +408,15 @@ def assign_lia_weights(model, encoder, profiles, G: nx.MultiDiGraph,
             d['lia_source'] = fonte
             d['lia_razao'] = round(float(razao), 4)
 
+    for i, length_m, vel_livre in heuristicas:
+        d = arestas[i][3]
+        d['travel_time_lia'] = lia_inf.tempo_de_razao(length_m, vel_livre, prior)
+        d['lia_source'] = 'heuristic'
+        d['lia_razao'] = round(prior, 4)
+
     logger.info(
-        f"Pesos atribuídos: {resultado['model']:,} do modelo, "
+        f"Pesos atribuídos (prior {'corredor' if prior_vivo else 'perfil'} {prior:.3f}): "
+        f"{resultado['model']:,} do modelo, "
         f"{resultado['transfer']:,} de transfer, "
         f"{resultado['heuristic']:,} heurística, "
         f"{resultado['blocked']:,} bloqueadas"
@@ -526,10 +560,12 @@ def _via_da_polyline(request: Request, G: nx.MultiDiGraph, polyline: List[List[f
 def _vmax_ms(G) -> float:
     """Maior velocidade livre do grafo (m/s), calculada uma vez. A heurística do A*
     divide por ela para ser limite inferior do custo: com 30 m/s fixos, as arestas
-    de 110 km/h a violavam e o A* podia devolver caminho até ~2% pior."""
+    de 110 km/h a violavam e o A* podia devolver caminho até ~2% pior. Entra também a velocidade
+    livre da TomTom dos trechos monitorados, que o tempo da LIA usa no lugar da do grafo."""
     if 'vmax_ms' not in G.graph:
-        G.graph['vmax_ms'] = max((float(d.get('speed_kph') or 0.0) for _, _, d in G.edges(data=True)),
-                                 default=108.0) / 3.6
+        vels = [float(d.get('speed_kph') or 0.0) for _, _, d in G.edges(data=True)]
+        vels += [float(v) for v in (G.graph.get('vel_livre_tomtom') or {}).values()]
+        G.graph['vmax_ms'] = max(vels, default=108.0) / 3.6
     return G.graph['vmax_ms']
 
 
@@ -630,6 +666,7 @@ async def calculate_route(body: RouteInput, request: Request):
             referencia_tempo_seg=referencia.get('tempo_seg'),
             referencia_atraso_seg=referencia.get('atraso_seg'),
             referencia_sem_transito_seg=referencia.get('sem_transito_seg'),
+            referencia_historico_seg=referencia.get('historico_seg'),
             referencia_distancia_km=referencia.get('distancia_km'),
         )
 
@@ -664,6 +701,8 @@ async def calculate_route(body: RouteInput, request: Request):
         contexto_obj.para_requisicao(now, recencia_cache_obj) if contexto_obj is not None else None,
     )
     atraso_sem = float(G.graph.get('atraso_semaforo_s', 0.0))
+    atraso_cruz = float(G.graph.get('atraso_cruzamento_s', 0.0))
+    atraso_cruz_via = float(G.graph.get('atraso_cruzamento_via_s', 0.0))
 
     # Heurística Haversine para A*: distância / maior velocidade do grafo = limite inferior
     vmax = _vmax_ms(G)
@@ -672,8 +711,8 @@ async def calculate_route(body: RouteInput, request: Request):
         return haversine_m(G.nodes[u]['y'], G.nodes[u]['x'], G.nodes[v]['y'], G.nodes[v]['x']) / vmax
 
     bloqueadas = tomtom.arestas_interditadas(G, incidentes_tt) if incidentes_tt else set()
-    peso = (tomtom.peso_sem_interditadas(bloqueadas, PENALTY_NON_DRIVABLE_S, atraso_sem)
-            if bloqueadas or atraso_sem else 'travel_time_lia')
+    peso = (tomtom.peso_sem_interditadas(bloqueadas, PENALTY_NON_DRIVABLE_S, atraso_sem, atraso_cruz, atraso_cruz_via)
+            if bloqueadas or atraso_sem or atraso_cruz or atraso_cruz_via else 'travel_time_lia')
     try:
         path_nodes = nx.astar_path(G, orig_node, dest_node, heuristic=heuristic, weight=peso)
     except nx.NetworkXNoPath:
@@ -684,7 +723,11 @@ async def calculate_route(body: RouteInput, request: Request):
     polyline = montar_polyline(G, path_nodes)
     tempo_lia, distancia_total, cobertura_pct = _resumir_caminho(G, path_nodes)
     semaforos = trajeto.contar_semaforos(G, path_nodes)
-    tempo_lia += atraso_sem * semaforos  # mesmo critério na baseline abaixo
+    cruzamentos = trajeto.contar_cruzamentos(G, path_nodes)
+    cruzamentos_via = trajeto.contar_cruzamentos(G, path_nodes, 'cruzamento_via')
+    atrasos = atraso_sem * semaforos + atraso_cruz * cruzamentos + atraso_cruz_via * cruzamentos_via
+    tempo_livre = trajeto.tempo_livre_s(G, path_nodes) + atrasos
+    tempo_lia += atrasos  # mesmo critério na baseline abaixo
 
     # --- Baseline da tese: rota de menor distância, sob as mesmas condições ---
     tempo_curta = dist_curta = None
@@ -696,7 +739,9 @@ async def calculate_route(body: RouteInput, request: Request):
             weight='length',
         )
         tempo_curta, dist_curta, _ = _resumir_caminho(G, path_curta)
-        tempo_curta += atraso_sem * trajeto.contar_semaforos(G, path_curta)
+        tempo_curta += (atraso_sem * trajeto.contar_semaforos(G, path_curta)
+                        + atraso_cruz * trajeto.contar_cruzamentos(G, path_curta)
+                        + atraso_cruz_via * trajeto.contar_cruzamentos(G, path_curta, 'cruzamento_via'))
         rotas_diferentes = path_curta != path_nodes
     except (nx.NetworkXNoPath, nx.NodeNotFound, KeyError) as e:
         logger.warning(f"Baseline de menor distância indisponível: {e}")
@@ -765,6 +810,10 @@ async def calculate_route(body: RouteInput, request: Request):
         fonte_rota=fonte_rota,
         tempo_lia_seg=int(tempo_lia),
         semaforos_na_rota=semaforos,
+        cruzamentos_na_rota=cruzamentos,
+        cruzamentos_via_na_rota=cruzamentos_via,
+        tempo_livre_por_grupo_s=trajeto.tempo_livre_por_grupo(G, path_nodes),
+        tempo_livre_lia_seg=int(tempo_livre),
         alternativa=alternativa,
         clima=clima,
         economia=economia,

@@ -177,6 +177,14 @@ export type AnalyticsUso = {
 /* ---------- LIA × provedores (migration 20261102000000_lia_vs_provedores) ---------- */
 
 /** Erro contra a TomTom ao vivo: viés mediano e MAPE em %, e a fatia dentro de ±20%. Sem pares = null. */
+/** admin_provedores_historicos: séries pareadas contra a TomTom ao vivo (migration 20261102010000). */
+export type ProvedoresHistoricos = {
+  janela_dias: number;
+  series: Partial<
+    Record<'lia' | 'tomtom_historico' | 'lia_x_tomtom_historico' | 'mapbox_tipico' | 'mapbox_ao_vivo', ErroContraTomTom>
+  >;
+};
+
 export type ErroContraTomTom = {
   n: number;
   vies_mediano_pct: number | null;

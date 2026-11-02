@@ -68,9 +68,9 @@ def main():
     args = ap.parse_args()
 
     saude = httpx.get(f'{args.api}/health', timeout=30).json()
-    if (saude.get('semaforos') or {}).get('atraso_s'):
-        raise SystemExit('A API já aplica um atraso de semáforo. Remova ml/artifacts/semaforos_calibracao.json, '
-                         'reinicie a API e rode de novo (senão o atraso entra duas vezes).')
+    if any((saude.get('semaforos') or {}).get(k) for k in ('atraso_s', 'atraso_cruzamento_s', 'atraso_cruzamento_via_s')):
+        raise SystemExit('A API já aplica atrasos calibrados. Suba a API com SEM_ATRASO_CALIBRADO=1 e rode de novo '
+                         '(senão o atraso entra duas vezes).')
 
     rng = random.Random(args.seed)
     linhas, chamadas = [], 0
@@ -100,6 +100,11 @@ def main():
         km_lia = (j['alternativa'] or {}).get('distancia_km') if j.get('fonte_rota') == 'tomtom' else j['distancia_km']
         linhas.append({
             'semaforos': j.get('semaforos_na_rota') or 0,
+            'cruzamentos': j.get('cruzamentos_na_rota') or 0,
+            'cruzamentos_via': j.get('cruzamentos_via_na_rota') or 0,
+            'tomtom_km': tt.get('referencia_distancia_km'),
+            'lia_livre_s': j.get('tempo_livre_lia_seg'),
+            'livre_por_grupo_s': j.get('tempo_livre_por_grupo_s') or {},
             'km': km_lia,
             'lia_s': j['tempo_lia_seg'],
             'tomtom_sem_transito_s': tt['referencia_sem_transito_seg'],
@@ -109,28 +114,85 @@ def main():
         print(f"  {len(linhas):>3}/{args.n}  {linhas[-1]['semaforos']:>2} semáforos  {km_lia:>5.1f} km  "
               f"LIA {j['tempo_lia_seg']:>5}s  TomTom s/ trânsito {tt['referencia_sem_transito_seg']:>5}s")
 
+    # A TomTom às vezes reconstrói o trajeto com desvio: aí o ETA dela não é do mesmo caminho.
+    desvios = [l for l in linhas if l.get('tomtom_km') and l['km'] and abs(l['tomtom_km'] / l['km'] - 1) > 0.10]
+    linhas = [l for l in linhas if l not in desvios]
+    print(f'{len(desvios)} rotas fora: a TomTom desviou mais de 10% do trajeto da LIA')
     if len(linhas) < 20:
         raise SystemExit(f'Só {len(linhas)} rotas válidas — pouco para calibrar.')
 
-    X = np.array([[l['semaforos'], l['km']] for l in linhas], dtype=float)
-    y = np.array([l['tomtom_sem_transito_s'] - l['lia_s'] for l in linhas], dtype=float)
-    (delta, beta), (ep_delta, ep_beta), r2 = _ajustar(X, y)
-    delta_bruto = float(delta)
+    # Tempo livre da LIA (sem a razão prevista) quando a API informa: calibra a qualquer hora sem
+    # misturar congestionamento. Sem ele, o tempo da LIA (calibração antiga, de madrugada).
+    base = np.array([l['lia_livre_s'] if l.get('lia_livre_s') else l['lia_s'] for l in linhas], dtype=float)
+    y = np.array([l['tomtom_sem_transito_s'] for l in linhas], dtype=float) - base
+    X = np.array([[l['semaforos'], l['cruzamentos'], l.get('cruzamentos_via', 0)] for l in linhas], dtype=float)
+    (delta, delta_c, delta_cv), (ep_delta, ep_delta_c, ep_delta_cv), r2 = _ajustar(X, y)
+    # Conferência: com um termo por km (viés de velocidade livre que ainda sobrar).
+    (_, _, _, beta), (_, _, _, ep_beta), r2_km = _ajustar(
+        np.column_stack([X, [l['km'] for l in linhas]]).astype(float), y)
+    delta_bruto, delta_c_bruto, delta_cv_bruto = float(delta), float(delta_c), float(delta_cv)
     # Negativo ou absurdo não tem leitura física: limita a [0, 90] s e registra o bruto.
     delta = float(min(max(delta, 0.0), 90.0))
+    delta_c = float(min(max(delta_c, 0.0), 60.0))
+    delta_cv = float(min(max(delta_cv, 0.0), 60.0))
+    mape = lambda r: float(np.mean(np.abs(r) / np.array([l['tomtom_sem_transito_s'] for l in linhas])) * 100)
+    mape_sem_grupo = mape(y - X @ np.array([delta, delta_c, delta_cv]))
+    mape_depois = mape_sem_grupo
+
+    # Velocidade livre por grupo de via, no nível da rota: TomTom sem trânsito ≈ Σ g·tempo livre do grupo
+    # + atrasos (mínimos quadrados não negativos). Fator novo do grupo = fator atual / g.
+    grupos = ['expressa', 'arterial', 'coletora', 'local']
+    fatores_grupo, ajuste_grupo = None, None
+    if all(l.get('livre_por_grupo_s') for l in linhas):
+        from scipy.optimize import nnls
+        Tg = np.array([[l['livre_por_grupo_s'].get(g, 0.0) for g in grupos] for l in linhas], dtype=float)
+        A = np.column_stack([Tg, X])
+        tt = np.array([l['tomtom_sem_transito_s'] for l in linhas], dtype=float)
+        coef, _ = nnls(A, tt)
+        base = float(((saude.get('velocidade_livre_fatores') or {}).get('fator')) or 1.0)
+        peso_grupo = Tg.sum(axis=0) / Tg.sum()  # fatia do tempo de cada grupo na amostra
+        # Grupo com menos de 5% do tempo da amostra não tem fator próprio: fica o atual.
+        fatores_grupo = {g: round(min(max(base / c, 0.3), 1.0), 3) if c > 0 and w >= 0.05 else base
+                         for g, c, w in zip(grupos, coef[:4], peso_grupo)}
+        resid = tt - A @ coef
+        ajuste_grupo = {'multiplicador_tempo_por_grupo': {g: round(float(c), 3) for g, c in zip(grupos, coef[:4])},
+                        'fatia_do_tempo_por_grupo': {g: round(float(w), 3) for g, w in zip(grupos, peso_grupo)},
+                        'atraso_semaforo_seg': round(float(coef[4]), 2),
+                        'atraso_cruzamento_local_seg': round(float(coef[5]), 2),
+                        'atraso_cruzamento_arterial_seg': round(float(coef[6]), 2),
+                        'mape_pct': round(float(np.mean(np.abs(resid) / tt) * 100), 1),
+                        'fator_base': base}
+        # Com os fatores por grupo, os atrasos aplicados são os do ajuste conjunto (não os da regressão sem grupos).
+        delta, delta_c, delta_cv = (float(min(max(c, 0.0), cap)) for c, cap in zip(coef[4:7], (90.0, 60.0, 60.0)))
+        mape_depois = float(np.mean(np.abs(resid) / tt) * 100)
 
     agora = datetime.now(timezone.utc)
     saida = {
         'atraso_por_semaforo_seg': round(delta, 2),
         'atraso_por_semaforo_bruto_seg': round(delta_bruto, 2),
         'erro_padrao_delta_seg': round(float(ep_delta), 2),
+        'atraso_por_cruzamento_seg': round(delta_c, 2),
+        'atraso_por_cruzamento_bruto_seg': round(delta_c_bruto, 2),
+        'erro_padrao_delta_cruzamento_seg': round(float(ep_delta_c), 2),
+        'atraso_por_cruzamento_via_seg': round(delta_cv, 2),
+        'atraso_por_cruzamento_via_bruto_seg': round(delta_cv_bruto, 2),
+        'erro_padrao_delta_cruzamento_via_seg': round(float(ep_delta_cv), 2),
+        'rotas_descartadas_desvio_tomtom': len(desvios),
         'vies_por_km_seg': round(float(beta), 2),
         'erro_padrao_vies_por_km_seg': round(float(ep_beta), 2),
         'r2': round(float(r2), 3),
+        'r2_com_km': round(float(r2_km), 3),
+        'mape_antes_pct': round(mape(y), 1),
+        'mape_depois_pct': round(mape_depois, 1),  # do modelo aplicado (com grupos, o ajuste conjunto)
+        'mape_depois_sem_grupo_pct': round(mape_sem_grupo, 1),
+        'cruzamentos_media_por_rota': round(float(X[:, 1].mean()), 2),
+        'fatores_velocidade_grupo': fatores_grupo,
+        'ajuste_por_grupo': ajuste_grupo,
         'n_rotas': len(linhas),
         'semaforos_media_por_rota': round(float(X[:, 0].mean()), 2),
-        'metodo': ('OLS sem intercepto: (TomTom noTrafficTravelTime no mesmo trajeto − tempo LIA) '
-                   '~ δ·semáforos + β·km; semáforos = nós OSM highway=traffic_signals na rota.'),
+        'metodo': ('OLS sem intercepto: (TomTom noTrafficTravelTime no mesmo trajeto − tempo livre da LIA) '
+                   '~ δ·semáforos + δc·cruzamentos; semáforos = nós OSM highway=traffic_signals na rota; '
+                   'cruzamentos = nós com 3+ vizinhos sem semáforo, fora de via expressa. β·km só como conferência.'),
         'referencia_literatura': 'HCM: atraso de controle LOS B–C = 10–35 s/veículo; Webster d ≈ r²/2C.',
         'semente': args.seed,
         'velocidade_livre_api': saude.get('velocidade_livre', 'osm'),
@@ -143,7 +205,9 @@ def main():
     with open(destino, 'w', encoding='utf-8') as f:
         json.dump(saida, f, ensure_ascii=False, indent=2)
     print(f"\nδ = {delta:.1f} s/semáforo (bruto {delta_bruto:.1f} ± {ep_delta:.1f}), "
-          f"β = {beta:.1f} s/km, R² = {r2:.2f}, n = {len(linhas)} → {destino}")
+          f"δc local = {delta_c:.1f} s (bruto {delta_c_bruto:.1f} ± {ep_delta_c:.1f}), "
+          f"δc arterial = {delta_cv:.1f} s (bruto {delta_cv_bruto:.1f} ± {ep_delta_cv:.1f}), "
+          f"β = {beta:.1f} s/km (conferência), R² = {r2:.2f}, n = {len(linhas)} → {destino}")
     print('Reinicie a API para aplicar.')
 
 

@@ -288,6 +288,32 @@ def test_pesos_do_route_concordam_com_o_predict(tmp_path):
     assert b['lia_razao'] == pytest.approx(r2 * conf + (1 - conf), abs=1e-4)
 
 
+def test_prior_corredor_aresta_sem_sensor_herda_a_lentidao_prevista_agora(tmp_path):
+    """PRIOR_CONGESTIONAMENTO=corredor: heurística e alvo da transferência = média harmônica do modelo
+    nos trechos monitorados (ponderada pelo tempo livre), não a mediana histórica (1,0 no perfil vazio)."""
+    pytest.importorskip('osmnx')
+    import networkx as nx
+    from routers import route
+    modelo, enc, perfis = _ModeloSensivelAOrdem(), _Encoder(), _perfis()
+    rc = recency_cache.RecenciaCache()
+    rc._ultima_busca = float('inf')
+    rc.registrar(1, 0.6)
+    G = nx.MultiDiGraph()
+    G.graph['prior_congestionamento'] = 'corredor'
+    G.add_edge(10, 11, length=500.0, highway='primary', speed_kph=50.0, id_ponto_lia=1, dist_lia_m=10.0)    # 'model'
+    G.add_edge(11, 12, length=300.0, highway='primary', speed_kph=40.0, id_ponto_lia=2, dist_lia_m=200.0)   # 'transfer'
+    G.add_edge(12, 13, length=400.0, highway='residential', speed_kph=30.0)                                  # sem sensor
+    ctx_via = _contexto(tmp_path).para_requisicao(datetime(2026, 11, 2, 8, tzinfo=BRASILIA_TZ), rc)
+    route.assign_lia_weights(modelo, enc, perfis, G, 8, 0, rc, None, ctx_via)
+    a, b, c = G.edges[10, 11, 0], G.edges[11, 12, 0], G.edges[12, 13, 0]
+    r1 = lia.prever_razao(modelo, enc, perfis, 1, 8, 0, 50.0, rc.get(1), ctx_via(1))
+    r2 = lia.prever_razao(modelo, enc, perfis, 2, 8, 0, 40.0, rc.get(2), ctx_via(2))
+    assert c['lia_source'] == 'heuristic' and c['lia_razao'] == pytest.approx(r1, abs=1e-4)  # um só trecho monitorado
+    conf = float(route._confianca_transfer(200.0, None)[0])
+    assert b['lia_razao'] == pytest.approx(r2 * conf + r1 * (1 - conf), abs=1e-4)
+    assert c['travel_time_lia'] == pytest.approx(lia.tempo_de_razao(400.0, 30.0, r1), rel=1e-3)
+
+
 def test_override_de_recencia_exige_razao_e_minutos(client):
     assert _post(client, razao_ultima_observacao=0.5).status_code == 422
 
@@ -417,6 +443,17 @@ def test_heuristica_do_astar_e_limite_inferior_do_custo():
     G.add_edge(1, 2, speed_kph=40.0)
     custo_por_metro = lia.tempo_de_razao(1000.0, 110.0, 1.0) / 1000.0
     assert custo_por_metro >= 1.0 / route._vmax_ms(G)
+
+
+def test_heuristica_cobre_trecho_monitorado_mais_rapido_que_o_grafo():
+    # Trecho monitorado usa a velocidade livre da TomTom (120) no lugar da do grafo (fator por grupo baixa esta).
+    pytest.importorskip('osmnx')
+    import networkx as nx
+    from routers import route
+    G = nx.MultiDiGraph()
+    G.add_edge(0, 1, speed_kph=88.0)
+    G.graph['vel_livre_tomtom'] = {7: 120.0}
+    assert route._vmax_ms(G) == pytest.approx(120.0 / 3.6)
 
 
 def test_parse_maxspeed_com_varios_valores():

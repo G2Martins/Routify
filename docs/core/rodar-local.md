@@ -44,6 +44,7 @@ As migrations de `supabase/migrations/` precisam estar aplicadas, na ordem:
 6. `20260923030000_economia_combustivel.sql` — RPC `admin_economia_combustivel`;
 7. `20260923040000_minutos_economizados.sql` — minutos economizados nos painéis.
 8. `20261102000000_lia_vs_provedores.sql` — tabela do comparador LIA × provedores e a RPC da página `/admin/provedores` (sem ela a página mostra o aviso de migration pendente).
+9. `20261102010000_provedores_historicos.sql` — RPC `admin_provedores_historicos`: a LIA contra o ETA histórico da TomTom no mesmo trajeto e o típico do Mapbox (cartão da página `/admin/provedores`).
 
 **Opção A — SQL Editor (mais simples).** No painel do Supabase → **SQL Editor** → **New query**, cole o conteúdo dos arquivos (nessa ordem) e clique em **Run**. Tudo é idempotente: rodar de novo não estraga nada.
 

@@ -1,0 +1,792 @@
+[
+  {
+    "id": "metro-central",
+    "nome": "Estação Central",
+    "tipo": "metro",
+    "lat": -15.793249,
+    "lon": -47.88464,
+    "raio_m": 300,
+    "consultas": ["estação central", "estacao central", "metro central", "metro rodoviaria", "estacao centrl"],
+    "fonte": "osm:node/8603327848"
+  },
+  {
+    "id": "metro-galeria",
+    "nome": "Estação Galeria",
+    "tipo": "metro",
+    "lat": -15.799484,
+    "lon": -47.886071,
+    "raio_m": 300,
+    "consultas": ["estação galeria", "estacao galeria", "metro galeria", "galeria metro", "estacao galeira"],
+    "fonte": "osm:node/8603327860"
+  },
+  {
+    "id": "metro-102-sul",
+    "nome": "Estação 102 Sul",
+    "tipo": "metro",
+    "lat": -15.805736,
+    "lon": -47.889444,
+    "raio_m": 300,
+    "consultas": ["estação 102 sul", "estacao 102 sul", "metro 102 sul", "102 sul metro", "estacao 102 sull"],
+    "fonte": "osm:node/8603327871"
+  },
+  {
+    "id": "metro-106-sul",
+    "nome": "Estação 106 Sul",
+    "tipo": "metro",
+    "lat": -15.814986,
+    "lon": -47.898651,
+    "raio_m": 300,
+    "consultas": ["estação 106 sul", "estacao 106 sul", "metro 106 sul", "106 sul metro", "estacao 106 su"],
+    "fonte": "osm:node/8603327881"
+  },
+  {
+    "id": "metro-108-sul",
+    "nome": "Estação 108 Sul",
+    "tipo": "metro",
+    "lat": -15.818961,
+    "lon": -47.903967,
+    "raio_m": 300,
+    "consultas": ["estação 108 sul", "estacao 108 sul", "metro 108 sul", "108 sul metro", "stacao 108 sul"],
+    "fonte": "osm:node/8603327884"
+  },
+  {
+    "id": "metro-110-sul",
+    "nome": "Estação 110 Sul",
+    "tipo": "metro",
+    "lat": -15.822839,
+    "lon": -47.909348,
+    "raio_m": 300,
+    "consultas": ["estação 110 sul", "estacao 110 sul", "metro 110 sul", "110 sul metro", "etsacao 110 sul"],
+    "fonte": "osm:node/8603327887"
+  },
+  {
+    "id": "metro-112-sul",
+    "nome": "Estação 112 Sul",
+    "tipo": "metro",
+    "lat": -15.826735,
+    "lon": -47.914721,
+    "raio_m": 300,
+    "consultas": ["estação 112 sul", "estacao 112 sul", "metro 112 sul", "112 sul metro", "estacao 112 sl"],
+    "fonte": "osm:node/8603327890"
+  },
+  {
+    "id": "metro-114-sul",
+    "nome": "Estação 114 Sul",
+    "tipo": "metro",
+    "lat": -15.830636,
+    "lon": -47.920119,
+    "raio_m": 300,
+    "consultas": ["estação 114 sul", "estacao 114 sul", "metro 114 sul", "114 sul metro", "metro 114 sull"],
+    "fonte": "osm:node/8603327892"
+  },
+  {
+    "id": "metro-asa-sul",
+    "nome": "Estação Asa Sul (Terminal Asa Sul)",
+    "tipo": "metro",
+    "lat": -15.837054,
+    "lon": -47.932523,
+    "raio_m": 300,
+    "consultas": ["estação asa sul", "estacao asa sul", "metro asa sul", "terminal asa sul", "estacao aza sul"],
+    "fonte": "osm:node/8539732924"
+  },
+  {
+    "id": "metro-shopping",
+    "nome": "Estação Shopping",
+    "tipo": "metro",
+    "lat": -15.832429,
+    "lon": -47.95067,
+    "raio_m": 300,
+    "consultas": ["estação shopping", "estacao shopping", "metro shopping", "shopping metro", "estacao shoping"],
+    "fonte": "osm:node/8539732784"
+  },
+  {
+    "id": "metro-feira",
+    "nome": "Estação Feira",
+    "tipo": "metro",
+    "lat": -15.823047,
+    "lon": -47.975015,
+    "raio_m": 300,
+    "consultas": ["estação feira", "estacao feira", "metro feira", "feira metro", "estacao feria"],
+    "fonte": "osm:node/8539732694"
+  },
+  {
+    "id": "metro-guara",
+    "nome": "Estação Guará",
+    "tipo": "metro",
+    "lat": -15.82668,
+    "lon": -47.983382,
+    "raio_m": 300,
+    "consultas": ["estação guará", "estacao guara", "metro guara", "guara metro", "estacao guarra"],
+    "fonte": "osm:node/8539732653"
+  },
+  {
+    "id": "metro-arniqueiras",
+    "nome": "Estação Arniqueiras",
+    "tipo": "metro",
+    "lat": -15.836727,
+    "lon": -48.017057,
+    "raio_m": 300,
+    "consultas": ["estação arniqueiras", "estacao arniqueiras", "metro arniqueiras", "arniqueiras metro", "estacao arniqeiras"],
+    "fonte": "osm:node/979379521"
+  },
+  {
+    "id": "metro-aguas-claras",
+    "nome": "Estação Águas Claras",
+    "tipo": "metro",
+    "lat": -15.840001,
+    "lon": -48.028256,
+    "raio_m": 300,
+    "consultas": ["estação águas claras", "estacao aguas claras", "metro aguas claras", "aguas claras metro", "estacao aguas clarsa"],
+    "fonte": "osm:node/8530716675"
+  },
+  {
+    "id": "metro-concessionarias",
+    "nome": "Estação Concessionárias",
+    "tipo": "metro",
+    "lat": -15.835151,
+    "lon": -48.038634,
+    "raio_m": 300,
+    "consultas": ["estação concessionárias", "estacao concessionarias", "metro concessionarias", "concessionarias metro", "estacao concesionarias"],
+    "fonte": "osm:node/8534347056"
+  },
+  {
+    "id": "metro-estrada-parque",
+    "nome": "Estação Estrada Parque",
+    "tipo": "metro",
+    "lat": -15.832387,
+    "lon": -48.045278,
+    "raio_m": 300,
+    "consultas": ["estação estrada parque", "estacao estrada parque", "metro estrada parque", "estrada parque metro", "estacao estrada parqe"],
+    "fonte": "osm:node/8534361937"
+  },
+  {
+    "id": "metro-praca-do-relogio",
+    "nome": "Estação Praça do Relógio",
+    "tipo": "metro",
+    "lat": -15.833277,
+    "lon": -48.056332,
+    "raio_m": 300,
+    "consultas": ["estação praça do relógio", "estacao praca do relogio", "metro praca do relogio", "praca do relogio metro", "estacao praca do relogo"],
+    "fonte": "osm:node/6520133542"
+  },
+  {
+    "id": "metro-centro-metropolitano",
+    "nome": "Estação Centro Metropolitano",
+    "tipo": "metro",
+    "lat": -15.835449,
+    "lon": -48.086154,
+    "raio_m": 300,
+    "consultas": ["estação centro metropolitano", "estacao centro metropolitano", "metro centro metropolitano", "centro metropolitano metro", "estacao centro metropolitno"],
+    "fonte": "osm:node/6969891170"
+  },
+  {
+    "id": "metro-taguatinga-sul",
+    "nome": "Estação Taguatinga Sul",
+    "tipo": "metro",
+    "lat": -15.851847,
+    "lon": -48.041885,
+    "raio_m": 300,
+    "consultas": ["estação taguatinga sul", "estacao taguatinga sul", "metro taguatinga sul", "taguatinga sul metro", "estacao taguatiga sul"],
+    "fonte": "osm:node/8530716665"
+  },
+  {
+    "id": "metro-furnas",
+    "nome": "Estação Furnas",
+    "tipo": "metro",
+    "lat": -15.864949,
+    "lon": -48.059804,
+    "raio_m": 300,
+    "consultas": ["estação furnas", "estacao furnas", "metro furnas", "furnas metro", "estacao furnaz"],
+    "fonte": "osm:node/8530707396"
+  },
+  {
+    "id": "metro-samambaia-sul",
+    "nome": "Estação Samambaia Sul",
+    "tipo": "metro",
+    "lat": -15.869041,
+    "lon": -48.071582,
+    "raio_m": 300,
+    "consultas": ["estação samambaia sul", "estacao samambaia sul", "metro samambaia sul", "samambaia sul metro", "estacao samanbaia sul"],
+    "fonte": "osm:node/8530557433"
+  },
+  {
+    "id": "metro-samambaia",
+    "nome": "Estação Samambaia (Terminal Samambaia)",
+    "tipo": "metro",
+    "lat": -15.873682,
+    "lon": -48.084911,
+    "raio_m": 300,
+    "consultas": ["estação samambaia", "estacao samambaia", "metro samambaia", "samambaia metro", "estacao samabaia"],
+    "fonte": "osm:node/6456339708"
+  },
+  {
+    "id": "metro-guariroba",
+    "nome": "Estação Guariroba",
+    "tipo": "metro",
+    "lat": -15.830618,
+    "lon": -48.107302,
+    "raio_m": 300,
+    "consultas": ["estação guariroba", "estacao guariroba", "metro guariroba", "guariroba metro", "estacao guarirba"],
+    "fonte": "osm:node/8534361725"
+  },
+  {
+    "id": "metro-ceilandia-sul",
+    "nome": "Estação Ceilândia Sul",
+    "tipo": "metro",
+    "lat": -15.83778,
+    "lon": -48.103294,
+    "raio_m": 300,
+    "consultas": ["estação ceilândia sul", "estacao ceilandia sul", "metro ceilandia sul", "ceilandia sul metro", "estacao cielandia sul"],
+    "fonte": "osm:node/8534361914"
+  },
+  {
+    "id": "metro-ceilandia-centro",
+    "nome": "Estação Ceilândia Centro",
+    "tipo": "metro",
+    "lat": -15.822278,
+    "lon": -48.11191,
+    "raio_m": 300,
+    "consultas": ["estação ceilândia centro", "estacao ceilandia centro", "metro ceilandia centro", "ceilandia centro metro", "estacao ceilandia cento"],
+    "fonte": "osm:node/8534361748"
+  },
+  {
+    "id": "metro-ceilandia-norte",
+    "nome": "Estação Ceilândia Norte",
+    "tipo": "metro",
+    "lat": -15.814885,
+    "lon": -48.116135,
+    "raio_m": 300,
+    "consultas": ["estação ceilândia norte", "estacao ceilandia norte", "metro ceilandia norte", "ceilandia norte metro", "estacao ceilandia nrte"],
+    "fonte": "osm:node/8534361776"
+  },
+  {
+    "id": "metro-ceilandia",
+    "nome": "Estação Ceilândia (Terminal Ceilândia)",
+    "tipo": "metro",
+    "lat": -15.805572,
+    "lon": -48.121314,
+    "raio_m": 300,
+    "consultas": ["estação ceilândia", "estacao ceilandia", "metro ceilandia", "ceilandia metro", "estacao ceilandai"],
+    "fonte": "osm:node/8534361871"
+  },
+  {
+    "id": "aeroporto-bsb",
+    "nome": "Aeroporto Internacional de Brasília - Presidente Juscelino Kubitschek",
+    "tipo": "aeroporto",
+    "lat": -15.871704,
+    "lon": -47.918826,
+    "raio_m": 1500,
+    "consultas": ["aeroporto internacional de brasília", "aeroporto de brasilia", "aeroporto bsb", "aeroporto jk", "areoporto de brasilia"],
+    "fonte": "osm:way/1522489529"
+  },
+  {
+    "id": "rodoviaria-plano-piloto",
+    "nome": "Rodoviária do Plano Piloto",
+    "tipo": "rodoviaria",
+    "lat": -15.793889,
+    "lon": -47.882782,
+    "raio_m": 500,
+    "consultas": ["rodoviária do plano piloto", "rodoviaria do plano piloto", "rodoviaria de brasilia", "rodoviaria plano piloto", "rodoviria do plano piloto"],
+    "fonte": "osm:way/41648328"
+  },
+  {
+    "id": "rodoviaria-interestadual",
+    "nome": "Rodoviária Interestadual de Brasília",
+    "tipo": "rodoviaria",
+    "lat": -15.830427,
+    "lon": -47.949494,
+    "raio_m": 500,
+    "consultas": ["rodoviária interestadual", "rodoviaria interestadual", "rodoviaria interestadual de brasilia", "rodoviaria interestadual df", "rodoviaria interestadal"],
+    "fonte": "osm:relation/6419363"
+  },
+  {
+    "id": "shopping-park",
+    "nome": "ParkShopping",
+    "tipo": "shopping",
+    "lat": -15.833602,
+    "lon": -47.955387,
+    "raio_m": 500,
+    "consultas": ["park shopping", "parkshopping", "shopping park", "park shopping brasilia", "park shoping"],
+    "fonte": "osm:way/216491572"
+  },
+  {
+    "id": "shopping-aguas-claras",
+    "nome": "Águas Claras Shopping",
+    "tipo": "shopping",
+    "lat": -15.841653,
+    "lon": -48.026032,
+    "raio_m": 700,
+    "consultas": ["águas claras shopping", "aguas claras shopping", "shopping aguas claras", "shopping aguas claras df", "agua claras shopping"],
+    "fonte": "osm:node/10744495251"
+  },
+  {
+    "id": "shopping-venancio",
+    "nome": "Venâncio Shopping",
+    "tipo": "shopping",
+    "lat": -15.795601,
+    "lon": -47.892738,
+    "raio_m": 500,
+    "consultas": ["venâncio shopping", "venancio shopping", "shopping venancio", "venancio 2000", "venancio shoping"],
+    "fonte": "osm:way/43376686"
+  },
+  {
+    "id": "shopping-conjunto-nacional",
+    "nome": "Conjunto Nacional",
+    "tipo": "shopping",
+    "lat": -15.791291,
+    "lon": -47.883179,
+    "raio_m": 500,
+    "consultas": ["conjunto nacional", "shopping conjunto nacional", "conjunto nacional brasilia", "conj nacional", "conjunto nasional"],
+    "fonte": "osm:way/141913048"
+  },
+  {
+    "id": "shopping-brasilia",
+    "nome": "Brasília Shopping",
+    "tipo": "shopping",
+    "lat": -15.786725,
+    "lon": -47.889037,
+    "raio_m": 500,
+    "consultas": ["brasília shopping", "brasilia shopping", "shopping brasilia", "brasilia shopping asa norte", "brasilia shoping"],
+    "fonte": "osm:way/41574523"
+  },
+  {
+    "id": "shopping-patio-brasil",
+    "nome": "Pátio Brasil Shopping",
+    "tipo": "shopping",
+    "lat": -15.796078,
+    "lon": -47.89199,
+    "raio_m": 500,
+    "consultas": ["pátio brasil", "patio brasil", "patio brasil shopping", "shopping patio brasil", "patio brazil"],
+    "fonte": "osm:way/43376685"
+  },
+  {
+    "id": "shopping-iguatemi",
+    "nome": "Shopping Iguatemi Brasília",
+    "tipo": "shopping",
+    "lat": -15.720749,
+    "lon": -47.885899,
+    "raio_m": 500,
+    "consultas": ["iguatemi brasília", "iguatemi brasilia", "shopping iguatemi", "iguatemi lago norte", "iguatemy brasilia"],
+    "fonte": "osm:way/177074962"
+  },
+  {
+    "id": "shopping-taguatinga",
+    "nome": "Taguatinga Shopping",
+    "tipo": "shopping",
+    "lat": -15.84137,
+    "lon": -48.04404,
+    "raio_m": 500,
+    "consultas": ["taguatinga shopping", "shopping taguatinga", "taguatinga shopping center", "taguatinga shoping", "taguatiga shopping"],
+    "fonte": "osm:way/221919892"
+  },
+  {
+    "id": "shopping-jk",
+    "nome": "JK Shopping",
+    "tipo": "shopping",
+    "lat": -15.809556,
+    "lon": -48.093953,
+    "raio_m": 500,
+    "consultas": ["jk shopping", "shopping jk", "jk shopping df", "jk shopping brasilia", "jk shoping"],
+    "fonte": "osm:way/652134551"
+  },
+  {
+    "id": "shopping-boulevard",
+    "nome": "Boulevard Shopping",
+    "tipo": "shopping",
+    "lat": -15.733408,
+    "lon": -47.899161,
+    "raio_m": 500,
+    "consultas": ["boulevard shopping", "shopping boulevard", "boulevard shopping brasilia", "bulevar shopping", "boulevard shoping"],
+    "fonte": "osm:way/209749466"
+  },
+  {
+    "id": "shopping-terraco",
+    "nome": "Terraço Shopping",
+    "tipo": "shopping",
+    "lat": -15.80364,
+    "lon": -47.940453,
+    "raio_m": 500,
+    "consultas": ["terraço shopping", "terraco shopping", "shopping terraco", "terraco shopping sudoeste", "teraco shopping"],
+    "fonte": "osm:relation/20339997"
+  },
+  {
+    "id": "shopping-alameda",
+    "nome": "Alameda Shopping",
+    "tipo": "shopping",
+    "lat": -15.836029,
+    "lon": -48.056787,
+    "raio_m": 500,
+    "consultas": ["alameda shopping", "shopping alameda", "alameda shopping taguatinga", "alameda shoping", "allameda shopping"],
+    "fonte": "osm:way/567894037"
+  },
+  {
+    "id": "shopping-casapark",
+    "nome": "Casapark",
+    "tipo": "shopping",
+    "lat": -15.826869,
+    "lon": -47.953778,
+    "raio_m": 500,
+    "consultas": ["casapark", "casa park", "casa park shopping", "shopping casa park", "casapak"],
+    "fonte": "osm:relation/20580944"
+  },
+  {
+    "id": "shopping-conic",
+    "nome": "Conic (Centro Comercial Boulevard)",
+    "tipo": "shopping",
+    "lat": -15.7957,
+    "lon": -47.884673,
+    "raio_m": 500,
+    "consultas": ["conic", "conic brasilia", "setor de diversões sul", "sds conic", "conik"],
+    "fonte": "osm:way/41648327"
+  },
+  {
+    "id": "shopping-pier21",
+    "nome": "Pier 21",
+    "tipo": "shopping",
+    "lat": -15.818309,
+    "lon": -47.874816,
+    "raio_m": 500,
+    "consultas": ["pier 21", "pier 21 brasilia", "pier 21 lago sul", "pier 21 shopping", "pier 12"],
+    "fonte": "osm:way/139587500"
+  },
+  {
+    "id": "parque-aguas-claras",
+    "nome": "Parque Ecológico de Águas Claras",
+    "tipo": "parque",
+    "lat": -15.830266,
+    "lon": -48.026308,
+    "raio_m": 1500,
+    "consultas": ["parque ecológico de águas claras", "parque ecologico de aguas claras", "parque aguas claras", "parque ecologico aguas claras", "parque ecologco aguas claras"],
+    "fonte": "osm:way/125232972"
+  },
+  {
+    "id": "parque-da-cidade",
+    "nome": "Parque da Cidade Dona Sarah Kubitschek",
+    "tipo": "parque",
+    "lat": -15.801473,
+    "lon": -47.911716,
+    "raio_m": 1500,
+    "consultas": ["parque da cidade", "parque da cidade sarah kubitschek", "parque dona sarah", "parque da cidade brasilia", "parque da cidade sara kubitschek"],
+    "fonte": "osm:way/25535698"
+  },
+  {
+    "id": "parque-nacional",
+    "nome": "Parque Nacional de Brasília (Água Mineral)",
+    "tipo": "parque",
+    "lat": -15.738123,
+    "lon": -47.926997,
+    "raio_m": 1500,
+    "consultas": ["parque nacional de brasília", "parque nacional de brasilia", "água mineral", "agua mineral brasilia", "parque nacional de brasila"],
+    "fonte": "osm:way/127978790"
+  },
+  {
+    "id": "jardim-botanico",
+    "nome": "Jardim Botânico de Brasília",
+    "tipo": "parque",
+    "lat": -15.861278,
+    "lon": -47.828687,
+    "raio_m": 1500,
+    "consultas": ["jardim botânico de brasília", "jardim botanico de brasilia", "jardim botanico jbb", "botanico de brasilia", "jardim botanco de brasilia"],
+    "fonte": "osm:way/447707250"
+  },
+  {
+    "id": "zoologico",
+    "nome": "Zoológico de Brasília",
+    "tipo": "parque",
+    "lat": -15.847006,
+    "lon": -47.94263,
+    "raio_m": 1000,
+    "consultas": ["zoológico de brasília", "zoologico de brasilia", "zoologico", "zoo de brasilia", "zoologco de brasilia"],
+    "fonte": "osm:way/100711142"
+  },
+  {
+    "id": "eixao-sul",
+    "nome": "Eixo Rodoviário Sul (Eixão Sul)",
+    "tipo": "via",
+    "lat": -15.824179,
+    "lon": -47.91058,
+    "raio_m": 1500,
+    "consultas": ["eixão sul", "eixao sul", "eixo rodoviário sul", "eixo rodoviario sul", "eixo rodoviraio sul"],
+    "fonte": "osm:way/298597162"
+  },
+  {
+    "id": "eixao-norte",
+    "nome": "Eixo Rodoviário Norte (Eixão Norte)",
+    "tipo": "via",
+    "lat": -15.762918,
+    "lon": -47.8838,
+    "raio_m": 1500,
+    "consultas": ["eixão norte", "eixao norte", "eixo rodoviário norte", "eixo rodoviario norte", "eixo rodoviraio norte"],
+    "fonte": "osm:way/916375243"
+  },
+  {
+    "id": "ponte-jk",
+    "nome": "Ponte Juscelino Kubitschek (Ponte JK)",
+    "tipo": "via",
+    "lat": -15.823645,
+    "lon": -47.829634,
+    "raio_m": 1500,
+    "consultas": ["ponte jk", "ponte juscelino kubitschek", "ponte jk brasília", "ponte jk brasilia", "ponte juscelino kubtschek"],
+    "fonte": "osm:way/44076498"
+  },
+  {
+    "id": "esplanada",
+    "nome": "Esplanada dos Ministérios",
+    "tipo": "marco",
+    "lat": -15.797372,
+    "lon": -47.870963,
+    "raio_m": 1000,
+    "consultas": ["esplanada dos ministérios", "esplanada dos ministerios", "esplanada", "esplanada ministerios", "esplanda dos ministerios"],
+    "fonte": "osm:relation/13096832"
+  },
+  {
+    "id": "congresso-nacional",
+    "nome": "Congresso Nacional",
+    "tipo": "marco",
+    "lat": -15.799692,
+    "lon": -47.864148,
+    "raio_m": 500,
+    "consultas": ["congresso nacional", "congresso", "palacio do congresso", "congresso nacional brasilia", "congreso nacional"],
+    "fonte": "osm:way/124198934"
+  },
+  {
+    "id": "catedral",
+    "nome": "Catedral Metropolitana Nossa Senhora Aparecida",
+    "tipo": "marco",
+    "lat": -15.798344,
+    "lon": -47.875546,
+    "raio_m": 500,
+    "consultas": ["catedral de brasília", "catedral de brasilia", "catedral metropolitana", "catedral", "catedral de brasila"],
+    "fonte": "osm:way/66379902"
+  },
+  {
+    "id": "torre-tv",
+    "nome": "Torre de TV de Brasília",
+    "tipo": "marco",
+    "lat": -15.790664,
+    "lon": -47.893007,
+    "raio_m": 500,
+    "consultas": ["torre de tv", "torre de televisão", "torre de televisao", "torre de tv de brasilia", "tore de tv"],
+    "fonte": "osm:way/41648342"
+  },
+  {
+    "id": "feira-importados",
+    "nome": "Feira dos Importados",
+    "tipo": "marco",
+    "lat": -15.796367,
+    "lon": -47.950497,
+    "raio_m": 500,
+    "consultas": ["feira dos importados", "feira dos importados brasilia", "feira importados", "feira dos importados df", "feira dos importdos"],
+    "fonte": "osm:way/96063995"
+  },
+  {
+    "id": "setor-comercial-sul",
+    "nome": "Setor Comercial Sul",
+    "tipo": "marco",
+    "lat": -15.797101,
+    "lon": -47.889489,
+    "raio_m": 500,
+    "consultas": ["setor comercial sul", "scs", "scs brasilia", "setor comercial sul brasilia", "setor comercil sul"],
+    "fonte": "osm:node/4613263038"
+  },
+  {
+    "id": "pontao-lago-sul",
+    "nome": "Pontão do Lago Sul",
+    "tipo": "marco",
+    "lat": -15.825416,
+    "lon": -47.873364,
+    "raio_m": 500,
+    "consultas": ["pontão do lago sul", "pontao do lago sul", "pontao lago sul", "pontão lago paranoá", "pontao do lago sull"],
+    "fonte": "osm:node/9550345717"
+  },
+  {
+    "id": "palacio-planalto",
+    "nome": "Palácio do Planalto",
+    "tipo": "marco",
+    "lat": -15.798976,
+    "lon": -47.860757,
+    "raio_m": 500,
+    "consultas": ["palácio do planalto", "palacio do planalto", "planalto brasilia", "palacio planalto", "palacio do planlto"],
+    "fonte": "osm:way/45817748"
+  },
+  {
+    "id": "palacio-alvorada",
+    "nome": "Palácio da Alvorada",
+    "tipo": "marco",
+    "lat": -15.792445,
+    "lon": -47.822131,
+    "raio_m": 500,
+    "consultas": ["palácio da alvorada", "palacio da alvorada", "alvorada brasilia", "palacio alvorada", "palacio da alvorda"],
+    "fonte": "osm:way/18140049"
+  },
+  {
+    "id": "tres-poderes",
+    "nome": "Praça dos Três Poderes",
+    "tipo": "marco",
+    "lat": -15.801037,
+    "lon": -47.861301,
+    "raio_m": 500,
+    "consultas": ["praça dos três poderes", "praca dos tres poderes", "tres poderes", "praca tres poderes", "praca dos tres podres"],
+    "fonte": "osm:way/45817741"
+  },
+  {
+    "id": "memorial-jk",
+    "nome": "Memorial JK",
+    "tipo": "marco",
+    "lat": -15.784198,
+    "lon": -47.913376,
+    "raio_m": 500,
+    "consultas": ["memorial jk", "memorial juscelino kubitschek", "memorial jk brasilia", "memorial kubitschek", "memorail jk"],
+    "fonte": "osm:way/84830646"
+  },
+  {
+    "id": "santuario-dom-bosco",
+    "nome": "Santuário Dom Bosco",
+    "tipo": "marco",
+    "lat": -15.800573,
+    "lon": -47.894772,
+    "raio_m": 500,
+    "consultas": ["santuário dom bosco", "santuario dom bosco", "igreja dom bosco", "santuario dom bosco asa sul", "santuario dom bsco"],
+    "fonte": "osm:way/43376912"
+  },
+  {
+    "id": "teatro-nacional",
+    "nome": "Teatro Nacional Cláudio Santoro",
+    "tipo": "marco",
+    "lat": -15.791903,
+    "lon": -47.880285,
+    "raio_m": 500,
+    "consultas": ["teatro nacional", "teatro nacional claudio santoro", "teatro nacional brasilia", "teatro claudio santoro", "teatro nacioanl"],
+    "fonte": "osm:way/190186231"
+  },
+  {
+    "id": "museu-nacional",
+    "nome": "Museu Nacional Honestino Guimarães",
+    "tipo": "marco",
+    "lat": -15.797392,
+    "lon": -47.878382,
+    "raio_m": 500,
+    "consultas": ["museu nacional", "museu nacional da republica", "museu nacional honestino guimaraes", "museu nacional brasilia", "museu nacioal"],
+    "fonte": "osm:way/183627916"
+  },
+  {
+    "id": "mane-garrincha",
+    "nome": "Estádio Nacional de Brasília Mané Garrincha (Arena BRB Mané Garrincha)",
+    "tipo": "estadio",
+    "lat": -15.78351,
+    "lon": -47.899369,
+    "raio_m": 500,
+    "consultas": ["estádio mané garrincha", "estadio mane garrincha", "mane garrincha", "arena brb mane garrincha", "estadio mane garincha"],
+    "fonte": "osm:way/178591256"
+  },
+  {
+    "id": "nilson-nelson",
+    "nome": "Ginásio Nilson Nelson (Arena BRB Nilson Nelson)",
+    "tipo": "estadio",
+    "lat": -15.783088,
+    "lon": -47.9032,
+    "raio_m": 500,
+    "consultas": ["ginásio nilson nelson", "ginasio nilson nelson", "nilson nelson", "arena brb nilson nelson", "ginasio nilson nelsom"],
+    "fonte": "osm:way/75776398"
+  },
+  {
+    "id": "autodromo",
+    "nome": "Autódromo Internacional Nelson Piquet",
+    "tipo": "estadio",
+    "lat": -15.775877,
+    "lon": -47.899358,
+    "raio_m": 1500,
+    "consultas": ["autódromo de brasília", "autodromo de brasilia", "autodromo nelson piquet", "autodromo internacional de brasilia", "autodromo de brasila"],
+    "fonte": "osm:relation/11342149"
+  },
+  {
+    "id": "serejao",
+    "nome": "Estádio Elmo Serejo Farias (Serejão)",
+    "tipo": "estadio",
+    "lat": -15.836121,
+    "lon": -48.080651,
+    "raio_m": 500,
+    "consultas": ["estádio serejão", "estadio serejao", "serejao taguatinga", "estadio elmo serejo", "estadio serjao"],
+    "fonte": "osm:relation/4431149"
+  },
+  {
+    "id": "unb",
+    "nome": "Universidade de Brasília (Campus Darcy Ribeiro)",
+    "tipo": "universidade",
+    "lat": -15.758082,
+    "lon": -47.874164,
+    "raio_m": 1500,
+    "consultas": ["universidade de brasília", "universidade de brasilia", "unb", "campus darcy ribeiro", "univercidade de brasilia"],
+    "fonte": "osm:way/332888307"
+  },
+  {
+    "id": "uniceub",
+    "nome": "UniCEUB - Centro Universitário de Brasília",
+    "tipo": "universidade",
+    "lat": -15.767079,
+    "lon": -47.893802,
+    "raio_m": 500,
+    "consultas": ["uniceub", "uniceub asa norte", "centro universitario de brasilia", "ceub", "unicueb"],
+    "fonte": "osm:way/142489902"
+  },
+  {
+    "id": "hospital-de-base",
+    "nome": "Hospital de Base do Distrito Federal",
+    "tipo": "hospital",
+    "lat": -15.800312,
+    "lon": -47.888578,
+    "raio_m": 500,
+    "consultas": ["hospital de base", "hospital de base do df", "hospital de base brasília", "hbdf", "hospital de bse"],
+    "fonte": "osm:way/84894749"
+  },
+  {
+    "id": "hran",
+    "nome": "Hospital Regional da Asa Norte (HRAN)",
+    "tipo": "hospital",
+    "lat": -15.784951,
+    "lon": -47.882848,
+    "raio_m": 500,
+    "consultas": ["hran", "hospital regional da asa norte", "hospital da asa norte", "hospital regional asa norte", "hospital regioal da asa norte"],
+    "fonte": "osm:way/394113403"
+  },
+  {
+    "id": "hub",
+    "nome": "Hospital Universitário de Brasília (HUB)",
+    "tipo": "hospital",
+    "lat": -15.771729,
+    "lon": -47.873611,
+    "raio_m": 500,
+    "consultas": ["hub unb", "hospital universitário de brasília", "hospital universitario de brasilia", "hospital universitario unb", "hospital universitrio de brasilia"],
+    "fonte": "osm:way/41573440"
+  },
+  {
+    "id": "hrt",
+    "nome": "Hospital Regional de Taguatinga (HRT)",
+    "tipo": "hospital",
+    "lat": -15.822429,
+    "lon": -48.069322,
+    "raio_m": 500,
+    "consultas": ["hrt", "hospital regional de taguatinga", "hospital de taguatinga", "hospital regional taguatinga", "hospital regional de taguatiga"],
+    "fonte": "osm:way/1058741300"
+  },
+  {
+    "id": "hrc",
+    "nome": "Hospital Regional de Ceilândia (HRC)",
+    "tipo": "hospital",
+    "lat": -15.815057,
+    "lon": -48.096053,
+    "raio_m": 500,
+    "consultas": ["hrc", "hospital regional de ceilândia", "hospital regional de ceilandia", "hospital de ceilandia", "hospital regional de cielandia"],
+    "fonte": "osm:way/47092241"
+  },
+  {
+    "id": "sarah-lago-norte",
+    "nome": "Hospital Sarah Kubitschek (Lago Norte)",
+    "tipo": "hospital",
+    "lat": -15.75271,
+    "lon": -47.829214,
+    "raio_m": 500,
+    "consultas": ["hospital sarah lago norte", "sarah lago norte", "hospital sarah kubitschek", "sarah kubitschek lago norte", "hospital sara lago norte"],
+    "fonte": "osm:way/142505612"
+  }
+]

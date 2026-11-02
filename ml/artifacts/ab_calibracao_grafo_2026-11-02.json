@@ -1,0 +1,2352 @@
+{
+ "descricao": "A/B/C no mesmo instante (três APIs locais, corredor a corredor) contra a TomTom: ao vivo e sem trânsito no MESMO trajeto da LIA (reconstrução por supportingPoints; par descartado se a TomTom desviou > 10% na distância), ETA histórico da TomTom no mesmo trajeto e a rota própria da TomTom (traçado em comum até 40 m).",
+ "configuracoes": {
+  "A": "produção até 2026-11-02: fator único 0,883, semáforo 22,92 s (semaforos_calibracao_2026-09-23.json), prior = mediana do perfil",
+  "B": "velocidade livre por grupo de via + semáforo 8,06 s (semaforos_calibracao.json de 2026-11-02), prior = mediana do perfil",
+  "C": "B + PRIOR_CONGESTIONAMENTO=corredor (média harmônica da razão prevista nos trechos monitorados)"
+ },
+ "condicoes": "segunda-feira 2026-11-02 (feriado de Finados), ~12h05–12h20 de Brasília",
+ "formato_resumo": "[n, viés mediano %, MAPE %]",
+ "corredores_fixos": {
+  "resumo": {
+   "A": {
+    "LIA x TomTom vivo (mesmo trajeto)": [
+     15,
+     -9.1,
+     12.7
+    ],
+    "livre LIA x TomTom sem transito": [
+     15,
+     -6.4,
+     11.2
+    ],
+    "LIA x TomTom historico": [
+     15,
+     -13.9,
+     15.0
+    ],
+    "exibido x rota propria TomTom": [
+     16,
+     -4.9,
+     11.4
+    ],
+    "traco comum c/ TomTom (media %)": 67.3,
+    "rotas TomTom venceu": 5
+   },
+   "B": {
+    "LIA x TomTom vivo (mesmo trajeto)": [
+     15,
+     -4.0,
+     9.6
+    ],
+    "livre LIA x TomTom sem transito": [
+     15,
+     -0.3,
+     9.2
+    ],
+    "LIA x TomTom historico": [
+     15,
+     -9.2,
+     12.0
+    ],
+    "exibido x rota propria TomTom": [
+     16,
+     -3.4,
+     9.2
+    ],
+    "traco comum c/ TomTom (media %)": 67.5,
+    "rotas TomTom venceu": 4
+   },
+   "C": {
+    "LIA x TomTom vivo (mesmo trajeto)": [
+     15,
+     -2.3,
+     8.7
+    ],
+    "livre LIA x TomTom sem transito": [
+     15,
+     -0.3,
+     7.9
+    ],
+    "LIA x TomTom historico": [
+     15,
+     -7.7,
+     10.1
+    ],
+    "exibido x rota propria TomTom": [
+     16,
+     -2.4,
+     9.4
+    ],
+    "traco comum c/ TomTom (media %)": 67.3,
+    "rotas TomTom venceu": 2
+   }
+  },
+  "linhas": [
+   {
+    "corredor": "rodoviaria-aeroporto",
+    "tt_propria_s": 1122.0,
+    "A": {
+     "lia_s": 775,
+     "livre_s": 779,
+     "tt_vivo_s": 776,
+     "tt_livre_s": 754,
+     "tt_hist_s": 791,
+     "fonte": "lia",
+     "exibido_s": 775,
+     "km": 12.93,
+     "tt_km": 12.91,
+     "traco_pct": 69.3
+    },
+    "B": {
+     "lia_s": 772,
+     "livre_s": 770,
+     "tt_vivo_s": 776,
+     "tt_livre_s": 754,
+     "tt_hist_s": 791,
+     "fonte": "lia",
+     "exibido_s": 772,
+     "km": 12.93,
+     "tt_km": 12.91,
+     "traco_pct": 69.3
+    },
+    "C": {
+     "lia_s": 782,
+     "livre_s": 770,
+     "tt_vivo_s": 776,
+     "tt_livre_s": 754,
+     "tt_hist_s": 791,
+     "fonte": "lia",
+     "exibido_s": 782,
+     "km": 12.93,
+     "tt_km": 12.91,
+     "traco_pct": 69.3
+    }
+   },
+   {
+    "corredor": "asanorte-asasul",
+    "tt_propria_s": 825.0,
+    "A": {
+     "lia_s": 685,
+     "livre_s": 635,
+     "tt_vivo_s": 898,
+     "tt_livre_s": 846,
+     "tt_hist_s": 928,
+     "fonte": "lia",
+     "exibido_s": 685,
+     "km": 10.97,
+     "tt_km": 11.25,
+     "traco_pct": 77.0
+    },
+    "B": {
+     "lia_s": 843,
+     "livre_s": 727,
+     "tt_vivo_s": 898,
+     "tt_livre_s": 846,
+     "tt_hist_s": 928,
+     "fonte": "lia",
+     "exibido_s": 843,
+     "km": 10.97,
+     "tt_km": 11.25,
+     "traco_pct": 77.0
+    },
+    "C": {
+     "lia_s": 856,
+     "livre_s": 727,
+     "tt_vivo_s": 898,
+     "tt_livre_s": 846,
+     "tt_hist_s": 928,
+     "fonte": "lia",
+     "exibido_s": 856,
+     "km": 10.97,
+     "tt_km": 11.25,
+     "traco_pct": 77.0
+    }
+   },
+   {
+    "corredor": "sudoeste-lagosul",
+    "tt_propria_s": 1318.0,
+    "A": {
+     "lia_s": 1040,
+     "livre_s": 984,
+     "tt_vivo_s": 1335,
+     "tt_livre_s": 1260,
+     "tt_hist_s": 1421,
+     "fonte": "tomtom",
+     "exibido_s": 1119,
+     "km": 13.15,
+     "tt_km": 13.33,
+     "traco_pct": 63.9
+    },
+    "B": {
+     "lia_s": 1122,
+     "livre_s": 1075,
+     "tt_vivo_s": 1189,
+     "tt_livre_s": 1107,
+     "tt_hist_s": 1271,
+     "fonte": "lia",
+     "exibido_s": 1141,
+     "km": 13.51,
+     "tt_km": 13.52,
+     "traco_pct": 66.4
+    },
+    "C": {
+     "lia_s": 1150,
+     "livre_s": 1075,
+     "tt_vivo_s": 1189,
+     "tt_livre_s": 1107,
+     "tt_hist_s": 1271,
+     "fonte": "lia",
+     "exibido_s": 1161,
+     "km": 13.51,
+     "tt_km": 13.52,
+     "traco_pct": 66.4
+    }
+   },
+   {
+    "corredor": "unb-esplanada",
+    "tt_propria_s": 562.0,
+    "A": {
+     "lia_s": 421,
+     "livre_s": 413,
+     "tt_vivo_s": 440,
+     "tt_livre_s": 425,
+     "tt_hist_s": 465,
+     "fonte": "lia",
+     "exibido_s": 428,
+     "km": 6.38,
+     "tt_km": 6.38,
+     "traco_pct": 95.3
+    },
+    "B": {
+     "lia_s": 518,
+     "livre_s": 501,
+     "tt_vivo_s": 440,
+     "tt_livre_s": 425,
+     "tt_hist_s": 465,
+     "fonte": "lia",
+     "exibido_s": 487,
+     "km": 6.38,
+     "tt_km": 6.38,
+     "traco_pct": 95.3
+    },
+    "C": {
+     "lia_s": 534,
+     "livre_s": 501,
+     "tt_vivo_s": 440,
+     "tt_livre_s": 425,
+     "tt_hist_s": 465,
+     "fonte": "lia",
+     "exibido_s": 496,
+     "km": 6.38,
+     "tt_km": 6.38,
+     "traco_pct": 95.3
+    }
+   },
+   {
+    "corredor": "parque-torre",
+    "tt_propria_s": 467.0,
+    "A": {
+     "lia_s": 259,
+     "livre_s": 244,
+     "tt_vivo_s": 336,
+     "tt_livre_s": 288,
+     "tt_hist_s": 363,
+     "fonte": "lia",
+     "exibido_s": 268,
+     "km": 2.55,
+     "tt_km": 2.54,
+     "traco_pct": 5.0
+    },
+    "B": {
+     "lia_s": 213,
+     "livre_s": 204,
+     "tt_vivo_s": 336,
+     "tt_livre_s": 288,
+     "tt_hist_s": 363,
+     "fonte": "lia",
+     "exibido_s": 227,
+     "km": 2.55,
+     "tt_km": 2.54,
+     "traco_pct": 5.0
+    },
+    "C": {
+     "lia_s": 218,
+     "livre_s": 204,
+     "tt_vivo_s": 336,
+     "tt_livre_s": 288,
+     "tt_hist_s": 363,
+     "fonte": "lia",
+     "exibido_s": 231,
+     "km": 2.55,
+     "tt_km": 2.54,
+     "traco_pct": 5.0
+    }
+   },
+   {
+    "corredor": "lagonorte-scs",
+    "tt_propria_s": 761.0,
+    "A": {
+     "lia_s": 653,
+     "livre_s": 622,
+     "tt_vivo_s": 867,
+     "tt_livre_s": 795,
+     "tt_hist_s": 929,
+     "fonte": "tomtom",
+     "exibido_s": 697,
+     "km": 10.25,
+     "tt_km": 10.85,
+     "traco_pct": 58.0
+    },
+    "B": {
+     "lia_s": 613,
+     "livre_s": 590,
+     "tt_vivo_s": 800,
+     "tt_livre_s": 726,
+     "tt_hist_s": 853,
+     "fonte": "tomtom",
+     "exibido_s": 697,
+     "km": 9.62,
+     "tt_km": 10.23,
+     "traco_pct": 62.5
+    },
+    "C": {
+     "lia_s": 621,
+     "livre_s": 590,
+     "tt_vivo_s": 800,
+     "tt_livre_s": 726,
+     "tt_hist_s": 853,
+     "fonte": "tomtom",
+     "exibido_s": 697,
+     "km": 9.62,
+     "tt_km": 10.23,
+     "traco_pct": 62.5
+    }
+   },
+   {
+    "corredor": "cruzeiro-asanorte",
+    "tt_propria_s": 1099.0,
+    "A": {
+     "lia_s": 928,
+     "livre_s": 903,
+     "tt_vivo_s": 1197,
+     "tt_livre_s": 1134,
+     "tt_hist_s": 1243,
+     "fonte": "tomtom",
+     "exibido_s": 1043,
+     "km": 13.88,
+     "tt_km": 14.16,
+     "traco_pct": 0.0
+    },
+    "B": {
+     "lia_s": 1031,
+     "livre_s": 965,
+     "tt_vivo_s": 1197,
+     "tt_livre_s": 1134,
+     "tt_hist_s": 1243,
+     "fonte": "tomtom",
+     "exibido_s": 1043,
+     "km": 13.88,
+     "tt_km": 14.16,
+     "traco_pct": 0.0
+    },
+    "C": {
+     "lia_s": 1047,
+     "livre_s": 961,
+     "tt_vivo_s": 1088,
+     "tt_livre_s": 1014,
+     "tt_hist_s": 1158,
+     "fonte": "lia",
+     "exibido_s": 1047,
+     "km": 12.64,
+     "tt_km": 12.61,
+     "traco_pct": 36.7
+    }
+   },
+   {
+    "corredor": "guara-plano",
+    "tt_propria_s": 1005.0,
+    "A": {
+     "lia_s": 1040,
+     "livre_s": 1017,
+     "tt_vivo_s": 956,
+     "tt_livre_s": 936,
+     "tt_hist_s": 990,
+     "fonte": "lia",
+     "exibido_s": 1011,
+     "km": 15.22,
+     "tt_km": 15.21,
+     "traco_pct": 71.7
+    },
+    "B": {
+     "lia_s": 976,
+     "livre_s": 951,
+     "tt_vivo_s": 956,
+     "tt_livre_s": 936,
+     "tt_hist_s": 990,
+     "fonte": "lia",
+     "exibido_s": 969,
+     "km": 15.22,
+     "tt_km": 15.21,
+     "traco_pct": 71.7
+    },
+    "C": {
+     "lia_s": 999,
+     "livre_s": 951,
+     "tt_vivo_s": 956,
+     "tt_livre_s": 936,
+     "tt_hist_s": 990,
+     "fonte": "lia",
+     "exibido_s": 984,
+     "km": 15.22,
+     "tt_km": 15.21,
+     "traco_pct": 71.7
+    }
+   },
+   {
+    "corredor": "taguatinga-plano",
+    "tt_propria_s": 1370.0,
+    "A": {
+     "lia_s": 1487,
+     "livre_s": 1439,
+     "tt_vivo_s": 1436,
+     "tt_livre_s": 1350,
+     "tt_hist_s": 1522,
+     "fonte": "lia",
+     "exibido_s": 1485,
+     "km": 21.97,
+     "tt_km": 21.97,
+     "traco_pct": 82.2
+    },
+    "B": {
+     "lia_s": 1398,
+     "livre_s": 1359,
+     "tt_vivo_s": 1367,
+     "tt_livre_s": 1301,
+     "tt_hist_s": 1445,
+     "fonte": "lia",
+     "exibido_s": 1396,
+     "km": 21.96,
+     "tt_km": 21.93,
+     "traco_pct": 89.5
+    },
+    "C": {
+     "lia_s": 1422,
+     "livre_s": 1359,
+     "tt_vivo_s": 1367,
+     "tt_livre_s": 1301,
+     "tt_hist_s": 1445,
+     "fonte": "lia",
+     "exibido_s": 1420,
+     "km": 21.96,
+     "tt_km": 21.93,
+     "traco_pct": 89.5
+    }
+   },
+   {
+    "corredor": "samambaia-plano",
+    "tt_propria_s": 1792.0,
+    "A": {
+     "lia_s": 1877,
+     "livre_s": 1829,
+     "tt_vivo_s": 1982,
+     "tt_livre_s": 1870,
+     "tt_hist_s": 2113,
+     "fonte": "lia",
+     "exibido_s": 1893,
+     "km": 27.47,
+     "tt_km": 27.44,
+     "traco_pct": 85.8
+    },
+    "B": {
+     "lia_s": 1809,
+     "livre_s": 1767,
+     "tt_vivo_s": 1913,
+     "tt_livre_s": 1822,
+     "tt_hist_s": 2037,
+     "fonte": "lia",
+     "exibido_s": 1825,
+     "km": 27.46,
+     "tt_km": 27.39,
+     "traco_pct": 91.6
+    },
+    "C": {
+     "lia_s": 1842,
+     "livre_s": 1767,
+     "tt_vivo_s": 1913,
+     "tt_livre_s": 1822,
+     "tt_hist_s": 2037,
+     "fonte": "lia",
+     "exibido_s": 1853,
+     "km": 27.46,
+     "tt_km": 27.39,
+     "traco_pct": 91.6
+    }
+   },
+   {
+    "corredor": "aguasclaras-plano",
+    "tt_propria_s": 1609.0,
+    "A": {
+     "lia_s": 1516,
+     "livre_s": 1468,
+     "tt_vivo_s": 1668,
+     "tt_livre_s": 1569,
+     "tt_hist_s": 1761,
+     "fonte": "lia",
+     "exibido_s": 1532,
+     "km": 21.34,
+     "tt_km": 21.34,
+     "traco_pct": 80.5
+    },
+    "B": {
+     "lia_s": 1535,
+     "livre_s": 1495,
+     "tt_vivo_s": 1599,
+     "tt_livre_s": 1500,
+     "tt_hist_s": 1693,
+     "fonte": "lia",
+     "exibido_s": 1539,
+     "km": 22.0,
+     "tt_km": 21.96,
+     "traco_pct": 79.6
+    },
+    "C": {
+     "lia_s": 1562,
+     "livre_s": 1495,
+     "tt_vivo_s": 1599,
+     "tt_livre_s": 1500,
+     "tt_hist_s": 1693,
+     "fonte": "lia",
+     "exibido_s": 1565,
+     "km": 22.0,
+     "tt_km": 21.96,
+     "traco_pct": 79.6
+    }
+   },
+   {
+    "corredor": "plano-taguatinga",
+    "tt_propria_s": 1630.0,
+    "A": {
+     "lia_s": 1474,
+     "livre_s": 1456,
+     "tt_vivo_s": 2216,
+     "tt_livre_s": 1852,
+     "tt_hist_s": 2109,
+     "fonte": "tomtom",
+     "exibido_s": 1599,
+     "km": 24.54,
+     "tt_km": 29.34,
+     "traco_pct": 78.6
+    },
+    "B": {
+     "lia_s": 1468,
+     "livre_s": 1421,
+     "tt_vivo_s": 2121,
+     "tt_livre_s": 1972,
+     "tt_hist_s": 2272,
+     "fonte": "tomtom",
+     "exibido_s": 1599,
+     "km": 23.28,
+     "tt_km": 28.07,
+     "traco_pct": 55.6
+    },
+    "C": {
+     "lia_s": 1497,
+     "livre_s": 1418,
+     "tt_vivo_s": 2007,
+     "tt_livre_s": 1877,
+     "tt_hist_s": 2146,
+     "fonte": "tomtom",
+     "exibido_s": 1599,
+     "km": 22.46,
+     "tt_km": 27.73,
+     "traco_pct": 58.0
+    }
+   },
+   {
+    "corredor": "plano-aguasclaras",
+    "tt_propria_s": 1859.0,
+    "A": {
+     "lia_s": 1519,
+     "livre_s": 1496,
+     "tt_vivo_s": 2164,
+     "tt_livre_s": 1880,
+     "tt_hist_s": 2063,
+     "fonte": "lia",
+     "exibido_s": 1624,
+     "km": 23.74,
+     "tt_km": 23.97,
+     "traco_pct": 61.8
+    },
+    "B": {
+     "lia_s": 1642,
+     "livre_s": 1612,
+     "tt_vivo_s": 2086,
+     "tt_livre_s": 1958,
+     "tt_hist_s": 2219,
+     "fonte": "tomtom",
+     "exibido_s": 1799,
+     "km": 23.55,
+     "tt_km": 23.77,
+     "traco_pct": 56.5
+    },
+    "C": {
+     "lia_s": 1669,
+     "livre_s": 1639,
+     "tt_vivo_s": 1850,
+     "tt_livre_s": 1777,
+     "tt_hist_s": 1953,
+     "fonte": "lia",
+     "exibido_s": 1684,
+     "km": 24.24,
+     "tt_km": 24.43,
+     "traco_pct": 14.1
+    }
+   },
+   {
+    "corredor": "ceilandia-plano",
+    "tt_propria_s": 1911.0,
+    "A": {
+     "lia_s": 2051,
+     "livre_s": 2008,
+     "tt_vivo_s": 2268,
+     "tt_livre_s": 2146,
+     "tt_hist_s": 2394,
+     "fonte": "tomtom",
+     "exibido_s": 1896,
+     "km": 29.85,
+     "tt_km": 30.89,
+     "traco_pct": 86.9
+    },
+    "B": {
+     "lia_s": 1948,
+     "livre_s": 1909,
+     "tt_vivo_s": 1938,
+     "tt_livre_s": 1844,
+     "tt_hist_s": 2051,
+     "fonte": "lia",
+     "exibido_s": 1946,
+     "km": 29.84,
+     "tt_km": 29.78,
+     "traco_pct": 92.3
+    },
+    "C": {
+     "lia_s": 1985,
+     "livre_s": 1909,
+     "tt_vivo_s": 1938,
+     "tt_livre_s": 1844,
+     "tt_hist_s": 2051,
+     "fonte": "lia",
+     "exibido_s": 1976,
+     "km": 29.84,
+     "tt_km": 29.78,
+     "traco_pct": 92.3
+    }
+   },
+   {
+    "corredor": "gama-plano",
+    "tt_propria_s": 1917.0,
+    "A": {
+     "lia_s": 2050,
+     "livre_s": 2033,
+     "tt_vivo_s": 1968,
+     "tt_livre_s": 1916,
+     "tt_hist_s": 2046,
+     "fonte": "lia",
+     "exibido_s": 1999,
+     "km": 34.66,
+     "tt_km": 34.6,
+     "traco_pct": 85.3
+    },
+    "B": {
+     "lia_s": 1965,
+     "livre_s": 1942,
+     "tt_vivo_s": 1897,
+     "tt_livre_s": 1847,
+     "tt_hist_s": 1972,
+     "fonte": "lia",
+     "exibido_s": 1923,
+     "km": 34.75,
+     "tt_km": 34.69,
+     "traco_pct": 87.4
+    },
+    "C": {
+     "lia_s": 2042,
+     "livre_s": 1942,
+     "tt_vivo_s": 1897,
+     "tt_livre_s": 1847,
+     "tt_hist_s": 1972,
+     "fonte": "lia",
+     "exibido_s": 1952,
+     "km": 34.75,
+     "tt_km": 34.69,
+     "traco_pct": 87.4
+    }
+   },
+   {
+    "corredor": "sobradinho-plano",
+    "tt_propria_s": 1440.0,
+    "A": {
+     "lia_s": 1443,
+     "livre_s": 1413,
+     "tt_vivo_s": 1447,
+     "tt_livre_s": 1427,
+     "tt_hist_s": 1499,
+     "fonte": "lia",
+     "exibido_s": 1445,
+     "km": 24.02,
+     "tt_km": 23.98,
+     "traco_pct": 75.6
+    },
+    "B": {
+     "lia_s": 1412,
+     "livre_s": 1389,
+     "tt_vivo_s": 1392,
+     "tt_livre_s": 1361,
+     "tt_hist_s": 1445,
+     "fonte": "lia",
+     "exibido_s": 1402,
+     "km": 25.01,
+     "tt_km": 24.97,
+     "traco_pct": 80.7
+    },
+    "C": {
+     "lia_s": 1457,
+     "livre_s": 1389,
+     "tt_vivo_s": 1392,
+     "tt_livre_s": 1361,
+     "tt_hist_s": 1445,
+     "fonte": "lia",
+     "exibido_s": 1424,
+     "km": 25.01,
+     "tt_km": 24.97,
+     "traco_pct": 80.7
+    }
+   }
+  ]
+ },
+ "rotas_sorteadas_semente_99": {
+  "resumo": {
+   "A": {
+    "LIA x TomTom vivo (mesmo trajeto)": [
+     14,
+     -14.7,
+     18.7
+    ],
+    "livre LIA x TomTom sem transito": [
+     14,
+     -18.0,
+     20.4
+    ],
+    "LIA x TomTom historico": [
+     14,
+     -17.9,
+     21.4
+    ],
+    "exibido x rota propria TomTom": [
+     36,
+     0.0,
+     8.3
+    ],
+    "traco comum c/ TomTom (media %)": 81.3,
+    "rotas TomTom venceu": 22
+   },
+   "B": {
+    "LIA x TomTom vivo (mesmo trajeto)": [
+     14,
+     -6.4,
+     10.7
+    ],
+    "livre LIA x TomTom sem transito": [
+     14,
+     -5.7,
+     10.3
+    ],
+    "LIA x TomTom historico": [
+     14,
+     -10.9,
+     12.1
+    ],
+    "exibido x rota propria TomTom": [
+     36,
+     0.0,
+     7.3
+    ],
+    "traco comum c/ TomTom (media %)": 83.3,
+    "rotas TomTom venceu": 21
+   },
+   "C": {
+    "LIA x TomTom vivo (mesmo trajeto)": [
+     14,
+     -3.3,
+     9.5
+    ],
+    "livre LIA x TomTom sem transito": [
+     14,
+     -5.7,
+     10.3
+    ],
+    "LIA x TomTom historico": [
+     14,
+     -8.1,
+     10.5
+    ],
+    "exibido x rota propria TomTom": [
+     36,
+     0.0,
+     7.3
+    ],
+    "traco comum c/ TomTom (media %)": 83.3,
+    "rotas TomTom venceu": 21
+   }
+  },
+  "linhas": [
+   {
+    "corredor": "aleatoria-01",
+    "tt_propria_s": null,
+    "A": {
+     "lia_s": 762,
+     "livre_s": 760,
+     "tt_vivo_s": 981,
+     "tt_livre_s": 1003,
+     "tt_hist_s": 1018,
+     "fonte": "lia",
+     "exibido_s": 981,
+     "km": 10.84,
+     "tt_km": 10.78,
+     "traco_pct": null
+    },
+    "B": {
+     "lia_s": 879,
+     "livre_s": 876,
+     "tt_vivo_s": 981,
+     "tt_livre_s": 1003,
+     "tt_hist_s": 1018,
+     "fonte": "lia",
+     "exibido_s": 981,
+     "km": 10.84,
+     "tt_km": 10.78,
+     "traco_pct": null
+    },
+    "C": {
+     "lia_s": 926,
+     "livre_s": 876,
+     "tt_vivo_s": 981,
+     "tt_livre_s": 1003,
+     "tt_hist_s": 1018,
+     "fonte": "lia",
+     "exibido_s": 981,
+     "km": 10.84,
+     "tt_km": 10.78,
+     "traco_pct": null
+    }
+   },
+   {
+    "corredor": "aleatoria-02",
+    "tt_propria_s": 966.0,
+    "A": {
+     "lia_s": 902,
+     "livre_s": 882,
+     "tt_vivo_s": 989,
+     "tt_livre_s": 1000,
+     "tt_hist_s": 1030,
+     "fonte": "lia",
+     "exibido_s": 947,
+     "km": 11.7,
+     "tt_km": 11.69,
+     "traco_pct": 98.8
+    },
+    "B": {
+     "lia_s": 1169,
+     "livre_s": 1155,
+     "tt_vivo_s": 989,
+     "tt_livre_s": 1000,
+     "tt_hist_s": 1030,
+     "fonte": "lia",
+     "exibido_s": 1076,
+     "km": 11.7,
+     "tt_km": 11.69,
+     "traco_pct": 98.8
+    },
+    "C": {
+     "lia_s": 1216,
+     "livre_s": 1155,
+     "tt_vivo_s": 989,
+     "tt_livre_s": 1000,
+     "tt_hist_s": 1030,
+     "fonte": "lia",
+     "exibido_s": 1098,
+     "km": 11.7,
+     "tt_km": 11.69,
+     "traco_pct": 98.8
+    }
+   },
+   {
+    "corredor": "aleatoria-03",
+    "tt_propria_s": null,
+    "A": {
+     "erro": 422
+    },
+    "B": {
+     "erro": 422
+    },
+    "C": {
+     "erro": 422
+    }
+   },
+   {
+    "corredor": "aleatoria-04",
+    "tt_propria_s": 1992.0,
+    "A": {
+     "lia_s": 1001,
+     "livre_s": 1000,
+     "tt_vivo_s": null,
+     "tt_livre_s": null,
+     "tt_hist_s": null,
+     "fonte": "lia",
+     "exibido_s": 1001,
+     "km": 13.84,
+     "tt_km": null,
+     "traco_pct": 20.9
+    },
+    "B": {
+     "lia_s": 1517,
+     "livre_s": 1516,
+     "tt_vivo_s": null,
+     "tt_livre_s": null,
+     "tt_hist_s": null,
+     "fonte": "lia",
+     "exibido_s": 1517,
+     "km": 13.84,
+     "tt_km": null,
+     "traco_pct": 20.9
+    },
+    "C": {
+     "lia_s": 1599,
+     "livre_s": 1516,
+     "tt_vivo_s": null,
+     "tt_livre_s": null,
+     "tt_hist_s": null,
+     "fonte": "lia",
+     "exibido_s": 1599,
+     "km": 13.84,
+     "tt_km": null,
+     "traco_pct": 20.9
+    }
+   },
+   {
+    "corredor": "aleatoria-05",
+    "tt_propria_s": 1034.0,
+    "A": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 1034,
+     "tt_livre_s": 1043,
+     "tt_hist_s": 1073,
+     "fonte": "tomtom",
+     "exibido_s": 1034,
+     "km": 10.67,
+     "tt_km": 10.67,
+     "traco_pct": 100.0
+    },
+    "B": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 1034,
+     "tt_livre_s": 1043,
+     "tt_hist_s": 1073,
+     "fonte": "tomtom",
+     "exibido_s": 1034,
+     "km": 10.67,
+     "tt_km": 10.67,
+     "traco_pct": 100.0
+    },
+    "C": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 1034,
+     "tt_livre_s": 1043,
+     "tt_hist_s": 1073,
+     "fonte": "tomtom",
+     "exibido_s": 1034,
+     "km": 10.67,
+     "tt_km": 10.67,
+     "traco_pct": 100.0
+    }
+   },
+   {
+    "corredor": "aleatoria-06",
+    "tt_propria_s": 5238.0,
+    "A": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 5238,
+     "tt_livre_s": 5328,
+     "tt_hist_s": 5463,
+     "fonte": "tomtom",
+     "exibido_s": 5238,
+     "km": 45.14,
+     "tt_km": 45.14,
+     "traco_pct": 100.0
+    },
+    "B": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 5238,
+     "tt_livre_s": 5328,
+     "tt_hist_s": 5463,
+     "fonte": "tomtom",
+     "exibido_s": 5238,
+     "km": 45.14,
+     "tt_km": 45.14,
+     "traco_pct": 100.0
+    },
+    "C": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 5238,
+     "tt_livre_s": 5328,
+     "tt_hist_s": 5463,
+     "fonte": "tomtom",
+     "exibido_s": 5238,
+     "km": 45.14,
+     "tt_km": 45.14,
+     "traco_pct": 100.0
+    }
+   },
+   {
+    "corredor": "aleatoria-07",
+    "tt_propria_s": 2046.0,
+    "A": {
+     "lia_s": 894,
+     "livre_s": 890,
+     "tt_vivo_s": 1591,
+     "tt_livre_s": 1594,
+     "tt_hist_s": 1654,
+     "fonte": "lia",
+     "exibido_s": 1591,
+     "km": 12.17,
+     "tt_km": 12.04,
+     "traco_pct": 64.1
+    },
+    "B": {
+     "lia_s": 1408,
+     "livre_s": 1404,
+     "tt_vivo_s": 1589,
+     "tt_livre_s": 1580,
+     "tt_hist_s": 1654,
+     "fonte": "lia",
+     "exibido_s": 1589,
+     "km": 13.34,
+     "tt_km": 13.34,
+     "traco_pct": 75.9
+    },
+    "C": {
+     "lia_s": 1483,
+     "livre_s": 1404,
+     "tt_vivo_s": 1589,
+     "tt_livre_s": 1580,
+     "tt_hist_s": 1654,
+     "fonte": "lia",
+     "exibido_s": 1589,
+     "km": 13.34,
+     "tt_km": 13.34,
+     "traco_pct": 75.9
+    }
+   },
+   {
+    "corredor": "aleatoria-08",
+    "tt_propria_s": 1648.0,
+    "A": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 1648,
+     "tt_livre_s": 1699,
+     "tt_hist_s": 1708,
+     "fonte": "tomtom",
+     "exibido_s": 1648,
+     "km": 24.98,
+     "tt_km": 24.98,
+     "traco_pct": 100.0
+    },
+    "B": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 1648,
+     "tt_livre_s": 1699,
+     "tt_hist_s": 1708,
+     "fonte": "tomtom",
+     "exibido_s": 1648,
+     "km": 24.98,
+     "tt_km": 24.98,
+     "traco_pct": 100.0
+    },
+    "C": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 1648,
+     "tt_livre_s": 1699,
+     "tt_hist_s": 1708,
+     "fonte": "tomtom",
+     "exibido_s": 1648,
+     "km": 24.98,
+     "tt_km": 24.98,
+     "traco_pct": 100.0
+    }
+   },
+   {
+    "corredor": "aleatoria-09",
+    "tt_propria_s": 1864.0,
+    "A": {
+     "lia_s": 364,
+     "livre_s": 362,
+     "tt_vivo_s": 545,
+     "tt_livre_s": 558,
+     "tt_hist_s": 566,
+     "fonte": "lia",
+     "exibido_s": 545,
+     "km": 4.98,
+     "tt_km": 4.98,
+     "traco_pct": 27.5
+    },
+    "B": {
+     "lia_s": 497,
+     "livre_s": 495,
+     "tt_vivo_s": 545,
+     "tt_livre_s": 558,
+     "tt_hist_s": 566,
+     "fonte": "lia",
+     "exibido_s": 545,
+     "km": 4.98,
+     "tt_km": 4.98,
+     "traco_pct": 27.5
+    },
+    "C": {
+     "lia_s": 524,
+     "livre_s": 495,
+     "tt_vivo_s": 545,
+     "tt_livre_s": 558,
+     "tt_hist_s": 566,
+     "fonte": "lia",
+     "exibido_s": 545,
+     "km": 4.98,
+     "tt_km": 4.98,
+     "traco_pct": 27.5
+    }
+   },
+   {
+    "corredor": "aleatoria-10",
+    "tt_propria_s": 3205.0,
+    "A": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 3205,
+     "tt_livre_s": 3294,
+     "tt_hist_s": 3340,
+     "fonte": "tomtom",
+     "exibido_s": 3205,
+     "km": 45.97,
+     "tt_km": 45.97,
+     "traco_pct": 100.0
+    },
+    "B": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 3205,
+     "tt_livre_s": 3294,
+     "tt_hist_s": 3340,
+     "fonte": "tomtom",
+     "exibido_s": 3205,
+     "km": 45.97,
+     "tt_km": 45.97,
+     "traco_pct": 100.0
+    },
+    "C": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 3205,
+     "tt_livre_s": 3294,
+     "tt_hist_s": 3340,
+     "fonte": "tomtom",
+     "exibido_s": 3205,
+     "km": 45.97,
+     "tt_km": 45.97,
+     "traco_pct": 100.0
+    }
+   },
+   {
+    "corredor": "aleatoria-11",
+    "tt_propria_s": 1957.0,
+    "A": {
+     "lia_s": 1490,
+     "livre_s": 1488,
+     "tt_vivo_s": 2397,
+     "tt_livre_s": 2454,
+     "tt_hist_s": 2491,
+     "fonte": "lia",
+     "exibido_s": 2397,
+     "km": 24.13,
+     "tt_km": 24.14,
+     "traco_pct": 30.3
+    },
+    "B": {
+     "lia_s": 2033,
+     "livre_s": 2032,
+     "tt_vivo_s": 2397,
+     "tt_livre_s": 2454,
+     "tt_hist_s": 2491,
+     "fonte": "lia",
+     "exibido_s": 2397,
+     "km": 24.13,
+     "tt_km": 24.14,
+     "traco_pct": 30.3
+    },
+    "C": {
+     "lia_s": 2143,
+     "livre_s": 2032,
+     "tt_vivo_s": 2397,
+     "tt_livre_s": 2454,
+     "tt_hist_s": 2491,
+     "fonte": "lia",
+     "exibido_s": 2397,
+     "km": 24.13,
+     "tt_km": 24.14,
+     "traco_pct": 30.3
+    }
+   },
+   {
+    "corredor": "aleatoria-12",
+    "tt_propria_s": 5692.0,
+    "A": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 5692,
+     "tt_livre_s": 5762,
+     "tt_hist_s": 5972,
+     "fonte": "tomtom",
+     "exibido_s": 5692,
+     "km": 35.27,
+     "tt_km": 35.27,
+     "traco_pct": 100.0
+    },
+    "B": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 5692,
+     "tt_livre_s": 5762,
+     "tt_hist_s": 5972,
+     "fonte": "tomtom",
+     "exibido_s": 5692,
+     "km": 35.27,
+     "tt_km": 35.27,
+     "traco_pct": 100.0
+    },
+    "C": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 5692,
+     "tt_livre_s": 5762,
+     "tt_hist_s": 5972,
+     "fonte": "tomtom",
+     "exibido_s": 5692,
+     "km": 35.27,
+     "tt_km": 35.27,
+     "traco_pct": 100.0
+    }
+   },
+   {
+    "corredor": "aleatoria-13",
+    "tt_propria_s": 2232.0,
+    "A": {
+     "lia_s": 2115,
+     "livre_s": 2056,
+     "tt_vivo_s": 2222,
+     "tt_livre_s": 2275,
+     "tt_hist_s": 2313,
+     "fonte": "lia",
+     "exibido_s": 2196,
+     "km": 34.14,
+     "tt_km": 34.12,
+     "traco_pct": 19.7
+    },
+    "B": {
+     "lia_s": 2147,
+     "livre_s": 2077,
+     "tt_vivo_s": 2222,
+     "tt_livre_s": 2275,
+     "tt_hist_s": 2313,
+     "fonte": "lia",
+     "exibido_s": 2204,
+     "km": 34.14,
+     "tt_km": 34.12,
+     "traco_pct": 19.7
+    },
+    "C": {
+     "lia_s": 2235,
+     "livre_s": 2077,
+     "tt_vivo_s": 2222,
+     "tt_livre_s": 2275,
+     "tt_hist_s": 2313,
+     "fonte": "lia",
+     "exibido_s": 2225,
+     "km": 34.14,
+     "tt_km": 34.12,
+     "traco_pct": 19.7
+    }
+   },
+   {
+    "corredor": "aleatoria-14",
+    "tt_propria_s": 1672.0,
+    "A": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 1672,
+     "tt_livre_s": 1684,
+     "tt_hist_s": 1743,
+     "fonte": "tomtom",
+     "exibido_s": 1672,
+     "km": 25.51,
+     "tt_km": 25.51,
+     "traco_pct": 100.0
+    },
+    "B": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 1672,
+     "tt_livre_s": 1684,
+     "tt_hist_s": 1743,
+     "fonte": "tomtom",
+     "exibido_s": 1672,
+     "km": 25.51,
+     "tt_km": 25.51,
+     "traco_pct": 100.0
+    },
+    "C": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 1672,
+     "tt_livre_s": 1684,
+     "tt_hist_s": 1743,
+     "fonte": "tomtom",
+     "exibido_s": 1672,
+     "km": 25.51,
+     "tt_km": 25.51,
+     "traco_pct": 100.0
+    }
+   },
+   {
+    "corredor": "aleatoria-15",
+    "tt_propria_s": 1037.0,
+    "A": {
+     "lia_s": 1079,
+     "livre_s": 1055,
+     "tt_vivo_s": 1069,
+     "tt_livre_s": 1083,
+     "tt_hist_s": 1116,
+     "fonte": "lia",
+     "exibido_s": 1075,
+     "km": 19.58,
+     "tt_km": 19.66,
+     "traco_pct": 98.7
+    },
+    "B": {
+     "lia_s": 1054,
+     "livre_s": 1029,
+     "tt_vivo_s": 1069,
+     "tt_livre_s": 1083,
+     "tt_hist_s": 1116,
+     "fonte": "lia",
+     "exibido_s": 1059,
+     "km": 19.58,
+     "tt_km": 19.66,
+     "traco_pct": 98.7
+    },
+    "C": {
+     "lia_s": 1094,
+     "livre_s": 1029,
+     "tt_vivo_s": 1069,
+     "tt_livre_s": 1083,
+     "tt_hist_s": 1116,
+     "fonte": "lia",
+     "exibido_s": 1085,
+     "km": 19.58,
+     "tt_km": 19.66,
+     "traco_pct": 98.7
+    }
+   },
+   {
+    "corredor": "aleatoria-16",
+    "tt_propria_s": 2256.0,
+    "A": {
+     "lia_s": 707,
+     "livre_s": 707,
+     "tt_vivo_s": null,
+     "tt_livre_s": null,
+     "tt_hist_s": null,
+     "fonte": "lia",
+     "exibido_s": 707,
+     "km": 9.49,
+     "tt_km": null,
+     "traco_pct": 26.1
+    },
+    "B": {
+     "lia_s": 1103,
+     "livre_s": 1103,
+     "tt_vivo_s": null,
+     "tt_livre_s": null,
+     "tt_hist_s": null,
+     "fonte": "lia",
+     "exibido_s": 1103,
+     "km": 9.49,
+     "tt_km": null,
+     "traco_pct": 26.1
+    },
+    "C": {
+     "lia_s": 1163,
+     "livre_s": 1103,
+     "tt_vivo_s": null,
+     "tt_livre_s": null,
+     "tt_hist_s": null,
+     "fonte": "lia",
+     "exibido_s": 1163,
+     "km": 9.49,
+     "tt_km": null,
+     "traco_pct": 26.1
+    }
+   },
+   {
+    "corredor": "aleatoria-17",
+    "tt_propria_s": null,
+    "A": {
+     "erro": 422
+    },
+    "B": {
+     "erro": 422
+    },
+    "C": {
+     "erro": 422
+    }
+   },
+   {
+    "corredor": "aleatoria-18",
+    "tt_propria_s": 4167.0,
+    "A": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 4167,
+     "tt_livre_s": 4287,
+     "tt_hist_s": 4338,
+     "fonte": "tomtom",
+     "exibido_s": 4167,
+     "km": 30.78,
+     "tt_km": 30.78,
+     "traco_pct": 100.0
+    },
+    "B": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 4167,
+     "tt_livre_s": 4287,
+     "tt_hist_s": 4338,
+     "fonte": "tomtom",
+     "exibido_s": 4167,
+     "km": 30.78,
+     "tt_km": 30.78,
+     "traco_pct": 100.0
+    },
+    "C": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 4167,
+     "tt_livre_s": 4287,
+     "tt_hist_s": 4338,
+     "fonte": "tomtom",
+     "exibido_s": 4167,
+     "km": 30.78,
+     "tt_km": 30.78,
+     "traco_pct": 100.0
+    }
+   },
+   {
+    "corredor": "aleatoria-19",
+    "tt_propria_s": 1340.0,
+    "A": {
+     "lia_s": 1321,
+     "livre_s": 1293,
+     "tt_vivo_s": 1540,
+     "tt_livre_s": 1557,
+     "tt_hist_s": 1595,
+     "fonte": "tomtom",
+     "exibido_s": 1351,
+     "km": 22.58,
+     "tt_km": 23.19,
+     "traco_pct": 29.3
+    },
+    "B": {
+     "lia_s": 1390,
+     "livre_s": 1354,
+     "tt_vivo_s": 1497,
+     "tt_livre_s": 1447,
+     "tt_hist_s": 1550,
+     "fonte": "lia",
+     "exibido_s": 1392,
+     "km": 21.48,
+     "tt_km": 21.42,
+     "traco_pct": 77.9
+    },
+    "C": {
+     "lia_s": 1412,
+     "livre_s": 1354,
+     "tt_vivo_s": 1497,
+     "tt_livre_s": 1447,
+     "tt_hist_s": 1550,
+     "fonte": "lia",
+     "exibido_s": 1414,
+     "km": 21.48,
+     "tt_km": 21.42,
+     "traco_pct": 77.9
+    }
+   },
+   {
+    "corredor": "aleatoria-20",
+    "tt_propria_s": 1260.0,
+    "A": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 1260,
+     "tt_livre_s": 1294,
+     "tt_hist_s": 1311,
+     "fonte": "tomtom",
+     "exibido_s": 1260,
+     "km": 13.21,
+     "tt_km": 13.21,
+     "traco_pct": 100.0
+    },
+    "B": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 1260,
+     "tt_livre_s": 1294,
+     "tt_hist_s": 1311,
+     "fonte": "tomtom",
+     "exibido_s": 1260,
+     "km": 13.21,
+     "tt_km": 13.21,
+     "traco_pct": 100.0
+    },
+    "C": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 1260,
+     "tt_livre_s": 1294,
+     "tt_hist_s": 1311,
+     "fonte": "tomtom",
+     "exibido_s": 1260,
+     "km": 13.21,
+     "tt_km": 13.21,
+     "traco_pct": 100.0
+    }
+   },
+   {
+    "corredor": "aleatoria-21",
+    "tt_propria_s": 1994.0,
+    "A": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 1994,
+     "tt_livre_s": 1888,
+     "tt_hist_s": 2120,
+     "fonte": "tomtom",
+     "exibido_s": 1994,
+     "km": 17.67,
+     "tt_km": 17.67,
+     "traco_pct": 100.0
+    },
+    "B": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 1994,
+     "tt_livre_s": 1888,
+     "tt_hist_s": 2120,
+     "fonte": "tomtom",
+     "exibido_s": 1994,
+     "km": 17.67,
+     "tt_km": 17.67,
+     "traco_pct": 100.0
+    },
+    "C": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 1994,
+     "tt_livre_s": 1888,
+     "tt_hist_s": 2120,
+     "fonte": "tomtom",
+     "exibido_s": 1994,
+     "km": 17.67,
+     "tt_km": 17.67,
+     "traco_pct": 100.0
+    }
+   },
+   {
+    "corredor": "aleatoria-22",
+    "tt_propria_s": 1768.0,
+    "A": {
+     "lia_s": 1607,
+     "livre_s": 1578,
+     "tt_vivo_s": 3368,
+     "tt_livre_s": 3412,
+     "tt_hist_s": 3504,
+     "fonte": "tomtom",
+     "exibido_s": 1820,
+     "km": 21.52,
+     "tt_km": 27.97,
+     "traco_pct": 22.5
+    },
+    "B": {
+     "lia_s": 2121,
+     "livre_s": 2098,
+     "tt_vivo_s": 3328,
+     "tt_livre_s": 3374,
+     "tt_hist_s": 3464,
+     "fonte": "tomtom",
+     "exibido_s": 1820,
+     "km": 23.24,
+     "tt_km": 29.62,
+     "traco_pct": 47.1
+    },
+    "C": {
+     "lia_s": 2213,
+     "livre_s": 2098,
+     "tt_vivo_s": 3328,
+     "tt_livre_s": 3374,
+     "tt_hist_s": 3464,
+     "fonte": "tomtom",
+     "exibido_s": 1820,
+     "km": 23.24,
+     "tt_km": 29.62,
+     "traco_pct": 47.1
+    }
+   },
+   {
+    "corredor": "aleatoria-23",
+    "tt_propria_s": 1713.0,
+    "A": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 1713,
+     "tt_livre_s": 1719,
+     "tt_hist_s": 1778,
+     "fonte": "tomtom",
+     "exibido_s": 1713,
+     "km": 24.04,
+     "tt_km": 24.04,
+     "traco_pct": 100.0
+    },
+    "B": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 1713,
+     "tt_livre_s": 1719,
+     "tt_hist_s": 1778,
+     "fonte": "tomtom",
+     "exibido_s": 1713,
+     "km": 24.04,
+     "tt_km": 24.04,
+     "traco_pct": 100.0
+    },
+    "C": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 1713,
+     "tt_livre_s": 1719,
+     "tt_hist_s": 1778,
+     "fonte": "tomtom",
+     "exibido_s": 1713,
+     "km": 24.04,
+     "tt_km": 24.04,
+     "traco_pct": 100.0
+    }
+   },
+   {
+    "corredor": "aleatoria-24",
+    "tt_propria_s": 1645.0,
+    "A": {
+     "lia_s": 1625,
+     "livre_s": 1579,
+     "tt_vivo_s": 1693,
+     "tt_livre_s": 1709,
+     "tt_hist_s": 1770,
+     "fonte": "lia",
+     "exibido_s": 1645,
+     "km": 22.43,
+     "tt_km": 22.44,
+     "traco_pct": 99.7
+    },
+    "B": {
+     "lia_s": 1897,
+     "livre_s": 1848,
+     "tt_vivo_s": 1693,
+     "tt_livre_s": 1709,
+     "tt_hist_s": 1770,
+     "fonte": "lia",
+     "exibido_s": 1835,
+     "km": 22.43,
+     "tt_km": 22.44,
+     "traco_pct": 99.7
+    },
+    "C": {
+     "lia_s": 1957,
+     "livre_s": 1848,
+     "tt_vivo_s": 1693,
+     "tt_livre_s": 1709,
+     "tt_hist_s": 1770,
+     "fonte": "lia",
+     "exibido_s": 1877,
+     "km": 22.43,
+     "tt_km": 22.44,
+     "traco_pct": 99.7
+    }
+   },
+   {
+    "corredor": "aleatoria-25",
+    "tt_propria_s": 2893.0,
+    "A": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 2893,
+     "tt_livre_s": 2966,
+     "tt_hist_s": 3016,
+     "fonte": "tomtom",
+     "exibido_s": 2893,
+     "km": 33.25,
+     "tt_km": 33.25,
+     "traco_pct": 100.0
+    },
+    "B": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 2893,
+     "tt_livre_s": 2966,
+     "tt_hist_s": 3016,
+     "fonte": "tomtom",
+     "exibido_s": 2893,
+     "km": 33.25,
+     "tt_km": 33.25,
+     "traco_pct": 100.0
+    },
+    "C": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 2893,
+     "tt_livre_s": 2966,
+     "tt_hist_s": 3016,
+     "fonte": "tomtom",
+     "exibido_s": 2893,
+     "km": 33.25,
+     "tt_km": 33.25,
+     "traco_pct": 100.0
+    }
+   },
+   {
+    "corredor": "aleatoria-26",
+    "tt_propria_s": 4106.0,
+    "A": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 4106,
+     "tt_livre_s": 4252,
+     "tt_hist_s": 4267,
+     "fonte": "tomtom",
+     "exibido_s": 4106,
+     "km": 39.13,
+     "tt_km": 39.13,
+     "traco_pct": 100.0
+    },
+    "B": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 4106,
+     "tt_livre_s": 4252,
+     "tt_hist_s": 4267,
+     "fonte": "tomtom",
+     "exibido_s": 4106,
+     "km": 39.13,
+     "tt_km": 39.13,
+     "traco_pct": 100.0
+    },
+    "C": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 4106,
+     "tt_livre_s": 4252,
+     "tt_hist_s": 4267,
+     "fonte": "tomtom",
+     "exibido_s": 4106,
+     "km": 39.13,
+     "tt_km": 39.13,
+     "traco_pct": 100.0
+    }
+   },
+   {
+    "corredor": "aleatoria-27",
+    "tt_propria_s": 2814.0,
+    "A": {
+     "lia_s": 1798,
+     "livre_s": 1754,
+     "tt_vivo_s": 2122,
+     "tt_livre_s": 2168,
+     "tt_hist_s": 2209,
+     "fonte": "lia",
+     "exibido_s": 1874,
+     "km": 24.57,
+     "tt_km": 24.55,
+     "traco_pct": 84.0
+    },
+    "B": {
+     "lia_s": 2464,
+     "livre_s": 2414,
+     "tt_vivo_s": 2122,
+     "tt_livre_s": 2168,
+     "tt_hist_s": 2209,
+     "fonte": "lia",
+     "exibido_s": 2384,
+     "km": 24.57,
+     "tt_km": 24.55,
+     "traco_pct": 84.0
+    },
+    "C": {
+     "lia_s": 2551,
+     "livre_s": 2414,
+     "tt_vivo_s": 2122,
+     "tt_livre_s": 2168,
+     "tt_hist_s": 2209,
+     "fonte": "lia",
+     "exibido_s": 2450,
+     "km": 24.57,
+     "tt_km": 24.55,
+     "traco_pct": 84.0
+    }
+   },
+   {
+    "corredor": "aleatoria-28",
+    "tt_propria_s": 4152.0,
+    "A": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 4152,
+     "tt_livre_s": 4282,
+     "tt_hist_s": 4324,
+     "fonte": "tomtom",
+     "exibido_s": 4152,
+     "km": 58.21,
+     "tt_km": 58.21,
+     "traco_pct": 100.0
+    },
+    "B": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 4152,
+     "tt_livre_s": 4282,
+     "tt_hist_s": 4324,
+     "fonte": "tomtom",
+     "exibido_s": 4152,
+     "km": 58.21,
+     "tt_km": 58.21,
+     "traco_pct": 100.0
+    },
+    "C": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 4152,
+     "tt_livre_s": 4282,
+     "tt_hist_s": 4324,
+     "fonte": "tomtom",
+     "exibido_s": 4152,
+     "km": 58.21,
+     "tt_km": 58.21,
+     "traco_pct": 100.0
+    }
+   },
+   {
+    "corredor": "aleatoria-29",
+    "tt_propria_s": 2756.0,
+    "A": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 2756,
+     "tt_livre_s": 2826,
+     "tt_hist_s": 2869,
+     "fonte": "tomtom",
+     "exibido_s": 2756,
+     "km": 20.58,
+     "tt_km": 20.58,
+     "traco_pct": 100.0
+    },
+    "B": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 2756,
+     "tt_livre_s": 2826,
+     "tt_hist_s": 2869,
+     "fonte": "tomtom",
+     "exibido_s": 2756,
+     "km": 20.58,
+     "tt_km": 20.58,
+     "traco_pct": 100.0
+    },
+    "C": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 2756,
+     "tt_livre_s": 2826,
+     "tt_hist_s": 2869,
+     "fonte": "tomtom",
+     "exibido_s": 2756,
+     "km": 20.58,
+     "tt_km": 20.58,
+     "traco_pct": 100.0
+    }
+   },
+   {
+    "corredor": "aleatoria-30",
+    "tt_propria_s": 1299.0,
+    "A": {
+     "lia_s": 963,
+     "livre_s": 953,
+     "tt_vivo_s": 1310,
+     "tt_livre_s": 1251,
+     "tt_hist_s": 1383,
+     "fonte": "lia",
+     "exibido_s": 1231,
+     "km": 15.51,
+     "tt_km": 15.46,
+     "traco_pct": 99.8
+    },
+    "B": {
+     "lia_s": 1206,
+     "livre_s": 1198,
+     "tt_vivo_s": 1310,
+     "tt_livre_s": 1251,
+     "tt_hist_s": 1383,
+     "fonte": "lia",
+     "exibido_s": 1286,
+     "km": 15.51,
+     "tt_km": 15.46,
+     "traco_pct": 99.8
+    },
+    "C": {
+     "lia_s": 1262,
+     "livre_s": 1198,
+     "tt_vivo_s": 1310,
+     "tt_livre_s": 1251,
+     "tt_hist_s": 1383,
+     "fonte": "lia",
+     "exibido_s": 1299,
+     "km": 15.51,
+     "tt_km": 15.46,
+     "traco_pct": 99.8
+    }
+   },
+   {
+    "corredor": "aleatoria-31",
+    "tt_propria_s": 1613.0,
+    "A": {
+     "lia_s": 1564,
+     "livre_s": 1542,
+     "tt_vivo_s": 1571,
+     "tt_livre_s": 1520,
+     "tt_hist_s": 1658,
+     "fonte": "lia",
+     "exibido_s": 1566,
+     "km": 23.04,
+     "tt_km": 23.03,
+     "traco_pct": 99.7
+    },
+    "B": {
+     "lia_s": 1506,
+     "livre_s": 1503,
+     "tt_vivo_s": 1595,
+     "tt_livre_s": 1491,
+     "tt_hist_s": 1701,
+     "fonte": "lia",
+     "exibido_s": 1530,
+     "km": 22.4,
+     "tt_km": 22.41,
+     "traco_pct": 85.6
+    },
+    "C": {
+     "lia_s": 1549,
+     "livre_s": 1503,
+     "tt_vivo_s": 1595,
+     "tt_livre_s": 1491,
+     "tt_hist_s": 1701,
+     "fonte": "lia",
+     "exibido_s": 1562,
+     "km": 22.4,
+     "tt_km": 22.41,
+     "traco_pct": 85.6
+    }
+   },
+   {
+    "corredor": "aleatoria-32",
+    "tt_propria_s": 2561.0,
+    "A": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 2561,
+     "tt_livre_s": 2611,
+     "tt_hist_s": 2663,
+     "fonte": "tomtom",
+     "exibido_s": 2561,
+     "km": 25.45,
+     "tt_km": 25.45,
+     "traco_pct": 100.0
+    },
+    "B": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 2561,
+     "tt_livre_s": 2611,
+     "tt_hist_s": 2663,
+     "fonte": "tomtom",
+     "exibido_s": 2561,
+     "km": 25.45,
+     "tt_km": 25.45,
+     "traco_pct": 100.0
+    },
+    "C": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 2561,
+     "tt_livre_s": 2611,
+     "tt_hist_s": 2663,
+     "fonte": "tomtom",
+     "exibido_s": 2561,
+     "km": 25.45,
+     "tt_km": 25.45,
+     "traco_pct": 100.0
+    }
+   },
+   {
+    "corredor": "aleatoria-33",
+    "tt_propria_s": 1672.0,
+    "A": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 1672,
+     "tt_livre_s": 1679,
+     "tt_hist_s": 1735,
+     "fonte": "tomtom",
+     "exibido_s": 1672,
+     "km": 27.35,
+     "tt_km": 27.35,
+     "traco_pct": 100.0
+    },
+    "B": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 1672,
+     "tt_livre_s": 1679,
+     "tt_hist_s": 1735,
+     "fonte": "tomtom",
+     "exibido_s": 1672,
+     "km": 27.35,
+     "tt_km": 27.35,
+     "traco_pct": 100.0
+    },
+    "C": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 1672,
+     "tt_livre_s": 1679,
+     "tt_hist_s": 1735,
+     "fonte": "tomtom",
+     "exibido_s": 1672,
+     "km": 27.35,
+     "tt_km": 27.35,
+     "traco_pct": 100.0
+    }
+   },
+   {
+    "corredor": "aleatoria-34",
+    "tt_propria_s": 2073.0,
+    "A": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 2073,
+     "tt_livre_s": 2029,
+     "tt_hist_s": 2182,
+     "fonte": "tomtom",
+     "exibido_s": 2073,
+     "km": 22.3,
+     "tt_km": 22.3,
+     "traco_pct": 100.0
+    },
+    "B": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 2073,
+     "tt_livre_s": 2029,
+     "tt_hist_s": 2182,
+     "fonte": "tomtom",
+     "exibido_s": 2073,
+     "km": 22.3,
+     "tt_km": 22.3,
+     "traco_pct": 100.0
+    },
+    "C": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 2073,
+     "tt_livre_s": 2029,
+     "tt_hist_s": 2182,
+     "fonte": "tomtom",
+     "exibido_s": 2073,
+     "km": 22.3,
+     "tt_km": 22.3,
+     "traco_pct": 100.0
+    }
+   },
+   {
+    "corredor": "aleatoria-35",
+    "tt_propria_s": 3540.0,
+    "A": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 3540,
+     "tt_livre_s": 3593,
+     "tt_hist_s": 3697,
+     "fonte": "tomtom",
+     "exibido_s": 3540,
+     "km": 33.07,
+     "tt_km": 33.07,
+     "traco_pct": 100.0
+    },
+    "B": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 3540,
+     "tt_livre_s": 3593,
+     "tt_hist_s": 3697,
+     "fonte": "tomtom",
+     "exibido_s": 3540,
+     "km": 33.07,
+     "tt_km": 33.07,
+     "traco_pct": 100.0
+    },
+    "C": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 3540,
+     "tt_livre_s": 3593,
+     "tt_hist_s": 3697,
+     "fonte": "tomtom",
+     "exibido_s": 3540,
+     "km": 33.07,
+     "tt_km": 33.07,
+     "traco_pct": 100.0
+    }
+   },
+   {
+    "corredor": "aleatoria-36",
+    "tt_propria_s": null,
+    "A": {
+     "lia_s": 1570,
+     "livre_s": 1568,
+     "tt_vivo_s": 2810,
+     "tt_livre_s": 2893,
+     "tt_hist_s": 2919,
+     "fonte": "lia",
+     "exibido_s": 2810,
+     "km": 21.97,
+     "tt_km": 22.14,
+     "traco_pct": null
+    },
+    "B": {
+     "lia_s": 2236,
+     "livre_s": 2234,
+     "tt_vivo_s": 2914,
+     "tt_livre_s": 3002,
+     "tt_hist_s": 3028,
+     "fonte": "lia",
+     "exibido_s": 2914,
+     "km": 25.15,
+     "tt_km": 25.34,
+     "traco_pct": null
+    },
+    "C": {
+     "lia_s": 2353,
+     "livre_s": 2234,
+     "tt_vivo_s": 2914,
+     "tt_livre_s": 3002,
+     "tt_hist_s": 3028,
+     "fonte": "lia",
+     "exibido_s": 2914,
+     "km": 25.15,
+     "tt_km": 25.34,
+     "traco_pct": null
+    }
+   },
+   {
+    "corredor": "aleatoria-37",
+    "tt_propria_s": 3579.0,
+    "A": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 3579,
+     "tt_livre_s": 3676,
+     "tt_hist_s": 3722,
+     "fonte": "tomtom",
+     "exibido_s": 3579,
+     "km": 33.05,
+     "tt_km": 33.05,
+     "traco_pct": 100.0
+    },
+    "B": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 3579,
+     "tt_livre_s": 3676,
+     "tt_hist_s": 3722,
+     "fonte": "tomtom",
+     "exibido_s": 3579,
+     "km": 33.05,
+     "tt_km": 33.05,
+     "traco_pct": 100.0
+    },
+    "C": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 3579,
+     "tt_livre_s": 3676,
+     "tt_hist_s": 3722,
+     "fonte": "tomtom",
+     "exibido_s": 3579,
+     "km": 33.05,
+     "tt_km": 33.05,
+     "traco_pct": 100.0
+    }
+   },
+   {
+    "corredor": "aleatoria-38",
+    "tt_propria_s": 1154.0,
+    "A": {
+     "lia_s": 1091,
+     "livre_s": 1062,
+     "tt_vivo_s": 1028,
+     "tt_livre_s": 1026,
+     "tt_hist_s": 1074,
+     "fonte": "lia",
+     "exibido_s": 1053,
+     "km": 14.44,
+     "tt_km": 14.41,
+     "traco_pct": 67.9
+    },
+    "B": {
+     "lia_s": 1121,
+     "livre_s": 1096,
+     "tt_vivo_s": 1028,
+     "tt_livre_s": 1026,
+     "tt_hist_s": 1074,
+     "fonte": "lia",
+     "exibido_s": 1064,
+     "km": 14.44,
+     "tt_km": 14.41,
+     "traco_pct": 67.9
+    },
+    "C": {
+     "lia_s": 1160,
+     "livre_s": 1096,
+     "tt_vivo_s": 1028,
+     "tt_livre_s": 1026,
+     "tt_hist_s": 1074,
+     "fonte": "lia",
+     "exibido_s": 1080,
+     "km": 14.44,
+     "tt_km": 14.41,
+     "traco_pct": 67.9
+    }
+   },
+   {
+    "corredor": "aleatoria-39",
+    "tt_propria_s": 1288.0,
+    "A": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 1288,
+     "tt_livre_s": 1326,
+     "tt_hist_s": 1341,
+     "fonte": "tomtom",
+     "exibido_s": 1288,
+     "km": 17.98,
+     "tt_km": 17.98,
+     "traco_pct": 100.0
+    },
+    "B": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 1288,
+     "tt_livre_s": 1326,
+     "tt_hist_s": 1341,
+     "fonte": "tomtom",
+     "exibido_s": 1288,
+     "km": 17.98,
+     "tt_km": 17.98,
+     "traco_pct": 100.0
+    },
+    "C": {
+     "lia_s": null,
+     "livre_s": null,
+     "tt_vivo_s": 1288,
+     "tt_livre_s": 1326,
+     "tt_hist_s": 1341,
+     "fonte": "tomtom",
+     "exibido_s": 1288,
+     "km": 17.98,
+     "tt_km": 17.98,
+     "traco_pct": 100.0
+    }
+   },
+   {
+    "corredor": "aleatoria-40",
+    "tt_propria_s": 1356.0,
+    "A": {
+     "lia_s": 1284,
+     "livre_s": 1260,
+     "tt_vivo_s": null,
+     "tt_livre_s": null,
+     "tt_hist_s": null,
+     "fonte": "lia",
+     "exibido_s": 1284,
+     "km": 20.86,
+     "tt_km": null,
+     "traco_pct": 37.9
+    },
+    "B": {
+     "lia_s": 1494,
+     "livre_s": 1454,
+     "tt_vivo_s": null,
+     "tt_livre_s": null,
+     "tt_hist_s": null,
+     "fonte": "lia",
+     "exibido_s": 1494,
+     "km": 20.86,
+     "tt_km": null,
+     "traco_pct": 37.9
+    },
+    "C": {
+     "lia_s": 1542,
+     "livre_s": 1454,
+     "tt_vivo_s": null,
+     "tt_livre_s": null,
+     "tt_hist_s": null,
+     "fonte": "lia",
+     "exibido_s": 1542,
+     "km": 20.86,
+     "tt_km": null,
+     "traco_pct": 37.9
+    }
+   }
+  ]
+ }
+}

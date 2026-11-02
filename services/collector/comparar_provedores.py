@@ -61,6 +61,30 @@ CORREDORES = [
     ('sobradinho-plano', 'Sobradinho → Plano Piloto', (-15.6519, -47.7906), (-15.7939, -47.8828)),
 ]
 
+# Viagens entre pontos famosos (coordenadas do OSM em pontos_df.json; o aeroporto usa o meio-fio do
+# terminal, como o corredor acima). Prefixo poi- separa na análise. Parques e o Eixão são o centro do
+# objeto: o snap leva à via mais próxima, como acontece com quem escolhe esses lugares no app.
+CORREDORES_POI = [
+    ('poi-aeroporto-parkshopping', 'Aeroporto → ParkShopping', (-15.8697, -47.9172), (-15.8336, -47.95539)),
+    ('poi-aguasclarasshopping-aeroporto', 'Águas Claras Shopping → Aeroporto', (-15.84165, -48.02603), (-15.8697, -47.9172)),
+    ('poi-venancio-parqueaguasclaras', 'Venâncio Shopping → Parque Ecológico de Águas Claras',
+     (-15.7956, -47.89274), (-15.83027, -48.02631)),
+    ('poi-metrocentral-taguatingashopping', 'Estação Central → Taguatinga Shopping', (-15.79325, -47.88464), (-15.84137, -48.04404)),
+    ('poi-parqueaguasclaras-rodoviaria', 'Parque Ecológico de Águas Claras → Rodoviária do Plano Piloto',
+     (-15.83027, -48.02631), (-15.79389, -47.88278)),
+    ('poi-parkshopping-esplanada', 'ParkShopping → Esplanada dos Ministérios', (-15.8336, -47.95539), (-15.79737, -47.87096)),
+    ('poi-metrosamambaia-metrocentral', 'Estação Samambaia → Estação Central', (-15.87368, -48.08491), (-15.79325, -47.88464)),
+    ('poi-eixaonorte-eixaosul', 'Eixão Norte → Eixão Sul', (-15.76292, -47.8838), (-15.82418, -47.91058)),
+    ('poi-unb-aeroporto', 'UnB → Aeroporto', (-15.75808, -47.87416), (-15.8697, -47.9172)),
+    ('poi-iguatemi-esplanada', 'Shopping Iguatemi → Esplanada dos Ministérios', (-15.72075, -47.8859), (-15.79737, -47.87096)),
+    ('poi-brasiliashopping-parkshopping', 'Brasília Shopping → ParkShopping', (-15.78673, -47.88904), (-15.8336, -47.95539)),
+    ('poi-taguatingashopping-aguasclarasshopping', 'Taguatinga Shopping → Águas Claras Shopping',
+     (-15.84137, -48.04404), (-15.84165, -48.02603)),
+    ('poi-metroceilandia-hrt', 'Estação Ceilândia → Hospital Regional de Taguatinga', (-15.80557, -48.12131), (-15.82243, -48.06932)),
+    ('poi-jkshopping-rodoviaria', 'JK Shopping → Rodoviária do Plano Piloto', (-15.80956, -48.09395), (-15.79389, -47.88278)),
+]
+TODOS = CORREDORES + CORREDORES_POI
+
 
 def _resultado(tempo_s=None, distancia_km=None, erro=None, traco=None, **detalhes) -> dict:
     r = {'tempo_s': None if tempo_s is None else round(float(tempo_s), 1),
@@ -144,20 +168,24 @@ def mapbox(o, d, token, sessao=requests):
     r.raise_for_status()
     rota = r.json()['routes'][0]
     return _resultado(rota['duration'], rota['distance'] / 1000,
-                      traco=_traco_geojson((rota.get('geometry') or {}).get('coordinates')))
+                      traco=_traco_geojson((rota.get('geometry') or {}).get('coordinates')),
+                      tipico_s=rota.get('duration_typical'))  # trânsito típico do horário (histórico do Mapbox)
 
 
 def tomtom(o, d, chave, sessao=requests):
     """TomTom Routing com trânsito ao vivo (referência, a mesma da Fase 3)."""
     url = f'https://api.tomtom.com/routing/1/calculateRoute/{o[0]},{o[1]}:{d[0]},{d[1]}/json'
-    r = sessao.get(url, params={'key': chave, 'traffic': 'true', 'routeType': 'fastest'}, timeout=TIMEOUT)
+    # computeTravelTimeFor=all: sem ele a TomTom não manda o tempo sem trânsito nem o histórico.
+    r = sessao.get(url, params={'key': chave, 'traffic': 'true', 'routeType': 'fastest',
+                                'computeTravelTimeFor': 'all'}, timeout=TIMEOUT)
     r.raise_for_status()
     rota = r.json()['routes'][0]
     s = rota['summary']
     traco = [(p['latitude'], p['longitude']) for perna in rota.get('legs') or [] for p in perna.get('points') or []]
     return _resultado(s['travelTimeInSeconds'], s['lengthInMeters'] / 1000, traco=traco,
                       sem_transito_s=s.get('noTrafficTravelTimeInSeconds'),
-                      atraso_transito_s=s.get('trafficDelayInSeconds'))
+                      atraso_transito_s=s.get('trafficDelayInSeconds'),
+                      historico_s=s.get('historicTrafficTravelTimeInSeconds'))
 
 
 def routify(o, d, sessao=requests) -> dict:
@@ -191,7 +219,8 @@ def routify(o, d, sessao=requests) -> dict:
         linhas['tomtom_mesmo_trajeto'] = _resultado(
             tt['referencia_tempo_seg'], tt.get('referencia_distancia_km') or dist_lia,
             atraso_transito_s=tt.get('referencia_atraso_seg'),
-            sem_transito_s=tt.get('referencia_sem_transito_seg'))
+            sem_transito_s=tt.get('referencia_sem_transito_seg'),
+            historico_s=tt.get('referencia_historico_seg'))
     return linhas
 
 
@@ -232,7 +261,7 @@ def _anotar_traco(res: dict) -> None:
             r['detalhes'] = {**(r.get('detalhes') or {}), 'traco_comum_tomtom_pct': comum}
 
 
-def rodada(corredores=CORREDORES, sessao=None, externos=None, pausa_s=PAUSA_ENTRE_CORREDORES_S) -> list:
+def rodada(corredores=TODOS, sessao=None, externos=None, pausa_s=PAUSA_ENTRE_CORREDORES_S) -> list:
     """Uma rodada: todos os corredores em todos os provedores. Falha vira linha com erro."""
     sessao = sessao or requests.Session()
     externos = provedores() if externos is None else externos
@@ -293,12 +322,12 @@ def gravar(linhas: list, cliente=None) -> bool:
 def main():
     ap = argparse.ArgumentParser(description='Comparador LIA × provedores (uma rodada)')
     ap.add_argument('--sem-gravar', action='store_true', help='só mostra, não grava no Supabase')
-    ap.add_argument('--corredores', nargs='*', help='ids de CORREDORES (padrão: todos)')
+    ap.add_argument('--corredores', nargs='*', help='ids de CORREDORES ou CORREDORES_POI (padrão: todos)')
     args = ap.parse_args()
     # Chaves opcionais (MAPBOX_TOKEN, ORS_API_KEY) moram no mesmo .env do coletor.
     from dotenv import load_dotenv
     load_dotenv(os.path.join(AQUI, 'config', '.env'))
-    escolhidos = [c for c in CORREDORES if not args.corredores or c[0] in args.corredores]
+    escolhidos = [c for c in TODOS if not args.corredores or c[0] in args.corredores]
     linhas = rodada(escolhidos)
     if not args.sem_gravar:
         gravar(linhas)

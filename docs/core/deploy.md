@@ -153,7 +153,7 @@ Resend, grátis até 3 mil e-mails por mês, com o domínio já verificado.
 
 ## 4. Rollback e desligamento
 
-- API: `LIA_VERSION=lia_2.2` (ou `lia_2.1`) e/ou `VEL_LIVRE_CALIBRADA=0` num drop-in do systemd → `systemctl restart routify-api`.
+- API: `LIA_VERSION=lia_2.2` (ou `lia_2.1`), `VEL_LIVRE_CALIBRADA=0` e/ou `PRIOR_CONGESTIONAMENTO=perfil` num drop-in do systemd → `systemctl restart routify-api`. Fatores por grupo e δ de 2026-09-23: copiar `semaforos_calibracao_2026-09-23.json` por cima de `semaforos_calibracao.json`.
 - Comparador: `sudo systemctl disable --now routify-comparador.timer`.
 - Coletor: `sudo systemctl disable --now routify-collector` (a API continua chamando a TomTom sob demanda).
 - Front: republicar o pacote anterior pelo mesmo MCP.

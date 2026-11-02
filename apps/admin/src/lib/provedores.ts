@@ -80,6 +80,21 @@ const CORREDORES: Record<string, string> = {
   'ceilandia-plano': 'Ceilândia → Plano Piloto',
   'gama-plano': 'Gama → Plano Piloto',
   'sobradinho-plano': 'Sobradinho → Plano Piloto',
+  // Viagens entre pontos famosos (CORREDORES_POI)
+  'poi-aeroporto-parkshopping': 'Aeroporto → ParkShopping',
+  'poi-aguasclarasshopping-aeroporto': 'Águas Claras Shopping → Aeroporto',
+  'poi-venancio-parqueaguasclaras': 'Venâncio Shopping → Parque de Águas Claras',
+  'poi-metrocentral-taguatingashopping': 'Estação Central → Taguatinga Shopping',
+  'poi-parqueaguasclaras-rodoviaria': 'Parque de Águas Claras → Rodoviária',
+  'poi-parkshopping-esplanada': 'ParkShopping → Esplanada',
+  'poi-metrosamambaia-metrocentral': 'Estação Samambaia → Estação Central',
+  'poi-eixaonorte-eixaosul': 'Eixão Norte → Eixão Sul',
+  'poi-unb-aeroporto': 'UnB → Aeroporto',
+  'poi-iguatemi-esplanada': 'Iguatemi → Esplanada',
+  'poi-brasiliashopping-parkshopping': 'Brasília Shopping → ParkShopping',
+  'poi-taguatingashopping-aguasclarasshopping': 'Taguatinga Shopping → Águas Claras Shopping',
+  'poi-metroceilandia-hrt': 'Estação Ceilândia → HRT',
+  'poi-jkshopping-rodoviaria': 'JK Shopping → Rodoviária',
 };
 const ORDEM_CORREDORES = Object.keys(CORREDORES);
 

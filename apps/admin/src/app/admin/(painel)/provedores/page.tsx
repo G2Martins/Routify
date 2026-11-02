@@ -1,6 +1,6 @@
 import { Aviso, Cabecalho, ErroConsulta, SeletorJanela } from '@/components/ui';
 import { exigirAdmin } from '@/lib/auth';
-import { MIGRACAO_PROVEDORES } from '@/lib/erros';
+import { MIGRACAO_HISTORICOS, MIGRACAO_PROVEDORES } from '@/lib/erros';
 import { modeloAtivo } from '@/lib/saude';
 import type {
   AblacaoLia23,
@@ -9,6 +9,7 @@ import type {
   ComparacaoProvedores,
   Fase3Comparacao,
   LiaTreino,
+  ProvedoresHistoricos,
 } from '@/lib/tipos';
 import {
   Ablacao,
@@ -18,6 +19,7 @@ import {
   Grupo,
   KpisJanela,
   Metodologia,
+  ModelosHistoricos,
   RotasReais,
   TabelaProvedores,
   UltimaRodada,
@@ -32,8 +34,9 @@ export default async function ProvedoresPage({ searchParams }: { searchParams: P
   const { dias: diasParam } = await searchParams;
   const dias = JANELAS.includes(Number(diasParam)) ? Number(diasParam) : 30;
   const { sb } = await exigirAdmin();
-  const [rpc, analises, treinos, ativo] = await Promise.all([
+  const [rpc, hist, analises, treinos, ativo] = await Promise.all([
     sb.rpc('admin_lia_vs_provedores', { dias }),
+    sb.rpc('admin_provedores_historicos', { dias }),
     sb.from('lia_analises').select('chave, dados').in('chave', ANALISES),
     sb.from('lia_treinos').select('*'),
     modeloAtivo(),
@@ -64,6 +67,11 @@ export default async function ProvedoresPage({ searchParams }: { searchParams: P
             <>
               <KpisJanela d={d} />
               <TabelaProvedores d={d} />
+              {hist.error ? (
+                <ErroConsulta erro={hist.error} migracao={MIGRACAO_HISTORICOS} />
+              ) : hist.data ? (
+                <ModelosHistoricos h={hist.data as ProvedoresHistoricos} />
+              ) : null}
               <UltimaRodada d={d} />
               <ViesPorHora d={d} />
             </>

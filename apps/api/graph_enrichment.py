@@ -44,6 +44,14 @@ NON_DRIVABLE_HIGHWAYS = {
 }
 
 
+def acesso_proibido(data: dict) -> bool:
+    """access=no (condomínio fechado, alça fechada, faixa só de ônibus): carro não passa. O filtro
+    'drive' do OSMnx 1.9 só tira access=private; a TomTom respeita, e reconstruía a nossa rota com
+    volta de até 4,8 km (Plano → Taguatinga, 2026-11-02). Aresta simplificada com lista: basta um 'no'."""
+    acc = data.get('access')
+    return any(str(v).strip().lower() == 'no' for v in (acc if isinstance(acc, list) else [acc]) if v)
+
+
 def valor_highway(data: dict) -> str:
     """Tipo OSM da aresta, normalizado (o OSMnx às vezes guarda lista)."""
     hw = data.get('highway')
@@ -186,7 +194,7 @@ def _midpoints(G) -> Tuple[list, np.ndarray]:
     return chaves, np.array(coords) if coords else np.zeros((0, 2))
 
 
-def calibrar_velocidade_livre(G, vel_tomtom: dict, dist_max_m: float = 30.0) -> dict:
+def calibrar_velocidade_livre(G, vel_tomtom: dict, dist_max_m: float = 30.0, fatores_grupo: dict = None) -> dict:
     """Velocidade livre na escala da TomTom (VEL_LIVRE_CALIBRADA, padrão ligado).
 
     O limite do OSM fica acima da velocidade livre que a TomTom mede, e a LIA
@@ -198,6 +206,10 @@ def calibrar_velocidade_livre(G, vel_tomtom: dict, dist_max_m: float = 30.0) -> 
     TomTom no mesmo trajeto): viés de -12,0% para -2,6% e MAPE de 15,9% para
     12,9%. Um fator por classe de via mudava as rotas e piorava o MAPE (17,1%).
     Idempotente: o valor do OSM fica em `speed_kph_osm`.
+
+    fatores_grupo (ml/calibrate_signals.py, no nível da rota contra a TomTom sem trânsito): um fator
+    por grupo de via (expressa, arterial, coletora, local) no lugar do fator único. O fator dos
+    sensores mede quase só arteriais; o da rota enxerga também as ruas locais e coletoras.
     """
     perto: dict = {}   # ponto -> (distância, razão TomTom/OSM da aresta mais próxima)
     for _, _, d in G.edges(data=True):
@@ -208,11 +220,14 @@ def calibrar_velocidade_livre(G, vel_tomtom: dict, dist_max_m: float = 30.0) -> 
     if not perto:
         return {'fator': 1.0, 'pontos': 0}
     fator = round(min(max(statistics.median(r for _, r in perto.values()), 0.4), 1.0), 3)
+    from trajeto import grupo_via  # import local: trajeto não depende deste módulo
     for _, _, d in G.edges(data=True):
         if d.get('speed_kph_osm'):
-            d['speed_kph'] = max(10.0, d['speed_kph_osm'] * fator)
-    logging.info(f"  velocidade livre na escala da TomTom: fator {fator} ({len(perto)} pontos medidos)")
-    return {'fator': fator, 'pontos': len(perto)}
+            f = (fatores_grupo or {}).get(grupo_via(_highway_principal(d.get('highway'))), fator)
+            d['speed_kph'] = max(10.0, d['speed_kph_osm'] * min(max(float(f), 0.3), 1.0))
+    logging.info(f"  velocidade livre na escala da TomTom: fator {fator} ({len(perto)} pontos medidos)"
+                 + (f"; por grupo de via {fatores_grupo}" if fatores_grupo else ''))
+    return {'fator': fator, 'pontos': len(perto), 'fatores_grupo': fatores_grupo or None}
 
 
 def enrich_graph(G, sb, raio_m: float = RAIO_TRANSFER_M) -> dict:

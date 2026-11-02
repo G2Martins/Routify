@@ -23,6 +23,7 @@ import type {
   ComparacaoProvedores,
   Fase3Comparacao,
   LiaTreino,
+  ProvedoresHistoricos,
   VarianteAblacao,
 } from '@/lib/tipos';
 
@@ -286,6 +287,58 @@ export function TabelaProvedores({ d }: { d: ComparacaoProvedores }) {
             </tr>
           );
         })}
+      </Tabela>
+    </Cartao>
+  );
+}
+
+/* ---------- 2b. Modelos históricos dos provedores ---------- */
+
+// Em pares: as duas primeiras usam as mesmas rodadas no trajeto da LIA; as duas últimas, as mesmas rodadas do Mapbox.
+const HISTORICOS = [
+  { id: 'lia', nome: 'LIA (Routify)', compara: 'trajeto da LIA × TomTom ao vivo no mesmo trajeto' },
+  { id: 'tomtom_historico', nome: 'TomTom histórico', compara: 'o mesmo trajeto, só pelo histórico da TomTom × TomTom ao vivo' },
+  { id: 'mapbox_tipico', nome: 'Mapbox típico', compara: 'trânsito típico do horário × TomTom ao vivo, rotas próprias' },
+  { id: 'mapbox_ao_vivo', nome: 'Mapbox ao vivo', compara: 'as mesmas rodadas do típico × TomTom ao vivo' },
+] as const;
+
+export function ModelosHistoricos({ h }: { h: ProvedoresHistoricos }) {
+  const linhas = HISTORICOS.map((x) => ({ ...x, v: h.series[x.id] }));
+  if (!linhas.some((l) => l.v?.n)) {
+    return (
+      <Aviso titulo="Sem pares com ETA histórico nesta janela">
+        O comparador grava o ETA histórico da TomTom e o típico do Mapbox desde 2026-11-02. Os pares aparecem nas próximas rodadas.
+      </Aviso>
+    );
+  }
+  // Melhor MAPE dentro de cada par (mesmas rodadas), nunca entre pares com referências diferentes.
+  const destaque = [0, 2].flatMap((i) => [...menores([linhas[i].v?.mape_pct, linhas[i + 1].v?.mape_pct])].map((j) => i + j));
+  const lxh = h.series.lia_x_tomtom_historico;
+  return (
+    <Cartao
+      titulo="LIA × modelos históricos dos provedores"
+      atraso={220}
+      nota={
+        <>
+          A LIA prevê pelo histórico mais a última leitura da via; a TomTom e o Mapbox também têm um ETA só pelo histórico. Os dois são
+          medidos contra a TomTom ao vivo. Em destaque, o menor MAPE de cada par.
+          {lxh?.n ? ` LIA × TomTom histórico, mesmo trajeto: viés mediano ${fmtPctSinal(lxh.vies_mediano_pct)} (n = ${fmtInt(lxh.n)}).` : ''}
+        </>
+      }
+    >
+      <Tabela cabecalho={['Série', 'Pares', 'Viés mediano', 'MAPE', 'Dentro de ±20%']}>
+        {linhas.map((l, i) => (
+          <tr key={l.id}>
+            <td>
+              <span className="font-medium">{l.nome}</span>
+              <span className="block max-w-72 text-[11px] leading-snug text-muted-foreground">{l.compara}</span>
+            </td>
+            <td className="num">{l.v ? fmtInt(l.v.n) : '—'}</td>
+            <td className="num">{l.v ? fmtPctSinal(l.v.vies_mediano_pct) : '—'}</td>
+            <td className={`num ${melhor(destaque.includes(i))}`}>{l.v ? fmtPct(l.v.mape_pct) : '—'}</td>
+            <td className="num">{l.v ? fmtPct(l.v.pct_ate_20) : '—'}</td>
+          </tr>
+        ))}
       </Tabela>
     </Cartao>
   );

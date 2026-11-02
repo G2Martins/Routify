@@ -33,10 +33,13 @@ como serviço `routify-collector` (ver [`deploy/README.md`](deploy/README.md)).
   Tudo em memória — reinício re-sonda as chaves.
 * **Inserções em Lote:** um INSERT por ciclo (≈ 630 linhas).
 * **Comparador LIA × provedores** (`comparar_provedores.py`): 8 rodadas por dia (timer `routify-comparador`),
-  16 corredores fixos. Pede a mesma viagem à LIA de produção (127.0.0.1, sem entrar na captura de uso), à TomTom
+  16 corredores fixos e 14 viagens entre pontos famosos (`CORREDORES_POI`, prefixo `poi-`, coordenadas do OSM em
+  `pontos_df.json`). Pede a mesma viagem à LIA de produção (127.0.0.1, sem entrar na captura de uso), à TomTom
   com trânsito (referência) e ao OSRM (sem trânsito); Mapbox e OpenRouteService entram sozinhos se houver
   `MAPBOX_TOKEN`/`ORS_API_KEY` no `.env`. Grava em `comparacao_provedores` (painel `/admin/provedores`). Erro HTTP
-  vira só o status: a URL da TomTom traz a chave.
+  vira só o status: a URL da TomTom traz a chave. Em `detalhes` vão os ETAs só pelo histórico, o equivalente da LIA
+  nos provedores: `historico_s` da TomTom (`computeTravelTimeFor=all`, na rota dela e no trajeto da LIA) e `tipico_s`
+  do Mapbox (`duration_typical`). Até 2026-11-02 a linha `tomtom` saía sem `sem_transito_s` (faltava esse parâmetro).
 * **Validação experimental (Fase 3), opcional:** `COLETOR_FASE3=1` agenda `ml/external_validation.py`
   4×/dia (7h, 12h, 18h, 22h). Carrega grafo + modelo (~1,4 GB): não cabe ao lado da API numa máquina de 2 GB.
 

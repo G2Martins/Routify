@@ -63,6 +63,9 @@ GRAPH_PICKLE = GRAPH_CACHE.replace('.graphml', '.pkl')
 # Únicos atributos que a API lê (maxspeed alimenta add_edge_speeds). Mudou a lista →
 # o pickle antigo é descartado sozinho (ver load_graph).
 ATRIBUTOS_ARESTA = ('length', 'highway', 'name', 'geometry', 'maxspeed')
+# Versão do filtro de carga (filter_drivable): mudou, o pickle enxuto é refeito uma vez a partir do GraphML.
+# 2 = 2026-11-02, tira access=no.
+VERSAO_FILTRO = 2
 
 # ⭐ PRIORITY 1.1: Controle de Cache do Grafo (6 meses)
 GRAPH_CACHE_MAX_DAYS = 180
@@ -157,6 +160,7 @@ def filter_drivable(G: nx.MultiDiGraph) -> nx.MultiDiGraph:
     edges_to_remove = [
         (u, v, k) for u, v, k, data in G.edges(keys=True, data=True)
         if graph_enrichment.valor_highway(data) in graph_enrichment.NON_DRIVABLE_HIGHWAYS
+        or graph_enrichment.acesso_proibido(data)
     ]
     for u, v, k in edges_to_remove:
         G.remove_edge(u, v, k)
@@ -181,7 +185,7 @@ def enxugar_grafo(G: nx.MultiDiGraph) -> None:
     for _, d in G.nodes(data=True):
         for k in [k for k in d if k not in ('x', 'y')]:
             del d[k]
-    G.graph['atributos_aresta'] = ATRIBUTOS_ARESTA
+    G.graph['atributos_aresta'] = (ATRIBUTOS_ARESTA, VERSAO_FILTRO)
 
 
 def load_graph() -> nx.MultiDiGraph:
@@ -203,11 +207,11 @@ def load_graph() -> nx.MultiDiGraph:
         except Exception as e:  # pickle de outra versão de lib: refaz a partir do GraphML
             logging.warning(f"Pickle do grafo ilegível ({type(e).__name__}); refazendo a partir do GraphML")
             G = nx.MultiDiGraph()
-        if G.graph.get('atributos_aresta') == ATRIBUTOS_ARESTA:
+        if G.graph.get('atributos_aresta') == (ATRIBUTOS_ARESTA, VERSAO_FILTRO):
             logging.info(f"Grafo enxuto lido em {time.time()-t0:.1f}s: {G.number_of_nodes()} nós, "
                          f"{G.number_of_edges()} arestas")
             return G
-        logging.warning("Pickle do grafo com outra lista de atributos; refazendo a partir do GraphML")
+        logging.warning("Pickle do grafo com outros atributos ou outro filtro; refazendo a partir do GraphML")
 
     if os.path.exists(GRAPH_CACHE):
         logging.info(f"Carregando grafo em cache: {GRAPH_CACHE}")
@@ -300,6 +304,14 @@ async def lifespan(app: FastAPI):
         G.graph['atraso_semaforo_s'] = trajeto.carregar_atraso_semaforo(
             os.path.join(MODELS_DIR, 'semaforos_calibracao.json'))
         logging.info(f"{n_semaforos} cruzamentos com semáforo no grafo")
+        n_cruzamentos = trajeto.marcar_cruzamentos(G)
+        G.graph['atraso_cruzamento_s'] = trajeto.carregar_atraso_cruzamento(
+            os.path.join(MODELS_DIR, 'semaforos_calibracao.json'))
+        G.graph['atraso_cruzamento_via_s'] = trajeto.carregar_atraso_cruzamento(
+            os.path.join(MODELS_DIR, 'semaforos_calibracao.json'), 'atraso_por_cruzamento_via_seg')
+        if os.getenv('SEM_ATRASO_CALIBRADO', '0') == '1':  # só para recalibrar (ml/calibrate_signals.py)
+            G.graph['atraso_semaforo_s'] = G.graph['atraso_cruzamento_s'] = G.graph['atraso_cruzamento_via_s'] = 0.0
+        logging.info(f"{n_cruzamentos} cruzamentos sem semáforo no grafo")
         # Velocidade livre na escala da TomTom (a mesma do treino da LIA): a exata nos
         # trechos monitorados e um fator único TomTom/OSM no resto (graph_enrichment).
         # Padrão desde 2026-11-02; VEL_LIVRE_CALIBRADA=0 volta ao limite do OSM (Fase 3).
@@ -309,7 +321,17 @@ async def lifespan(app: FastAPI):
                 G.graph['vel_livre_tomtom'] = {int(k): float(v) for k, v in json.load(f)['pontos'].items()}
             logging.info(f"Velocidade livre da TomTom em {len(G.graph['vel_livre_tomtom'])} trechos monitorados")
         if calibrada:
-            G.graph['vel_livre_calibrada'] = graph_enrichment.calibrar_velocidade_livre(G, G.graph['vel_livre_tomtom'])
+            fatores_grupo = None
+            if os.getenv('SEM_ATRASO_CALIBRADO', '0') != '1':  # modo calibração: base = fator único
+                caminho_cal = os.path.join(MODELS_DIR, 'semaforos_calibracao.json')
+                if os.path.exists(caminho_cal):
+                    with open(caminho_cal, encoding='utf-8') as f:
+                        fatores_grupo = json.load(f).get('fatores_velocidade_grupo')
+            G.graph['vel_livre_calibrada'] = graph_enrichment.calibrar_velocidade_livre(
+                G, G.graph['vel_livre_tomtom'], fatores_grupo=fatores_grupo)
+        # Ponto de partida das arestas sem sensor (routers/route.py): 'corredor' (padrão desde 2026-11-02)
+        # = lentidão prevista agora nos trechos monitorados; 'perfil' = mediana histórica do horário (tese).
+        G.graph['prior_congestionamento'] = os.getenv('PRIOR_CONGESTIONAMENTO', 'corredor')
         logging.info(f"Grafo enriquecido em {time.time()-t0:.1f}s")
 
         if graph_stats['vinculadas_lia'] == 0:
@@ -473,7 +495,11 @@ async def health():
         "vias_monitoradas": app.state.graph_stats.get("vias_monitoradas"),
         "supabase_configurado": app.state.supabase is not None,
         "recencia": app.state.recencia_cache.resumo(),
-        "semaforos": {"atraso_s": app.state.graph.graph.get('atraso_semaforo_s', 0.0)},
+        "semaforos": {"atraso_s": app.state.graph.graph.get('atraso_semaforo_s', 0.0),
+                      "atraso_cruzamento_s": app.state.graph.graph.get('atraso_cruzamento_s', 0.0),
+                      "atraso_cruzamento_via_s": app.state.graph.graph.get('atraso_cruzamento_via_s', 0.0)},
+        "velocidade_livre_fatores": app.state.graph.graph.get('vel_livre_calibrada'),
+        "prior_congestionamento": app.state.graph.graph.get('prior_congestionamento'),
         "velocidade_livre": ("calibrada" if app.state.graph.graph.get('vel_livre_calibrada')
                              else "tomtom" if app.state.graph.graph.get('vel_livre_tomtom') else "osm"),
         "contexto": app.state.contexto.resumo() if app.state.contexto else None,

@@ -139,6 +139,85 @@ def carregar_atraso_semaforo(caminho: str) -> float:
     return max(atraso, 0.0)
 
 
+# Cruzamento sem semáforo onde se para ou reduz (tesourinha, rotatória, conversão). Via expressa e
+# alça só entram na faixa: não contam.
+CLASSES_SEM_PARADA = {'motorway', 'motorway_link', 'trunk', 'trunk_link'}
+# Quem chega de rua local para ou dá preferência; quem vem por arterial em geral tem a preferência.
+# Cada lado tem o seu atraso calibrado (ml/calibrate_signals.py).
+CLASSES_LOCAIS = {'residential', 'unclassified', 'living_street', 'tertiary', 'tertiary_link', 'service', 'road', ''}
+
+
+def _classe(d) -> str:
+    hw = d.get('highway')
+    return str(hw[0] if isinstance(hw, (list, tuple)) and hw else hw or '')
+
+
+def marcar_cruzamentos(G: nx.MultiDiGraph) -> int:
+    """Nas arestas que chegam num cruzamento sem semáforo (nó com 3+ vizinhos): `cruzamento=1` se
+    vêm de rua local, `cruzamento_via=1` se vêm de arterial; via expressa e alça não contam.
+    Rodar depois de marcar_semaforos. Devolve os nós contados."""
+    cruz = {n for n in G.nodes
+            if G.nodes[n].get('highway') != 'traffic_signals'
+            and len(set(G.predecessors(n)) | set(G.successors(n))) >= 3}
+    for _u, v, d in G.edges(data=True):
+        classe = _classe(d)
+        no_cruzamento = v in cruz and classe not in CLASSES_SEM_PARADA
+        d['cruzamento'] = 1 if no_cruzamento and classe in CLASSES_LOCAIS else 0
+        d['cruzamento_via'] = 1 if no_cruzamento and classe not in CLASSES_LOCAIS else 0
+    return len(cruz)
+
+
+def aresta_usada(G: nx.MultiDiGraph, u: int, v: int) -> dict:
+    """Entre arestas paralelas, a de menor tempo da LIA (a que o A* percorre)."""
+    return min(G[u][v].values(), key=lambda d: d.get('travel_time_lia', float('inf')))
+
+
+def contar_cruzamentos(G: nx.MultiDiGraph, nos: List[int], chave: str = 'cruzamento') -> int:
+    return sum(aresta_usada(G, u, v).get(chave, 0) for u, v in zip(nos, nos[1:]))
+
+
+def tempo_livre_s(G: nx.MultiDiGraph, nos: List[int]) -> float:
+    """Tempo do trajeto em velocidade livre: sem a razão prevista pela LIA e sem atrasos.
+    É o que se compara com a TomTom sem trânsito para calibrar os atrasos a qualquer hora."""
+    return sum(float(d.get('length') or 0.0) * 3.6 / max(float(d.get('speed_kph') or 50.0), 1.0)
+               for d in (aresta_usada(G, u, v) for u, v in zip(nos, nos[1:])))
+
+
+# Grupos de via para calibrar a velocidade livre no nível da rota (ml/calibrate_signals.py).
+GRUPOS_VIA = {
+    'expressa': {'motorway', 'motorway_link', 'trunk', 'trunk_link'},
+    'arterial': {'primary', 'primary_link', 'secondary', 'secondary_link'},
+    'coletora': {'tertiary', 'tertiary_link'},
+}
+
+
+def grupo_via(classe: str) -> str:
+    """expressa | arterial | coletora | local (o resto: residencial, serviço, sem classe)."""
+    for nome, classes in GRUPOS_VIA.items():
+        if classe in classes:
+            return nome
+    return 'local'
+
+
+def tempo_livre_por_grupo(G: nx.MultiDiGraph, nos: List[int]) -> dict:
+    """Tempo em velocidade livre (s) da rota, separado por grupo de via. Sem atrasos."""
+    tempos: dict = {}
+    for d in (aresta_usada(G, u, v) for u, v in zip(nos, nos[1:])):
+        g = grupo_via(_classe(d))
+        tempos[g] = tempos.get(g, 0.0) + float(d.get('length') or 0.0) * 3.6 / max(float(d.get('speed_kph') or 50.0), 1.0)
+    return {g: round(t, 1) for g, t in tempos.items()}
+
+
+def carregar_atraso_cruzamento(caminho: str, chave: str = 'atraso_por_cruzamento_seg') -> float:
+    """Atraso médio por cruzamento sem semáforo (s), da mesma calibração do semáforo. Sem a chave, 0."""
+    if not os.path.exists(caminho):
+        return 0.0
+    with open(caminho, encoding='utf-8') as f:
+        atraso = float(json.load(f).get(chave) or 0.0)
+    logger.info(f"{chave}: {atraso:.1f} s (calibrado)")
+    return max(atraso, 0.0)
+
+
 def contar_semaforos(G: nx.MultiDiGraph, nos: List[int]) -> int:
     return sum(1 for v in nos[1:] if G.nodes[v].get('highway') == 'traffic_signals')
 

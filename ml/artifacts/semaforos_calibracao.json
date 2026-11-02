@@ -1,497 +1,2419 @@
 {
-  "atraso_por_semaforo_seg": 22.92,
-  "atraso_por_semaforo_bruto_seg": 22.92,
-  "erro_padrao_delta_seg": 15.72,
-  "vies_por_km_seg": 22.93,
-  "erro_padrao_vies_por_km_seg": 2.23,
-  "r2": -0.009,
-  "n_rotas": 60,
-  "semaforos_media_por_rota": 1.57,
-  "metodo": "OLS sem intercepto: (TomTom noTrafficTravelTime no mesmo trajeto − tempo LIA) ~ δ·semáforos + β·km; semáforos = nós OSM highway=traffic_signals na rota.",
+  "atraso_por_semaforo_seg": 8.06,
+  "atraso_por_semaforo_bruto_seg": -5.18,
+  "erro_padrao_delta_seg": 16.02,
+  "atraso_por_cruzamento_seg": 0.0,
+  "atraso_por_cruzamento_bruto_seg": 7.38,
+  "erro_padrao_delta_cruzamento_seg": 0.98,
+  "atraso_por_cruzamento_via_seg": 0.12,
+  "atraso_por_cruzamento_via_bruto_seg": 1.39,
+  "erro_padrao_delta_cruzamento_via_seg": 0.64,
+  "rotas_descartadas_desvio_tomtom": 15,
+  "vies_por_km_seg": 13.9,
+  "erro_padrao_vies_por_km_seg": 2.89,
+  "r2": 0.007,
+  "r2_com_km": 0.156,
+  "mape_antes_pct": 20.5,
+  "mape_depois_pct": 10.4,
+  "mape_depois_sem_grupo_pct": 13.7,
+  "cruzamentos_media_por_rota": 34.38,
+  "fatores_velocidade_grupo": {
+    "expressa": 0.909,
+    "arterial": 0.897,
+    "coletora": 0.508,
+    "local": 0.425
+  },
+  "ajuste_por_grupo": {
+    "multiplicador_tempo_por_grupo": {
+      "expressa": 0.971,
+      "arterial": 0.984,
+      "coletora": 1.737,
+      "local": 2.076
+    },
+    "fatia_do_tempo_por_grupo": {
+      "expressa": 0.284,
+      "arterial": 0.406,
+      "coletora": 0.182,
+      "local": 0.128
+    },
+    "atraso_semaforo_seg": 8.06,
+    "atraso_cruzamento_local_seg": 0.0,
+    "atraso_cruzamento_arterial_seg": 0.12,
+    "mape_pct": 10.4,
+    "fator_base": 0.883
+  },
+  "n_rotas": 135,
+  "semaforos_media_por_rota": 1.19,
+  "metodo": "OLS sem intercepto: (TomTom noTrafficTravelTime no mesmo trajeto − tempo livre da LIA) ~ δ·semáforos + δc·cruzamentos; semáforos = nós OSM highway=traffic_signals na rota; cruzamentos = nós com 3+ vizinhos sem semáforo, fora de via expressa. β·km só como conferência.",
   "referencia_literatura": "HCM: atraso de controle LOS B–C = 10–35 s/veículo; Webster d ≈ r²/2C.",
   "semente": 42,
-  "gerado_em": "2026-09-23T04:53:08.471500+00:00",
-  "hora_local_coleta": 1,
+  "velocidade_livre_api": "calibrada",
+  "gerado_em": "2026-11-02T15:05:47.088022+00:00",
+  "hora_local_coleta": 12,
   "amostras": [
     {
       "semaforos": 0,
+      "cruzamentos": 19,
+      "cruzamentos_via": 70,
+      "tomtom_km": 21.76,
+      "lia_livre_s": 1369,
+      "livre_por_grupo_s": {
+        "arterial": 703.6,
+        "expressa": 575.5,
+        "coletora": 41.6,
+        "local": 48.4
+      },
       "km": 21.72,
-      "lia_s": 1213,
-      "tomtom_sem_transito_s": 1760,
-      "tomtom_ao_vivo_s": 1714,
+      "lia_s": 1391,
+      "tomtom_sem_transito_s": 1771,
+      "tomtom_ao_vivo_s": 1836,
       "cobertura_lia_pct": 33.83
     },
     {
       "semaforos": 0,
+      "cruzamentos": 13,
+      "cruzamentos_via": 3,
+      "tomtom_km": 9.79,
+      "lia_livre_s": 690,
+      "livre_por_grupo_s": {
+        "local": 164.7,
+        "coletora": 70.2,
+        "expressa": 392.5,
+        "arterial": 62.8
+      },
+      "km": 9.84,
+      "lia_s": 690,
+      "tomtom_sem_transito_s": 704,
+      "tomtom_ao_vivo_s": 706,
+      "cobertura_lia_pct": 0.0
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 28,
+      "cruzamentos_via": 128,
+      "tomtom_km": 31.64,
+      "lia_livre_s": 2091,
+      "livre_por_grupo_s": {
+        "local": 197.7,
+        "coletora": 22.5,
+        "arterial": 1485.4,
+        "expressa": 386.3
+      },
       "km": 31.64,
-      "lia_s": 1855,
-      "tomtom_sem_transito_s": 2444,
-      "tomtom_ao_vivo_s": 2374,
+      "lia_s": 2128,
+      "tomtom_sem_transito_s": 2448,
+      "tomtom_ao_vivo_s": 2457,
       "cobertura_lia_pct": 30.11
     },
     {
+      "semaforos": 5,
+      "cruzamentos": 41,
+      "cruzamentos_via": 101,
+      "tomtom_km": 24.27,
+      "lia_livre_s": 1604,
+      "livre_por_grupo_s": {
+        "expressa": 395.4,
+        "arterial": 908.1,
+        "coletora": 174.6,
+        "local": 126.4
+      },
+      "km": 24.24,
+      "lia_s": 1635,
+      "tomtom_sem_transito_s": 1661,
+      "tomtom_ao_vivo_s": 1735,
+      "cobertura_lia_pct": 48.31
+    },
+    {
       "semaforos": 0,
+      "cruzamentos": 7,
+      "cruzamentos_via": 28,
+      "tomtom_km": 22.54,
+      "lia_livre_s": 1300,
+      "livre_por_grupo_s": {
+        "local": 23.4,
+        "coletora": 45.7,
+        "arterial": 286.4,
+        "expressa": 944.9
+      },
       "km": 22.56,
-      "lia_s": 1150,
-      "tomtom_sem_transito_s": 1333,
-      "tomtom_ao_vivo_s": 1316,
+      "lia_s": 1365,
+      "tomtom_sem_transito_s": 1330,
+      "tomtom_ao_vivo_s": 2203,
       "cobertura_lia_pct": 83.81
     },
     {
+      "semaforos": 0,
+      "cruzamentos": 11,
+      "cruzamentos_via": 29,
+      "tomtom_km": 21.89,
+      "lia_livre_s": 1393,
+      "livre_por_grupo_s": {
+        "local": 352.5,
+        "arterial": 311.3,
+        "expressa": 729.5
+      },
+      "km": 21.93,
+      "lia_s": 1405,
+      "tomtom_sem_transito_s": 1442,
+      "tomtom_ao_vivo_s": 1440,
+      "cobertura_lia_pct": 44.32
+    },
+    {
       "semaforos": 3,
+      "cruzamentos": 49,
+      "cruzamentos_via": 18,
+      "tomtom_km": 18.53,
+      "lia_livre_s": 1235,
+      "livre_por_grupo_s": {
+        "arterial": 241.6,
+        "expressa": 568.4,
+        "coletora": 174.4,
+        "local": 250.8
+      },
       "km": 18.11,
-      "lia_s": 1098,
-      "tomtom_sem_transito_s": 1510,
-      "tomtom_ao_vivo_s": 1462,
+      "lia_s": 1257,
+      "tomtom_sem_transito_s": 1402,
+      "tomtom_ao_vivo_s": 1439,
       "cobertura_lia_pct": 65.18
     },
     {
-      "semaforos": 16,
-      "km": 4.99,
-      "lia_s": 302,
-      "tomtom_sem_transito_s": 518,
-      "tomtom_ao_vivo_s": 502,
-      "cobertura_lia_pct": 100.0
-    },
-    {
       "semaforos": 0,
+      "cruzamentos": 0,
+      "cruzamentos_via": 100,
+      "tomtom_km": 22.1,
+      "lia_livre_s": 1356,
+      "livre_por_grupo_s": {
+        "arterial": 1270.5,
+        "expressa": 85.9
+      },
       "km": 22.13,
-      "lia_s": 1202,
-      "tomtom_sem_transito_s": 1546,
-      "tomtom_ao_vivo_s": 1503,
+      "lia_s": 1359,
+      "tomtom_sem_transito_s": 1547,
+      "tomtom_ao_vivo_s": 1516,
       "cobertura_lia_pct": 0.0
     },
     {
       "semaforos": 3,
-      "km": 23.96,
-      "lia_s": 1493,
-      "tomtom_sem_transito_s": 2085,
-      "tomtom_ao_vivo_s": 2041,
-      "cobertura_lia_pct": 64.81
-    },
-    {
-      "semaforos": 7,
-      "km": 21.41,
-      "lia_s": 1228,
-      "tomtom_sem_transito_s": 1737,
-      "tomtom_ao_vivo_s": 1689,
-      "cobertura_lia_pct": 85.71
+      "cruzamentos": 70,
+      "cruzamentos_via": 30,
+      "tomtom_km": 32.17,
+      "lia_livre_s": 1850,
+      "livre_por_grupo_s": {
+        "local": 144.9,
+        "arterial": 434.6,
+        "expressa": 1035.9,
+        "coletora": 235.1
+      },
+      "km": 31.79,
+      "lia_s": 1898,
+      "tomtom_sem_transito_s": 2699,
+      "tomtom_ao_vivo_s": 2699,
+      "cobertura_lia_pct": 45.45
     },
     {
       "semaforos": 0,
+      "cruzamentos": 16,
+      "cruzamentos_via": 65,
+      "tomtom_km": 16.55,
+      "lia_livre_s": 1007,
+      "livre_por_grupo_s": {
+        "coletora": 84.1,
+        "expressa": 87.2,
+        "arterial": 726.4,
+        "local": 109.7
+      },
+      "km": 16.56,
+      "lia_s": 1016,
+      "tomtom_sem_transito_s": 1102,
+      "tomtom_ao_vivo_s": 1076,
+      "cobertura_lia_pct": 23.33
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 3,
+      "cruzamentos_via": 57,
+      "tomtom_km": 21.52,
+      "lia_livre_s": 1253,
+      "livre_por_grupo_s": {
+        "arterial": 1030.3,
+        "coletora": 223.6
+      },
+      "km": 21.54,
+      "lia_s": 1253,
+      "tomtom_sem_transito_s": 1549,
+      "tomtom_ao_vivo_s": 1495,
+      "cobertura_lia_pct": 0.0
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 8,
+      "cruzamentos_via": 71,
+      "tomtom_km": 7.9,
+      "lia_livre_s": 525,
+      "livre_por_grupo_s": {
+        "local": 21.9,
+        "coletora": 50.5,
+        "arterial": 433.4,
+        "expressa": 19.6
+      },
+      "km": 7.87,
+      "lia_s": 546,
+      "tomtom_sem_transito_s": 655,
+      "tomtom_ao_vivo_s": 664,
+      "cobertura_lia_pct": 48.81
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 24,
+      "cruzamentos_via": 30,
+      "tomtom_km": 13.8,
+      "lia_livre_s": 869,
+      "livre_por_grupo_s": {
+        "arterial": 368.1,
+        "coletora": 501.0
+      },
+      "km": 13.8,
+      "lia_s": 869,
+      "tomtom_sem_transito_s": 1295,
+      "tomtom_ao_vivo_s": 1255,
+      "cobertura_lia_pct": 0.0
+    },
+    {
+      "semaforos": 3,
+      "cruzamentos": 33,
+      "cruzamentos_via": 59,
+      "tomtom_km": 24.01,
+      "lia_livre_s": 1688,
+      "livre_por_grupo_s": {
+        "local": 83.3,
+        "coletora": 549.4,
+        "arterial": 682.5,
+        "expressa": 373.6
+      },
+      "km": 23.96,
+      "lia_s": 1725,
+      "tomtom_sem_transito_s": 2063,
+      "tomtom_ao_vivo_s": 2113,
+      "cobertura_lia_pct": 64.81
+    },
+    {
+      "semaforos": 8,
+      "cruzamentos": 10,
+      "cruzamentos_via": 35,
+      "tomtom_km": 20.7,
+      "lia_livre_s": 1265,
+      "livre_por_grupo_s": {
+        "arterial": 398.5,
+        "expressa": 686.5,
+        "local": 136.5,
+        "coletora": 44.2
+      },
+      "km": 20.68,
+      "lia_s": 1311,
+      "tomtom_sem_transito_s": 1483,
+      "tomtom_ao_vivo_s": 1566,
+      "cobertura_lia_pct": 92.41
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 60,
+      "cruzamentos_via": 16,
+      "tomtom_km": 17.2,
+      "lia_livre_s": 1328,
+      "livre_por_grupo_s": {
+        "local": 135.1,
+        "coletora": 797.0,
+        "arterial": 387.5,
+        "expressa": 9.3
+      },
       "km": 17.19,
-      "lia_s": 1177,
-      "tomtom_sem_transito_s": 1807,
-      "tomtom_ao_vivo_s": 1756,
+      "lia_s": 1331,
+      "tomtom_sem_transito_s": 1668,
+      "tomtom_ao_vivo_s": 1629,
       "cobertura_lia_pct": 26.25
     },
     {
       "semaforos": 0,
+      "cruzamentos": 19,
+      "cruzamentos_via": 2,
+      "tomtom_km": 13.16,
+      "lia_livre_s": 702,
+      "livre_por_grupo_s": {
+        "expressa": 564.4,
+        "arterial": 13.9,
+        "coletora": 108.6,
+        "local": 15.3
+      },
       "km": 12.76,
-      "lia_s": 621,
-      "tomtom_sem_transito_s": 1095,
-      "tomtom_ao_vivo_s": 1073,
+      "lia_s": 704,
+      "tomtom_sem_transito_s": 1072,
+      "tomtom_ao_vivo_s": 1091,
       "cobertura_lia_pct": 3.08
     },
     {
       "semaforos": 0,
-      "km": 40.09,
-      "lia_s": 2131,
-      "tomtom_sem_transito_s": 2941,
-      "tomtom_ao_vivo_s": 2874,
-      "cobertura_lia_pct": 0.0
-    },
-    {
-      "semaforos": 1,
-      "km": 14.21,
-      "lia_s": 897,
-      "tomtom_sem_transito_s": 1425,
-      "tomtom_ao_vivo_s": 1397,
-      "cobertura_lia_pct": 8.33
+      "cruzamentos": 57,
+      "cruzamentos_via": 44,
+      "tomtom_km": 21.6,
+      "lia_livre_s": 1357,
+      "livre_por_grupo_s": {
+        "local": 19.4,
+        "coletora": 391.0,
+        "arterial": 254.9,
+        "expressa": 692.5
+      },
+      "km": 21.17,
+      "lia_s": 1400,
+      "tomtom_sem_transito_s": 1567,
+      "tomtom_ao_vivo_s": 1598,
+      "cobertura_lia_pct": 26.71
     },
     {
       "semaforos": 0,
+      "cruzamentos": 76,
+      "cruzamentos_via": 27,
+      "tomtom_km": 16.78,
+      "lia_livre_s": 1046,
+      "livre_por_grupo_s": {
+        "local": 26.9,
+        "coletora": 469.3,
+        "expressa": 288.3,
+        "arterial": 262.3
+      },
       "km": 16.76,
-      "lia_s": 930,
-      "tomtom_sem_transito_s": 1735,
-      "tomtom_ao_vivo_s": 1715,
+      "lia_s": 1052,
+      "tomtom_sem_transito_s": 1730,
+      "tomtom_ao_vivo_s": 1686,
       "cobertura_lia_pct": 4.07
     },
     {
-      "semaforos": 3,
-      "km": 12.11,
-      "lia_s": 891,
-      "tomtom_sem_transito_s": 1305,
-      "tomtom_ao_vivo_s": 1273,
-      "cobertura_lia_pct": 81.1
+      "semaforos": 0,
+      "cruzamentos": 44,
+      "cruzamentos_via": 23,
+      "tomtom_km": 12.51,
+      "lia_livre_s": 1016,
+      "livre_por_grupo_s": {
+        "local": 357.2,
+        "arterial": 364.4,
+        "coletora": 294.9
+      },
+      "km": 12.51,
+      "lia_s": 1032,
+      "tomtom_sem_transito_s": 1277,
+      "tomtom_ao_vivo_s": 1243,
+      "cobertura_lia_pct": 27.94
     },
     {
       "semaforos": 0,
+      "cruzamentos": 1,
+      "cruzamentos_via": 10,
+      "tomtom_km": 5.84,
+      "lia_livre_s": 434,
+      "livre_por_grupo_s": {
+        "local": 204.4,
+        "arterial": 230.5
+      },
+      "km": 5.84,
+      "lia_s": 434,
+      "tomtom_sem_transito_s": 749,
+      "tomtom_ao_vivo_s": 731,
+      "cobertura_lia_pct": 0.0
+    },
+    {
+      "semaforos": 3,
+      "cruzamentos": 85,
+      "cruzamentos_via": 45,
+      "tomtom_km": 12.95,
+      "lia_livre_s": 1036,
+      "livre_por_grupo_s": {
+        "local": 249.7,
+        "arterial": 431.6,
+        "coletora": 355.0
+      },
+      "km": 12.94,
+      "lia_s": 1088,
+      "tomtom_sem_transito_s": 1258,
+      "tomtom_ao_vivo_s": 1388,
+      "cobertura_lia_pct": 81.95
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 34,
+      "cruzamentos_via": 29,
+      "tomtom_km": 24.71,
+      "lia_livre_s": 1429,
+      "livre_por_grupo_s": {
+        "local": 30.1,
+        "arterial": 186.1,
+        "expressa": 1062.0,
+        "coletora": 151.0
+      },
       "km": 24.24,
-      "lia_s": 1271,
-      "tomtom_sem_transito_s": 1682,
-      "tomtom_ao_vivo_s": 1668,
+      "lia_s": 1503,
+      "tomtom_sem_transito_s": 1617,
+      "tomtom_ao_vivo_s": 2379,
       "cobertura_lia_pct": 64.93
     },
     {
       "semaforos": 0,
+      "cruzamentos": 14,
+      "cruzamentos_via": 4,
+      "tomtom_km": 20.42,
+      "lia_livre_s": 1186,
+      "livre_por_grupo_s": {
+        "local": 161.9,
+        "expressa": 929.2,
+        "arterial": 37.3,
+        "coletora": 58.1
+      },
       "km": 20.44,
-      "lia_s": 1050,
-      "tomtom_sem_transito_s": 1384,
-      "tomtom_ao_vivo_s": 1346,
+      "lia_s": 1219,
+      "tomtom_sem_transito_s": 1378,
+      "tomtom_ao_vivo_s": 1371,
       "cobertura_lia_pct": 83.33
     },
     {
       "semaforos": 0,
+      "cruzamentos": 71,
+      "cruzamentos_via": 49,
+      "tomtom_km": 28.06,
+      "lia_livre_s": 2002,
+      "livre_por_grupo_s": {
+        "local": 892.8,
+        "coletora": 262.6,
+        "arterial": 734.3,
+        "expressa": 112.5
+      },
       "km": 28.14,
-      "lia_s": 1775,
-      "tomtom_sem_transito_s": 3213,
-      "tomtom_ao_vivo_s": 3123,
+      "lia_s": 2009,
+      "tomtom_sem_transito_s": 3177,
+      "tomtom_ao_vivo_s": 3101,
       "cobertura_lia_pct": 11.36
     },
     {
       "semaforos": 0,
+      "cruzamentos": 18,
+      "cruzamentos_via": 45,
+      "tomtom_km": 14.53,
+      "lia_livre_s": 878,
+      "livre_por_grupo_s": {
+        "local": 72.5,
+        "coletora": 52.0,
+        "arterial": 254.7,
+        "expressa": 499.4
+      },
       "km": 14.55,
-      "lia_s": 781,
-      "tomtom_sem_transito_s": 1050,
-      "tomtom_ao_vivo_s": 1019,
+      "lia_s": 895,
+      "tomtom_sem_transito_s": 1029,
+      "tomtom_ao_vivo_s": 1052,
       "cobertura_lia_pct": 53.68
     },
     {
-      "semaforos": 4,
-      "km": 21.15,
-      "lia_s": 1266,
-      "tomtom_sem_transito_s": 1951,
-      "tomtom_ao_vivo_s": 1894,
-      "cobertura_lia_pct": 52.51
+      "semaforos": 3,
+      "cruzamentos": 32,
+      "cruzamentos_via": 77,
+      "tomtom_km": 21.74,
+      "lia_livre_s": 1427,
+      "livre_por_grupo_s": {
+        "local": 37.0,
+        "arterial": 400.8,
+        "expressa": 696.9,
+        "coletora": 292.8
+      },
+      "km": 21.16,
+      "lia_s": 1479,
+      "tomtom_sem_transito_s": 1944,
+      "tomtom_ao_vivo_s": 2120,
+      "cobertura_lia_pct": 53.04
     },
     {
       "semaforos": 0,
+      "cruzamentos": 13,
+      "cruzamentos_via": 36,
+      "tomtom_km": 12.06,
+      "lia_livre_s": 782,
+      "livre_por_grupo_s": {
+        "arterial": 647.0,
+        "local": 89.9,
+        "coletora": 45.9
+      },
       "km": 12.08,
-      "lia_s": 696,
+      "lia_s": 787,
       "tomtom_sem_transito_s": 920,
-      "tomtom_ao_vivo_s": 904,
+      "tomtom_ao_vivo_s": 913,
       "cobertura_lia_pct": 0.0
     },
     {
       "semaforos": 0,
+      "cruzamentos": 12,
+      "cruzamentos_via": 47,
+      "tomtom_km": 23.51,
+      "lia_livre_s": 1409,
+      "livre_por_grupo_s": {
+        "arterial": 504.0,
+        "expressa": 783.4,
+        "coletora": 100.1,
+        "local": 22.3
+      },
       "km": 23.56,
-      "lia_s": 1246,
-      "tomtom_sem_transito_s": 1382,
+      "lia_s": 1491,
+      "tomtom_sem_transito_s": 1364,
       "tomtom_ao_vivo_s": 1360,
       "cobertura_lia_pct": 64.75
     },
     {
       "semaforos": 3,
-      "km": 25.19,
-      "lia_s": 1489,
-      "tomtom_sem_transito_s": 2175,
-      "tomtom_ao_vivo_s": 2113,
-      "cobertura_lia_pct": 84.38
-    },
-    {
-      "semaforos": 2,
-      "km": 18.88,
-      "lia_s": 1010,
-      "tomtom_sem_transito_s": 1444,
-      "tomtom_ao_vivo_s": 1432,
-      "cobertura_lia_pct": 90.91
+      "cruzamentos": 32,
+      "cruzamentos_via": 54,
+      "tomtom_km": 19.98,
+      "lia_livre_s": 1338,
+      "livre_por_grupo_s": {
+        "local": 318.8,
+        "coletora": 289.3,
+        "arterial": 400.1,
+        "expressa": 330.4
+      },
+      "km": 20.34,
+      "lia_s": 1341,
+      "tomtom_sem_transito_s": 2306,
+      "tomtom_ao_vivo_s": 2265,
+      "cobertura_lia_pct": 0.0
     },
     {
       "semaforos": 0,
+      "cruzamentos": 37,
+      "cruzamentos_via": 46,
+      "tomtom_km": 26.37,
+      "lia_livre_s": 1901,
+      "livre_por_grupo_s": {
+        "arterial": 552.2,
+        "expressa": 410.0,
+        "coletora": 806.0,
+        "local": 133.3
+      },
+      "km": 26.35,
+      "lia_s": 1922,
+      "tomtom_sem_transito_s": 2961,
+      "tomtom_ao_vivo_s": 2883,
+      "cobertura_lia_pct": 53.33
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 33,
+      "cruzamentos_via": 42,
+      "tomtom_km": 24.92,
+      "lia_livre_s": 1711,
+      "livre_por_grupo_s": {
+        "local": 344.9,
+        "arterial": 521.9,
+        "expressa": 501.0,
+        "coletora": 343.4
+      },
+      "km": 24.89,
+      "lia_s": 1732,
+      "tomtom_sem_transito_s": 2077,
+      "tomtom_ao_vivo_s": 2038,
+      "cobertura_lia_pct": 73.04
+    },
+    {
+      "semaforos": 1,
+      "cruzamentos": 10,
+      "cruzamentos_via": 62,
+      "tomtom_km": 18.32,
+      "lia_livre_s": 1129,
+      "livre_por_grupo_s": {
+        "arterial": 338.3,
+        "expressa": 707.8,
+        "coletora": 72.8,
+        "local": 10.5
+      },
+      "km": 18.34,
+      "lia_s": 1141,
+      "tomtom_sem_transito_s": 1223,
+      "tomtom_ao_vivo_s": 1263,
+      "cobertura_lia_pct": 75.74
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 15,
+      "cruzamentos_via": 16,
+      "tomtom_km": 16.96,
+      "lia_livre_s": 1031,
+      "livre_por_grupo_s": {
+        "local": 128.8,
+        "arterial": 236.1,
+        "expressa": 526.4,
+        "coletora": 140.6
+      },
       "km": 16.95,
-      "lia_s": 913,
-      "tomtom_sem_transito_s": 1425,
-      "tomtom_ao_vivo_s": 1385,
+      "lia_s": 1036,
+      "tomtom_sem_transito_s": 1397,
+      "tomtom_ao_vivo_s": 1375,
       "cobertura_lia_pct": 23.81
     },
     {
-      "semaforos": 0,
-      "km": 9.63,
-      "lia_s": 499,
-      "tomtom_sem_transito_s": 968,
-      "tomtom_ao_vivo_s": 952,
-      "cobertura_lia_pct": 0.0
-    },
-    {
-      "semaforos": 11,
-      "km": 25.03,
-      "lia_s": 1617,
-      "tomtom_sem_transito_s": 2861,
-      "tomtom_ao_vivo_s": 2785,
-      "cobertura_lia_pct": 67.91
-    },
-    {
-      "semaforos": 7,
-      "km": 23.41,
-      "lia_s": 1440,
-      "tomtom_sem_transito_s": 2455,
-      "tomtom_ao_vivo_s": 2395,
-      "cobertura_lia_pct": 76.64
-    },
-    {
-      "semaforos": 2,
-      "km": 36.28,
-      "lia_s": 2092,
-      "tomtom_sem_transito_s": 2523,
-      "tomtom_ao_vivo_s": 2457,
-      "cobertura_lia_pct": 41.43
-    },
-    {
-      "semaforos": 0,
-      "km": 12.65,
-      "lia_s": 836,
-      "tomtom_sem_transito_s": 2038,
-      "tomtom_ao_vivo_s": 1991,
-      "cobertura_lia_pct": 9.68
-    },
-    {
-      "semaforos": 1,
-      "km": 20.01,
-      "lia_s": 1066,
-      "tomtom_sem_transito_s": 1500,
-      "tomtom_ao_vivo_s": 1467,
-      "cobertura_lia_pct": 68.0
-    },
-    {
-      "semaforos": 1,
-      "km": 21.55,
-      "lia_s": 1208,
-      "tomtom_sem_transito_s": 1657,
-      "tomtom_ao_vivo_s": 1609,
-      "cobertura_lia_pct": 33.11
-    },
-    {
-      "semaforos": 0,
-      "km": 26.54,
-      "lia_s": 1628,
-      "tomtom_sem_transito_s": 2378,
-      "tomtom_ao_vivo_s": 2311,
-      "cobertura_lia_pct": 15.32
-    },
-    {
-      "semaforos": 0,
-      "km": 36.83,
-      "lia_s": 2281,
-      "tomtom_sem_transito_s": 3171,
-      "tomtom_ao_vivo_s": 3098,
-      "cobertura_lia_pct": 25.45
-    },
-    {
-      "semaforos": 5,
-      "km": 28.36,
-      "lia_s": 1538,
-      "tomtom_sem_transito_s": 2191,
-      "tomtom_ao_vivo_s": 2136,
-      "cobertura_lia_pct": 40.96
-    },
-    {
-      "semaforos": 0,
-      "km": 35.76,
-      "lia_s": 2135,
-      "tomtom_sem_transito_s": 3136,
-      "tomtom_ao_vivo_s": 3054,
-      "cobertura_lia_pct": 12.12
-    },
-    {
-      "semaforos": 2,
-      "km": 19.68,
-      "lia_s": 1232,
-      "tomtom_sem_transito_s": 1540,
-      "tomtom_ao_vivo_s": 1511,
-      "cobertura_lia_pct": 51.85
-    },
-    {
-      "semaforos": 2,
-      "km": 41.08,
-      "lia_s": 2426,
-      "tomtom_sem_transito_s": 2838,
-      "tomtom_ao_vivo_s": 2761,
-      "cobertura_lia_pct": 31.61
-    },
-    {
       "semaforos": 3,
-      "km": 25.53,
-      "lia_s": 1463,
-      "tomtom_sem_transito_s": 2490,
-      "tomtom_ao_vivo_s": 2443,
-      "cobertura_lia_pct": 52.87
-    },
-    {
-      "semaforos": 0,
-      "km": 5.69,
-      "lia_s": 363,
-      "tomtom_sem_transito_s": 512,
-      "tomtom_ao_vivo_s": 498,
-      "cobertura_lia_pct": 22.58
-    },
-    {
-      "semaforos": 2,
-      "km": 26.31,
-      "lia_s": 1372,
-      "tomtom_sem_transito_s": 1890,
-      "tomtom_ao_vivo_s": 1873,
-      "cobertura_lia_pct": 59.33
-    },
-    {
-      "semaforos": 0,
-      "km": 15.71,
-      "lia_s": 726,
-      "tomtom_sem_transito_s": 756,
-      "tomtom_ao_vivo_s": 734,
-      "cobertura_lia_pct": 0.0
-    },
-    {
-      "semaforos": 0,
-      "km": 20.28,
-      "lia_s": 1324,
-      "tomtom_sem_transito_s": 3080,
-      "tomtom_ao_vivo_s": 3000,
-      "cobertura_lia_pct": 34.62
-    },
-    {
-      "semaforos": 0,
-      "km": 30.77,
-      "lia_s": 1855,
-      "tomtom_sem_transito_s": 2177,
-      "tomtom_ao_vivo_s": 2114,
-      "cobertura_lia_pct": 26.32
-    },
-    {
-      "semaforos": 0,
-      "km": 24.62,
-      "lia_s": 1398,
-      "tomtom_sem_transito_s": 1610,
-      "tomtom_ao_vivo_s": 1563,
-      "cobertura_lia_pct": 60.33
-    },
-    {
-      "semaforos": 2,
-      "km": 27.21,
-      "lia_s": 1705,
-      "tomtom_sem_transito_s": 2141,
-      "tomtom_ao_vivo_s": 2085,
-      "cobertura_lia_pct": 44.44
-    },
-    {
-      "semaforos": 4,
-      "km": 14.06,
-      "lia_s": 851,
-      "tomtom_sem_transito_s": 1485,
-      "tomtom_ao_vivo_s": 1451,
-      "cobertura_lia_pct": 0.0
-    },
-    {
-      "semaforos": 3,
-      "km": 22.45,
-      "lia_s": 1332,
-      "tomtom_sem_transito_s": 2097,
-      "tomtom_ao_vivo_s": 2044,
+      "cruzamentos": 30,
+      "cruzamentos_via": 85,
+      "tomtom_km": 33.21,
+      "lia_livre_s": 2070,
+      "livre_por_grupo_s": {
+        "local": 446.7,
+        "arterial": 984.0,
+        "expressa": 439.9,
+        "coletora": 199.7
+      },
+      "km": 33.36,
+      "lia_s": 2096,
+      "tomtom_sem_transito_s": 2447,
+      "tomtom_ao_vivo_s": 2432,
       "cobertura_lia_pct": 57.14
     },
     {
       "semaforos": 0,
-      "km": 26.32,
-      "lia_s": 1336,
-      "tomtom_sem_transito_s": 1921,
-      "tomtom_ao_vivo_s": 1868,
+      "cruzamentos": 19,
+      "cruzamentos_via": 21,
+      "tomtom_km": 9.62,
+      "lia_livre_s": 565,
+      "livre_por_grupo_s": {
+        "local": 214.1,
+        "coletora": 34.0,
+        "arterial": 310.7,
+        "expressa": 6.4
+      },
+      "km": 9.63,
+      "lia_s": 565,
+      "tomtom_sem_transito_s": 968,
+      "tomtom_ao_vivo_s": 955,
       "cobertura_lia_pct": 0.0
     },
     {
-      "semaforos": 1,
-      "km": 18.59,
-      "lia_s": 1107,
-      "tomtom_sem_transito_s": 1947,
-      "tomtom_ao_vivo_s": 1902,
-      "cobertura_lia_pct": 32.88
+      "semaforos": 2,
+      "cruzamentos": 49,
+      "cruzamentos_via": 165,
+      "tomtom_km": 36.3,
+      "lia_livre_s": 2355,
+      "livre_por_grupo_s": {
+        "local": 294.8,
+        "arterial": 1237.2,
+        "expressa": 650.8,
+        "coletora": 173.2
+      },
+      "km": 36.28,
+      "lia_s": 2391,
+      "tomtom_sem_transito_s": 2440,
+      "tomtom_ao_vivo_s": 2465,
+      "cobertura_lia_pct": 41.43
     },
     {
       "semaforos": 1,
-      "km": 15.01,
-      "lia_s": 869,
-      "tomtom_sem_transito_s": 960,
-      "tomtom_ao_vivo_s": 933,
-      "cobertura_lia_pct": 77.27
+      "cruzamentos": 56,
+      "cruzamentos_via": 3,
+      "tomtom_km": 20.03,
+      "lia_livre_s": 1201,
+      "livre_por_grupo_s": {
+        "coletora": 260.4,
+        "expressa": 848.1,
+        "arterial": 53.1,
+        "local": 40.0
+      },
+      "km": 20.01,
+      "lia_s": 1218,
+      "tomtom_sem_transito_s": 1441,
+      "tomtom_ao_vivo_s": 1439,
+      "cobertura_lia_pct": 68.0
+    },
+    {
+      "semaforos": 1,
+      "cruzamentos": 7,
+      "cruzamentos_via": 139,
+      "tomtom_km": 21.71,
+      "lia_livre_s": 1363,
+      "livre_por_grupo_s": {
+        "local": 125.3,
+        "arterial": 1220.4,
+        "expressa": 18.1
+      },
+      "km": 21.55,
+      "lia_s": 1385,
+      "tomtom_sem_transito_s": 1536,
+      "tomtom_ao_vivo_s": 1534,
+      "cobertura_lia_pct": 33.11
     },
     {
       "semaforos": 0,
-      "km": 10.4,
-      "lia_s": 752,
-      "tomtom_sem_transito_s": 1690,
-      "tomtom_ao_vivo_s": 1646,
-      "cobertura_lia_pct": 51.85
+      "cruzamentos": 30,
+      "cruzamentos_via": 76,
+      "tomtom_km": 27.72,
+      "lia_livre_s": 1843,
+      "livre_por_grupo_s": {
+        "local": 319.4,
+        "coletora": 227.0,
+        "arterial": 1296.9
+      },
+      "km": 26.54,
+      "lia_s": 1861,
+      "tomtom_sem_transito_s": 2377,
+      "tomtom_ao_vivo_s": 2338,
+      "cobertura_lia_pct": 15.32
     },
     {
       "semaforos": 0,
-      "km": 24.04,
-      "lia_s": 1540,
-      "tomtom_sem_transito_s": 2576,
-      "tomtom_ao_vivo_s": 2503,
+      "cruzamentos": 25,
+      "cruzamentos_via": 64,
+      "tomtom_km": 23.48,
+      "lia_livre_s": 1643,
+      "livre_por_grupo_s": {
+        "local": 779.9,
+        "arterial": 707.8,
+        "expressa": 145.4,
+        "coletora": 10.2
+      },
+      "km": 24.03,
+      "lia_s": 1644,
+      "tomtom_sem_transito_s": 2449,
+      "tomtom_ao_vivo_s": 2404,
       "cobertura_lia_pct": 0.0
     },
     {
       "semaforos": 0,
-      "km": 25.78,
-      "lia_s": 1696,
-      "tomtom_sem_transito_s": 2944,
-      "tomtom_ao_vivo_s": 2862,
-      "cobertura_lia_pct": 20.83
+      "cruzamentos": 63,
+      "cruzamentos_via": 126,
+      "tomtom_km": 36.8,
+      "lia_livre_s": 2574,
+      "livre_por_grupo_s": {
+        "local": 443.0,
+        "coletora": 465.4,
+        "arterial": 1279.4,
+        "expressa": 386.3
+      },
+      "km": 36.83,
+      "lia_s": 2610,
+      "tomtom_sem_transito_s": 3173,
+      "tomtom_ao_vivo_s": 3176,
+      "cobertura_lia_pct": 25.45
     },
     {
-      "semaforos": 0,
-      "km": 12.75,
-      "lia_s": 656,
-      "tomtom_sem_transito_s": 763,
-      "tomtom_ao_vivo_s": 754,
-      "cobertura_lia_pct": 100.0
-    },
-    {
-      "semaforos": 0,
-      "km": 28.37,
-      "lia_s": 1424,
-      "tomtom_sem_transito_s": 1710,
-      "tomtom_ao_vivo_s": 1697,
-      "cobertura_lia_pct": 39.64
-    },
-    {
-      "semaforos": 0,
-      "km": 31.96,
-      "lia_s": 1717,
-      "tomtom_sem_transito_s": 1897,
-      "tomtom_ao_vivo_s": 1877,
-      "cobertura_lia_pct": 24.29
-    },
-    {
-      "semaforos": 0,
-      "km": 14.61,
-      "lia_s": 873,
-      "tomtom_sem_transito_s": 1048,
-      "tomtom_ao_vivo_s": 1019,
-      "cobertura_lia_pct": 80.72
-    },
-    {
-      "semaforos": 0,
-      "km": 16.02,
-      "lia_s": 936,
-      "tomtom_sem_transito_s": 1424,
-      "tomtom_ao_vivo_s": 1384,
+      "semaforos": 2,
+      "cruzamentos": 91,
+      "cruzamentos_via": 86,
+      "tomtom_km": 19.77,
+      "lia_livre_s": 1394,
+      "livre_por_grupo_s": {
+        "local": 143.8,
+        "arterial": 811.8,
+        "coletora": 438.6
+      },
+      "km": 19.76,
+      "lia_s": 1405,
+      "tomtom_sem_transito_s": 2394,
+      "tomtom_ao_vivo_s": 2394,
       "cobertura_lia_pct": 0.0
     },
     {
       "semaforos": 5,
-      "km": 19.07,
-      "lia_s": 1149,
-      "tomtom_sem_transito_s": 1509,
-      "tomtom_ao_vivo_s": 1457,
-      "cobertura_lia_pct": 88.32
+      "cruzamentos": 27,
+      "cruzamentos_via": 61,
+      "tomtom_km": 28.37,
+      "lia_livre_s": 1707,
+      "livre_por_grupo_s": {
+        "local": 26.6,
+        "coletora": 249.0,
+        "arterial": 469.3,
+        "expressa": 963.1
+      },
+      "km": 28.36,
+      "lia_s": 1724,
+      "tomtom_sem_transito_s": 2148,
+      "tomtom_ao_vivo_s": 2262,
+      "cobertura_lia_pct": 40.96
+    },
+    {
+      "semaforos": 4,
+      "cruzamentos": 45,
+      "cruzamentos_via": 55,
+      "tomtom_km": 24.9,
+      "lia_livre_s": 1547,
+      "livre_por_grupo_s": {
+        "coletora": 276.2,
+        "arterial": 485.5,
+        "expressa": 638.4,
+        "local": 147.8
+      },
+      "km": 24.95,
+      "lia_s": 1593,
+      "tomtom_sem_transito_s": 2060,
+      "tomtom_ao_vivo_s": 2131,
+      "cobertura_lia_pct": 66.47
     },
     {
       "semaforos": 0,
+      "cruzamentos": 36,
+      "cruzamentos_via": 110,
+      "tomtom_km": 35.76,
+      "lia_livre_s": 2414,
+      "livre_por_grupo_s": {
+        "local": 184.5,
+        "coletora": 549.4,
+        "arterial": 1572.7,
+        "expressa": 107.6
+      },
+      "km": 35.76,
+      "lia_s": 2432,
+      "tomtom_sem_transito_s": 3111,
+      "tomtom_ao_vivo_s": 3056,
+      "cobertura_lia_pct": 12.12
+    },
+    {
+      "semaforos": 2,
+      "cruzamentos": 21,
+      "cruzamentos_via": 42,
+      "tomtom_km": 19.68,
+      "lia_livre_s": 1394,
+      "livre_por_grupo_s": {
+        "local": 15.9,
+        "coletora": 286.5,
+        "arterial": 620.1,
+        "expressa": 472.4
+      },
+      "km": 19.68,
+      "lia_s": 1409,
+      "tomtom_sem_transito_s": 1541,
+      "tomtom_ao_vivo_s": 1587,
+      "cobertura_lia_pct": 51.85
+    },
+    {
+      "semaforos": 2,
+      "cruzamentos": 120,
+      "cruzamentos_via": 172,
+      "tomtom_km": 41.05,
+      "lia_livre_s": 2727,
+      "livre_por_grupo_s": {
+        "coletora": 541.5,
+        "arterial": 1259.5,
+        "expressa": 650.8,
+        "local": 275.6
+      },
+      "km": 41.08,
+      "lia_s": 2767,
+      "tomtom_sem_transito_s": 2585,
+      "tomtom_ao_vivo_s": 2594,
+      "cobertura_lia_pct": 31.61
+    },
+    {
+      "semaforos": 3,
+      "cruzamentos": 91,
+      "cruzamentos_via": 37,
+      "tomtom_km": 25.55,
+      "lia_livre_s": 1644,
+      "livre_por_grupo_s": {
+        "local": 168.1,
+        "coletora": 526.4,
+        "arterial": 310.7,
+        "expressa": 639.4
+      },
+      "km": 25.53,
+      "lia_s": 1681,
+      "tomtom_sem_transito_s": 2457,
+      "tomtom_ao_vivo_s": 2474,
+      "cobertura_lia_pct": 52.87
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 33,
+      "cruzamentos_via": 71,
+      "tomtom_km": 17.53,
+      "lia_livre_s": 1254,
+      "livre_por_grupo_s": {
+        "local": 51.3,
+        "coletora": 653.8,
+        "arterial": 549.7
+      },
+      "km": 18.21,
+      "lia_s": 1257,
+      "tomtom_sem_transito_s": 1860,
+      "tomtom_ao_vivo_s": 1807,
+      "cobertura_lia_pct": 0.0
+    },
+    {
+      "semaforos": 1,
+      "cruzamentos": 25,
+      "cruzamentos_via": 72,
+      "tomtom_km": 16.48,
+      "lia_livre_s": 1116,
+      "livre_por_grupo_s": {
+        "local": 129.4,
+        "arterial": 644.2,
+        "coletora": 343.4
+      },
+      "km": 16.47,
+      "lia_s": 1148,
+      "tomtom_sem_transito_s": 1384,
+      "tomtom_ao_vivo_s": 1351,
+      "cobertura_lia_pct": 78.57
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 10,
+      "cruzamentos_via": 24,
+      "tomtom_km": 25.05,
+      "lia_livre_s": 1411,
+      "livre_por_grupo_s": {
+        "local": 112.6,
+        "coletora": 70.2,
+        "expressa": 392.5,
+        "arterial": 836.2
+      },
+      "km": 25.04,
+      "lia_s": 1411,
+      "tomtom_sem_transito_s": 1226,
+      "tomtom_ao_vivo_s": 1210,
+      "cobertura_lia_pct": 0.0
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 19,
+      "cruzamentos_via": 1,
+      "tomtom_km": 5.66,
+      "lia_livre_s": 411,
+      "livre_por_grupo_s": {
+        "expressa": 247.6,
+        "arterial": 9.8,
+        "local": 95.6,
+        "coletora": 58.8
+      },
+      "km": 5.69,
+      "lia_s": 415,
+      "tomtom_sem_transito_s": 513,
+      "tomtom_ao_vivo_s": 526,
+      "cobertura_lia_pct": 22.58
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 99,
+      "cruzamentos_via": 108,
+      "tomtom_km": 35.55,
+      "lia_livre_s": 2385,
+      "livre_por_grupo_s": {
+        "local": 222.1,
+        "coletora": 1048.2,
+        "arterial": 1115.4
+      },
+      "km": 35.42,
+      "lia_s": 2393,
+      "tomtom_sem_transito_s": 3986,
+      "tomtom_ao_vivo_s": 3867,
+      "cobertura_lia_pct": 4.78
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 14,
+      "cruzamentos_via": 51,
+      "tomtom_km": 26.99,
+      "lia_livre_s": 1550,
+      "livre_por_grupo_s": {
+        "local": 50.6,
+        "arterial": 481.5,
+        "expressa": 949.0,
+        "coletora": 69.5
+      },
+      "km": 27.29,
+      "lia_s": 1568,
+      "tomtom_sem_transito_s": 1819,
+      "tomtom_ao_vivo_s": 1860,
+      "cobertura_lia_pct": 22.45
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 7,
+      "cruzamentos_via": 29,
+      "tomtom_km": 15.7,
+      "lia_livre_s": 820,
+      "livre_por_grupo_s": {
+        "arterial": 684.5,
+        "expressa": 6.4,
+        "local": 130.2
+      },
+      "km": 15.71,
+      "lia_s": 821,
+      "tomtom_sem_transito_s": 756,
+      "tomtom_ao_vivo_s": 742,
+      "cobertura_lia_pct": 0.0
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 19,
+      "cruzamentos_via": 23,
+      "tomtom_km": 14.04,
+      "lia_livre_s": 1021,
+      "livre_por_grupo_s": {
+        "local": 470.9,
+        "coletora": 96.8,
+        "arterial": 454.1
+      },
+      "km": 13.84,
+      "lia_s": 1021,
+      "tomtom_sem_transito_s": 2277,
+      "tomtom_ao_vivo_s": 2206,
+      "cobertura_lia_pct": 0.0
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 35,
+      "cruzamentos_via": 46,
+      "tomtom_km": 30.34,
+      "lia_livre_s": 2096,
+      "livre_por_grupo_s": {
+        "local": 71.1,
+        "coletora": 544.7,
+        "arterial": 844.5,
+        "expressa": 635.9
+      },
+      "km": 30.77,
+      "lia_s": 2100,
+      "tomtom_sem_transito_s": 2154,
+      "tomtom_ao_vivo_s": 2102,
+      "cobertura_lia_pct": 26.32
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 43,
+      "cruzamentos_via": 20,
+      "tomtom_km": 35.39,
+      "lia_livre_s": 2402,
+      "livre_por_grupo_s": {
+        "local": 485.3,
+        "coletora": 758.8,
+        "arterial": 617.1,
+        "expressa": 541.3
+      },
+      "km": 35.63,
+      "lia_s": 2405,
+      "tomtom_sem_transito_s": 3605,
+      "tomtom_ao_vivo_s": 3498,
+      "cobertura_lia_pct": 34.09
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 25,
+      "cruzamentos_via": 14,
+      "tomtom_km": 15.35,
+      "lia_livre_s": 975,
+      "livre_por_grupo_s": {
+        "local": 202.0,
+        "coletora": 240.5,
+        "arterial": 229.7,
+        "expressa": 303.1
+      },
+      "km": 15.37,
+      "lia_s": 979,
+      "tomtom_sem_transito_s": 1518,
+      "tomtom_ao_vivo_s": 1490,
+      "cobertura_lia_pct": 8.96
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 0,
+      "cruzamentos_via": 77,
+      "tomtom_km": 24.63,
+      "lia_livre_s": 1580,
+      "livre_por_grupo_s": {
+        "expressa": 538.0,
+        "arterial": 1042.2
+      },
+      "km": 24.62,
+      "lia_s": 1594,
+      "tomtom_sem_transito_s": 1611,
+      "tomtom_ao_vivo_s": 1603,
+      "cobertura_lia_pct": 60.33
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 29,
+      "cruzamentos_via": 25,
+      "tomtom_km": 35.23,
+      "lia_livre_s": 1949,
+      "livre_por_grupo_s": {
+        "local": 74.0,
+        "coletora": 215.6,
+        "expressa": 704.7,
+        "arterial": 955.1
+      },
+      "km": 35.26,
+      "lia_s": 1952,
+      "tomtom_sem_transito_s": 1742,
+      "tomtom_ao_vivo_s": 1714,
+      "cobertura_lia_pct": 0.0
+    },
+    {
+      "semaforos": 4,
+      "cruzamentos": 23,
+      "cruzamentos_via": 27,
+      "tomtom_km": 13.58,
+      "lia_livre_s": 958,
+      "livre_por_grupo_s": {
+        "local": 613.3,
+        "arterial": 110.7,
+        "expressa": 223.9,
+        "coletora": 10.2
+      },
+      "km": 14.06,
+      "lia_s": 963,
+      "tomtom_sem_transito_s": 1478,
+      "tomtom_ao_vivo_s": 1458,
+      "cobertura_lia_pct": 0.0
+    },
+    {
+      "semaforos": 8,
+      "cruzamentos": 27,
+      "cruzamentos_via": 63,
+      "tomtom_km": 12.63,
+      "lia_livre_s": 815,
+      "livre_por_grupo_s": {
+        "local": 71.9,
+        "coletora": 73.4,
+        "expressa": 235.0,
+        "arterial": 434.7
+      },
+      "km": 12.65,
+      "lia_s": 833,
+      "tomtom_sem_transito_s": 1134,
+      "tomtom_ao_vivo_s": 1174,
+      "cobertura_lia_pct": 71.96
+    },
+    {
+      "semaforos": 3,
+      "cruzamentos": 34,
+      "cruzamentos_via": 32,
+      "tomtom_km": 22.76,
+      "lia_livre_s": 1507,
+      "livre_por_grupo_s": {
+        "local": 446.6,
+        "arterial": 582.7,
+        "coletora": 120.0,
+        "expressa": 358.3
+      },
+      "km": 22.46,
+      "lia_s": 1529,
+      "tomtom_sem_transito_s": 2110,
+      "tomtom_ao_vivo_s": 2109,
+      "cobertura_lia_pct": 61.29
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 13,
+      "cruzamentos_via": 74,
+      "tomtom_km": 25.81,
+      "lia_livre_s": 1509,
+      "livre_por_grupo_s": {
+        "local": 465.2,
+        "coletora": 103.0,
+        "arterial": 934.5,
+        "expressa": 6.8
+      },
+      "km": 26.32,
+      "lia_s": 1511,
+      "tomtom_sem_transito_s": 1924,
+      "tomtom_ao_vivo_s": 1869,
+      "cobertura_lia_pct": 0.0
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 75,
+      "cruzamentos_via": 45,
+      "tomtom_km": 17.4,
+      "lia_livre_s": 1129,
+      "livre_por_grupo_s": {
+        "coletora": 472.6,
+        "arterial": 387.2,
+        "expressa": 269.6
+      },
+      "km": 16.87,
+      "lia_s": 1150,
+      "tomtom_sem_transito_s": 1948,
+      "tomtom_ao_vivo_s": 2132,
+      "cobertura_lia_pct": 39.01
+    },
+    {
+      "semaforos": 1,
+      "cruzamentos": 82,
+      "cruzamentos_via": 57,
+      "tomtom_km": 22.4,
+      "lia_livre_s": 1437,
+      "livre_por_grupo_s": {
+        "coletora": 499.1,
+        "expressa": 431.6,
+        "arterial": 506.3
+      },
+      "km": 22.18,
+      "lia_s": 1466,
+      "tomtom_sem_transito_s": 2079,
+      "tomtom_ao_vivo_s": 2286,
+      "cobertura_lia_pct": 46.02
+    },
+    {
+      "semaforos": 10,
+      "cruzamentos": 24,
+      "cruzamentos_via": 69,
+      "tomtom_km": 14.25,
+      "lia_livre_s": 967,
+      "livre_por_grupo_s": {
+        "arterial": 444.2,
+        "local": 88.9,
+        "coletora": 64.5,
+        "expressa": 369.5
+      },
+      "km": 14.19,
+      "lia_s": 1031,
+      "tomtom_sem_transito_s": 1340,
+      "tomtom_ao_vivo_s": 1641,
+      "cobertura_lia_pct": 76.69
+    },
+    {
+      "semaforos": 1,
+      "cruzamentos": 2,
+      "cruzamentos_via": 78,
+      "tomtom_km": 14.99,
+      "lia_livre_s": 978,
+      "livre_por_grupo_s": {
+        "arterial": 595.2,
+        "expressa": 380.5,
+        "coletora": 2.7
+      },
+      "km": 15.03,
+      "lia_s": 1004,
+      "tomtom_sem_transito_s": 961,
+      "tomtom_ao_vivo_s": 966,
+      "cobertura_lia_pct": 77.88
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 31,
+      "cruzamentos_via": 20,
+      "tomtom_km": 10.44,
+      "lia_livre_s": 850,
+      "livre_por_grupo_s": {
+        "local": 552.1,
+        "coletora": 133.4,
+        "arterial": 165.3
+      },
+      "km": 10.4,
+      "lia_s": 861,
+      "tomtom_sem_transito_s": 1618,
+      "tomtom_ao_vivo_s": 1589,
+      "cobertura_lia_pct": 51.85
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 81,
+      "cruzamentos_via": 66,
+      "tomtom_km": 24.14,
+      "lia_livre_s": 1735,
+      "livre_por_grupo_s": {
+        "local": 181.2,
+        "arterial": 834.0,
+        "coletora": 719.9
+      },
+      "km": 24.04,
+      "lia_s": 1742,
+      "tomtom_sem_transito_s": 2367,
+      "tomtom_ao_vivo_s": 2324,
+      "cobertura_lia_pct": 0.0
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 4,
+      "cruzamentos_via": 13,
+      "tomtom_km": 17.1,
+      "lia_livre_s": 985,
+      "livre_por_grupo_s": {
+        "coletora": 60.1,
+        "arterial": 181.1,
+        "expressa": 743.9
+      },
+      "km": 17.13,
+      "lia_s": 995,
+      "tomtom_sem_transito_s": 948,
+      "tomtom_ao_vivo_s": 936,
+      "cobertura_lia_pct": 68.09
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 43,
+      "cruzamentos_via": 50,
+      "tomtom_km": 26.34,
+      "lia_livre_s": 1919,
+      "livre_por_grupo_s": {
+        "local": 259.0,
+        "coletora": 757.8,
+        "arterial": 902.6
+      },
+      "km": 25.78,
+      "lia_s": 1936,
+      "tomtom_sem_transito_s": 2918,
+      "tomtom_ao_vivo_s": 2846,
+      "cobertura_lia_pct": 20.83
+    },
+    {
+      "semaforos": 4,
+      "cruzamentos": 64,
+      "cruzamentos_via": 43,
+      "tomtom_km": 25.31,
+      "lia_livre_s": 1639,
+      "livre_por_grupo_s": {
+        "local": 171.7,
+        "coletora": 289.3,
+        "expressa": 800.0,
+        "arterial": 378.4
+      },
+      "km": 25.3,
+      "lia_s": 1672,
+      "tomtom_sem_transito_s": 1959,
+      "tomtom_ao_vivo_s": 1996,
+      "cobertura_lia_pct": 69.64
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 12,
+      "cruzamentos_via": 11,
+      "tomtom_km": 12.72,
+      "lia_livre_s": 740,
+      "livre_por_grupo_s": {
+        "coletora": 93.1,
+        "expressa": 579.5,
+        "arterial": 68.2
+      },
+      "km": 12.75,
+      "lia_s": 809,
+      "tomtom_sem_transito_s": 758,
+      "tomtom_ao_vivo_s": 778,
+      "cobertura_lia_pct": 100.0
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 53,
+      "cruzamentos_via": 44,
+      "tomtom_km": 23.64,
+      "lia_livre_s": 1703,
+      "livre_por_grupo_s": {
+        "arterial": 648.0,
+        "coletora": 826.8,
+        "local": 228.4
+      },
+      "km": 22.71,
+      "lia_s": 1731,
+      "tomtom_sem_transito_s": 2360,
+      "tomtom_ao_vivo_s": 2311,
+      "cobertura_lia_pct": 22.0
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 11,
+      "cruzamentos_via": 34,
+      "tomtom_km": 28.3,
+      "lia_livre_s": 1603,
+      "livre_por_grupo_s": {
+        "local": 35.3,
+        "coletora": 106.3,
+        "arterial": 357.6,
+        "expressa": 1104.7
+      },
+      "km": 28.37,
+      "lia_s": 1623,
+      "tomtom_sem_transito_s": 1661,
+      "tomtom_ao_vivo_s": 1726,
+      "cobertura_lia_pct": 39.64
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 15,
+      "cruzamentos_via": 15,
+      "tomtom_km": 31.89,
+      "lia_livre_s": 1944,
+      "livre_por_grupo_s": {
+        "local": 443.7,
+        "arterial": 485.9,
+        "expressa": 856.7,
+        "coletora": 157.7
+      },
+      "km": 31.96,
+      "lia_s": 1947,
+      "tomtom_sem_transito_s": 1869,
+      "tomtom_ao_vivo_s": 1857,
+      "cobertura_lia_pct": 24.29
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 53,
+      "cruzamentos_via": 49,
+      "tomtom_km": 24.68,
+      "lia_livre_s": 1841,
+      "livre_por_grupo_s": {
+        "local": 493.4,
+        "arterial": 726.6,
+        "coletora": 621.1
+      },
+      "km": 24.75,
+      "lia_s": 1869,
+      "tomtom_sem_transito_s": 2784,
+      "tomtom_ao_vivo_s": 2713,
+      "cobertura_lia_pct": 20.75
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 2,
+      "cruzamentos_via": 63,
+      "tomtom_km": 14.48,
+      "lia_livre_s": 944,
+      "livre_por_grupo_s": {
+        "local": 63.4,
+        "arterial": 509.1,
+        "expressa": 371.9
+      },
+      "km": 14.62,
+      "lia_s": 981,
+      "tomtom_sem_transito_s": 1060,
+      "tomtom_ao_vivo_s": 1101,
+      "cobertura_lia_pct": 81.61
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 9,
+      "cruzamentos_via": 105,
+      "tomtom_km": 16.04,
+      "lia_livre_s": 1057,
+      "livre_por_grupo_s": {
+        "local": 200.4,
+        "arterial": 856.9
+      },
+      "km": 16.02,
+      "lia_s": 1059,
+      "tomtom_sem_transito_s": 1425,
+      "tomtom_ao_vivo_s": 1404,
+      "cobertura_lia_pct": 0.0
+    },
+    {
+      "semaforos": 5,
+      "cruzamentos": 24,
+      "cruzamentos_via": 120,
+      "tomtom_km": 19.31,
+      "lia_livre_s": 1292,
+      "livre_por_grupo_s": {
+        "local": 6.6,
+        "coletora": 129.3,
+        "arterial": 727.1,
+        "expressa": 429.9
+      },
+      "km": 18.92,
+      "lia_s": 1302,
+      "tomtom_sem_transito_s": 1462,
+      "tomtom_ao_vivo_s": 1517,
+      "cobertura_lia_pct": 91.11
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 0,
+      "cruzamentos_via": 88,
+      "tomtom_km": 23.25,
+      "lia_livre_s": 1515,
+      "livre_por_grupo_s": {
+        "arterial": 1515.4
+      },
       "km": 23.26,
-      "lia_s": 1339,
-      "tomtom_sem_transito_s": 1561,
-      "tomtom_ao_vivo_s": 1516,
+      "lia_s": 1533,
+      "tomtom_sem_transito_s": 1562,
+      "tomtom_ao_vivo_s": 1529,
       "cobertura_lia_pct": 18.48
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 22,
+      "cruzamentos_via": 0,
+      "tomtom_km": 5.19,
+      "lia_livre_s": 423,
+      "livre_por_grupo_s": {
+        "local": 290.6,
+        "coletora": 133.2
+      },
+      "km": 5.2,
+      "lia_s": 424,
+      "tomtom_sem_transito_s": 985,
+      "tomtom_ao_vivo_s": 957,
+      "cobertura_lia_pct": 0.0
+    },
+    {
+      "semaforos": 4,
+      "cruzamentos": 8,
+      "cruzamentos_via": 4,
+      "tomtom_km": 13.02,
+      "lia_livre_s": 732,
+      "livre_por_grupo_s": {
+        "coletora": 86.8,
+        "arterial": 27.8,
+        "expressa": 617.8
+      },
+      "km": 13.03,
+      "lia_s": 789,
+      "tomtom_sem_transito_s": 787,
+      "tomtom_ao_vivo_s": 775,
+      "cobertura_lia_pct": 83.58
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 19,
+      "cruzamentos_via": 0,
+      "tomtom_km": 15.87,
+      "lia_livre_s": 1150,
+      "livre_por_grupo_s": {
+        "local": 901.3,
+        "coletora": 249.5
+      },
+      "km": 14.63,
+      "lia_s": 1150,
+      "tomtom_sem_transito_s": 2512,
+      "tomtom_ao_vivo_s": 2436,
+      "cobertura_lia_pct": 0.0
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 10,
+      "cruzamentos_via": 45,
+      "tomtom_km": 9.58,
+      "lia_livre_s": 618,
+      "livre_por_grupo_s": {
+        "local": 251.5,
+        "arterial": 367.4
+      },
+      "km": 9.57,
+      "lia_s": 620,
+      "tomtom_sem_transito_s": 819,
+      "tomtom_ao_vivo_s": 801,
+      "cobertura_lia_pct": 0.0
+    },
+    {
+      "semaforos": 7,
+      "cruzamentos": 108,
+      "cruzamentos_via": 24,
+      "tomtom_km": 28.04,
+      "lia_livre_s": 1975,
+      "livre_por_grupo_s": {
+        "local": 339.5,
+        "coletora": 462.6,
+        "arterial": 151.4,
+        "expressa": 1021.7
+      },
+      "km": 28.07,
+      "lia_s": 2010,
+      "tomtom_sem_transito_s": 2295,
+      "tomtom_ao_vivo_s": 2374,
+      "cobertura_lia_pct": 46.72
+    },
+    {
+      "semaforos": 2,
+      "cruzamentos": 9,
+      "cruzamentos_via": 4,
+      "tomtom_km": 18.25,
+      "lia_livre_s": 1044,
+      "livre_por_grupo_s": {
+        "local": 192.7,
+        "coletora": 17.1,
+        "arterial": 97.5,
+        "expressa": 737.0
+      },
+      "km": 18.29,
+      "lia_s": 1106,
+      "tomtom_sem_transito_s": 1395,
+      "tomtom_ao_vivo_s": 1367,
+      "cobertura_lia_pct": 81.18
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 6,
+      "cruzamentos_via": 43,
+      "tomtom_km": 12.43,
+      "lia_livre_s": 788,
+      "livre_por_grupo_s": {
+        "local": 76.1,
+        "coletora": 83.9,
+        "arterial": 628.9
+      },
+      "km": 12.46,
+      "lia_s": 790,
+      "tomtom_sem_transito_s": 1223,
+      "tomtom_ao_vivo_s": 1188,
+      "cobertura_lia_pct": 0.0
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 7,
+      "cruzamentos_via": 22,
+      "tomtom_km": 18.17,
+      "lia_livre_s": 1091,
+      "livre_por_grupo_s": {
+        "local": 95.8,
+        "arterial": 372.7,
+        "expressa": 608.0,
+        "coletora": 14.7
+      },
+      "km": 18.28,
+      "lia_s": 1106,
+      "tomtom_sem_transito_s": 1091,
+      "tomtom_ao_vivo_s": 1085,
+      "cobertura_lia_pct": 30.88
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 80,
+      "cruzamentos_via": 70,
+      "tomtom_km": 39.11,
+      "lia_livre_s": 2652,
+      "livre_por_grupo_s": {
+        "coletora": 1313.4,
+        "arterial": 876.1,
+        "expressa": 401.4,
+        "local": 61.5
+      },
+      "km": 38.58,
+      "lia_s": 2681,
+      "tomtom_sem_transito_s": 3957,
+      "tomtom_ao_vivo_s": 3893,
+      "cobertura_lia_pct": 28.25
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 19,
+      "cruzamentos_via": 27,
+      "tomtom_km": 21.82,
+      "lia_livre_s": 1348,
+      "livre_por_grupo_s": {
+        "coletora": 377.2,
+        "arterial": 304.4,
+        "local": 81.1,
+        "expressa": 585.5
+      },
+      "km": 21.4,
+      "lia_s": 1370,
+      "tomtom_sem_transito_s": 1559,
+      "tomtom_ao_vivo_s": 1553,
+      "cobertura_lia_pct": 70.48
+    },
+    {
+      "semaforos": 2,
+      "cruzamentos": 9,
+      "cruzamentos_via": 19,
+      "tomtom_km": 18.86,
+      "lia_livre_s": 1089,
+      "livre_por_grupo_s": {
+        "local": 32.4,
+        "arterial": 145.9,
+        "expressa": 910.4,
+        "coletora": 1.2
+      },
+      "km": 18.86,
+      "lia_s": 1106,
+      "tomtom_sem_transito_s": 1143,
+      "tomtom_ao_vivo_s": 1142,
+      "cobertura_lia_pct": 65.69
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 5,
+      "cruzamentos_via": 28,
+      "tomtom_km": 24.52,
+      "lia_livre_s": 1526,
+      "livre_por_grupo_s": {
+        "local": 208.6,
+        "arterial": 349.8,
+        "expressa": 967.9
+      },
+      "km": 24.53,
+      "lia_s": 1521,
+      "tomtom_sem_transito_s": 1634,
+      "tomtom_ao_vivo_s": 1627,
+      "cobertura_lia_pct": 30.23
+    },
+    {
+      "semaforos": 2,
+      "cruzamentos": 51,
+      "cruzamentos_via": 60,
+      "tomtom_km": 19.9,
+      "lia_livre_s": 1375,
+      "livre_por_grupo_s": {
+        "local": 222.8,
+        "expressa": 326.4,
+        "arterial": 652.8,
+        "coletora": 173.2
+      },
+      "km": 20.31,
+      "lia_s": 1400,
+      "tomtom_sem_transito_s": 1495,
+      "tomtom_ao_vivo_s": 1551,
+      "cobertura_lia_pct": 56.93
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 15,
+      "cruzamentos_via": 97,
+      "tomtom_km": 20.59,
+      "lia_livre_s": 1415,
+      "livre_por_grupo_s": {
+        "local": 219.2,
+        "arterial": 1196.8
+      },
+      "km": 20.58,
+      "lia_s": 1438,
+      "tomtom_sem_transito_s": 1828,
+      "tomtom_ao_vivo_s": 1807,
+      "cobertura_lia_pct": 21.74
+    },
+    {
+      "semaforos": 1,
+      "cruzamentos": 74,
+      "cruzamentos_via": 145,
+      "tomtom_km": 21.03,
+      "lia_livre_s": 1464,
+      "livre_por_grupo_s": {
+        "local": 82.7,
+        "arterial": 759.2,
+        "expressa": 312.1,
+        "coletora": 310.1
+      },
+      "km": 20.7,
+      "lia_s": 1490,
+      "tomtom_sem_transito_s": 1536,
+      "tomtom_ao_vivo_s": 1502,
+      "cobertura_lia_pct": 40.24
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 107,
+      "cruzamentos_via": 32,
+      "tomtom_km": 14.24,
+      "lia_livre_s": 1131,
+      "livre_por_grupo_s": {
+        "coletora": 877.5,
+        "arterial": 157.0,
+        "local": 96.8
+      },
+      "km": 14.23,
+      "lia_s": 1134,
+      "tomtom_sem_transito_s": 1894,
+      "tomtom_ao_vivo_s": 1873,
+      "cobertura_lia_pct": 0.0
+    },
+    {
+      "semaforos": 2,
+      "cruzamentos": 42,
+      "cruzamentos_via": 23,
+      "tomtom_km": 19.52,
+      "lia_livre_s": 1229,
+      "livre_por_grupo_s": {
+        "local": 143.9,
+        "coletora": 138.5,
+        "expressa": 796.4,
+        "arterial": 150.2
+      },
+      "km": 19.61,
+      "lia_s": 1251,
+      "tomtom_sem_transito_s": 1483,
+      "tomtom_ao_vivo_s": 1501,
+      "cobertura_lia_pct": 57.14
+    },
+    {
+      "semaforos": 3,
+      "cruzamentos": 55,
+      "cruzamentos_via": 45,
+      "tomtom_km": 18.5,
+      "lia_livre_s": 1229,
+      "livre_por_grupo_s": {
+        "local": 6.3,
+        "coletora": 391.5,
+        "arterial": 398.3,
+        "expressa": 433.7
+      },
+      "km": 17.89,
+      "lia_s": 1267,
+      "tomtom_sem_transito_s": 1729,
+      "tomtom_ao_vivo_s": 1911,
+      "cobertura_lia_pct": 58.62
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 10,
+      "cruzamentos_via": 60,
+      "tomtom_km": 17.02,
+      "lia_livre_s": 1208,
+      "livre_por_grupo_s": {
+        "coletora": 185.6,
+        "local": 66.1,
+        "arterial": 956.9
+      },
+      "km": 17.0,
+      "lia_s": 1228,
+      "tomtom_sem_transito_s": 1444,
+      "tomtom_ao_vivo_s": 1420,
+      "cobertura_lia_pct": 34.72
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 10,
+      "cruzamentos_via": 89,
+      "tomtom_km": 24.46,
+      "lia_livre_s": 1462,
+      "livre_por_grupo_s": {
+        "arterial": 1250.4,
+        "local": 211.7
+      },
+      "km": 24.49,
+      "lia_s": 1463,
+      "tomtom_sem_transito_s": 1970,
+      "tomtom_ao_vivo_s": 1920,
+      "cobertura_lia_pct": 0.0
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 17,
+      "cruzamentos_via": 175,
+      "tomtom_km": 35.11,
+      "lia_livre_s": 2265,
+      "livre_por_grupo_s": {
+        "local": 235.1,
+        "coletora": 266.1,
+        "arterial": 1764.0
+      },
+      "km": 35.14,
+      "lia_s": 2266,
+      "tomtom_sem_transito_s": 2642,
+      "tomtom_ao_vivo_s": 2594,
+      "cobertura_lia_pct": 8.81
+    },
+    {
+      "semaforos": 7,
+      "cruzamentos": 86,
+      "cruzamentos_via": 17,
+      "tomtom_km": 20.59,
+      "lia_livre_s": 1438,
+      "livre_por_grupo_s": {
+        "local": 112.1,
+        "arterial": 238.5,
+        "coletora": 477.3,
+        "expressa": 610.9
+      },
+      "km": 20.73,
+      "lia_s": 1478,
+      "tomtom_sem_transito_s": 1854,
+      "tomtom_ao_vivo_s": 1943,
+      "cobertura_lia_pct": 62.92
+    },
+    {
+      "semaforos": 2,
+      "cruzamentos": 18,
+      "cruzamentos_via": 67,
+      "tomtom_km": 29.24,
+      "lia_livre_s": 1815,
+      "livre_por_grupo_s": {
+        "local": 64.7,
+        "coletora": 113.6,
+        "arterial": 703.7,
+        "expressa": 934.0
+      },
+      "km": 29.28,
+      "lia_s": 1877,
+      "tomtom_sem_transito_s": 1873,
+      "tomtom_ao_vivo_s": 1846,
+      "cobertura_lia_pct": 69.03
+    },
+    {
+      "semaforos": 3,
+      "cruzamentos": 41,
+      "cruzamentos_via": 72,
+      "tomtom_km": 20.76,
+      "lia_livre_s": 1325,
+      "livre_por_grupo_s": {
+        "local": 41.1,
+        "coletora": 256.9,
+        "arterial": 562.4,
+        "expressa": 464.7
+      },
+      "km": 20.76,
+      "lia_s": 1349,
+      "tomtom_sem_transito_s": 1408,
+      "tomtom_ao_vivo_s": 1456,
+      "cobertura_lia_pct": 68.21
+    },
+    {
+      "semaforos": 1,
+      "cruzamentos": 61,
+      "cruzamentos_via": 87,
+      "tomtom_km": 19.18,
+      "lia_livre_s": 1339,
+      "livre_por_grupo_s": {
+        "local": 28.3,
+        "coletora": 442.2,
+        "arterial": 589.7,
+        "expressa": 279.4
+      },
+      "km": 19.19,
+      "lia_s": 1363,
+      "tomtom_sem_transito_s": 1484,
+      "tomtom_ao_vivo_s": 1482,
+      "cobertura_lia_pct": 48.54
+    },
+    {
+      "semaforos": 1,
+      "cruzamentos": 117,
+      "cruzamentos_via": 70,
+      "tomtom_km": 24.01,
+      "lia_livre_s": 1570,
+      "livre_por_grupo_s": {
+        "coletora": 483.7,
+        "local": 38.1,
+        "arterial": 369.5,
+        "expressa": 678.9
+      },
+      "km": 23.6,
+      "lia_s": 1602,
+      "tomtom_sem_transito_s": 1732,
+      "tomtom_ao_vivo_s": 1743,
+      "cobertura_lia_pct": 31.43
+    },
+    {
+      "semaforos": 4,
+      "cruzamentos": 49,
+      "cruzamentos_via": 128,
+      "tomtom_km": 31.61,
+      "lia_livre_s": 2057,
+      "livre_por_grupo_s": {
+        "expressa": 828.7,
+        "arterial": 814.1,
+        "coletora": 238.1,
+        "local": 176.7
+      },
+      "km": 31.88,
+      "lia_s": 2105,
+      "tomtom_sem_transito_s": 2215,
+      "tomtom_ao_vivo_s": 2275,
+      "cobertura_lia_pct": 77.52
+    },
+    {
+      "semaforos": 1,
+      "cruzamentos": 18,
+      "cruzamentos_via": 67,
+      "tomtom_km": 36.24,
+      "lia_livre_s": 1989,
+      "livre_por_grupo_s": {
+        "local": 56.7,
+        "arterial": 1041.7,
+        "expressa": 838.1,
+        "coletora": 53.2
+      },
+      "km": 35.86,
+      "lia_s": 2008,
+      "tomtom_sem_transito_s": 1918,
+      "tomtom_ao_vivo_s": 1902,
+      "cobertura_lia_pct": 58.59
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 23,
+      "cruzamentos_via": 9,
+      "tomtom_km": 16.89,
+      "lia_livre_s": 1213,
+      "livre_por_grupo_s": {
+        "arterial": 230.9,
+        "coletora": 898.6,
+        "local": 84.3
+      },
+      "km": 16.92,
+      "lia_s": 1214,
+      "tomtom_sem_transito_s": 1956,
+      "tomtom_ao_vivo_s": 1896,
+      "cobertura_lia_pct": 0.0
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 0,
+      "cruzamentos_via": 118,
+      "tomtom_km": 24.08,
+      "lia_livre_s": 1530,
+      "livre_por_grupo_s": {
+        "arterial": 1506.2,
+        "local": 24.7
+      },
+      "km": 24.07,
+      "lia_s": 1561,
+      "tomtom_sem_transito_s": 1691,
+      "tomtom_ao_vivo_s": 1658,
+      "cobertura_lia_pct": 40.5
+    },
+    {
+      "semaforos": 2,
+      "cruzamentos": 9,
+      "cruzamentos_via": 72,
+      "tomtom_km": 32.68,
+      "lia_livre_s": 2092,
+      "livre_por_grupo_s": {
+        "local": 242.0,
+        "coletora": 187.4,
+        "arterial": 873.7,
+        "expressa": 789.1
+      },
+      "km": 33.2,
+      "lia_s": 2095,
+      "tomtom_sem_transito_s": 2705,
+      "tomtom_ao_vivo_s": 2663,
+      "cobertura_lia_pct": 0.0
+    },
+    {
+      "semaforos": 3,
+      "cruzamentos": 14,
+      "cruzamentos_via": 72,
+      "tomtom_km": 30.36,
+      "lia_livre_s": 1950,
+      "livre_por_grupo_s": {
+        "local": 612.9,
+        "arterial": 898.0,
+        "expressa": 439.9
+      },
+      "km": 30.89,
+      "lia_s": 1971,
+      "tomtom_sem_transito_s": 2260,
+      "tomtom_ao_vivo_s": 2235,
+      "cobertura_lia_pct": 57.72
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 96,
+      "cruzamentos_via": 97,
+      "tomtom_km": 18.36,
+      "lia_livre_s": 1391,
+      "livre_por_grupo_s": {
+        "local": 80.9,
+        "coletora": 585.7,
+        "expressa": 31.8,
+        "arterial": 692.7
+      },
+      "km": 18.39,
+      "lia_s": 1429,
+      "tomtom_sem_transito_s": 1621,
+      "tomtom_ao_vivo_s": 1634,
+      "cobertura_lia_pct": 50.24
+    },
+    {
+      "semaforos": 3,
+      "cruzamentos": 42,
+      "cruzamentos_via": 21,
+      "tomtom_km": 33.99,
+      "lia_livre_s": 2103,
+      "livre_por_grupo_s": {
+        "local": 601.6,
+        "coletora": 237.8,
+        "expressa": 1102.1,
+        "arterial": 162.1
+      },
+      "km": 34.01,
+      "lia_s": 2139,
+      "tomtom_sem_transito_s": 3136,
+      "tomtom_ao_vivo_s": 3111,
+      "cobertura_lia_pct": 63.36
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 70,
+      "cruzamentos_via": 21,
+      "tomtom_km": 10.79,
+      "lia_livre_s": 797,
+      "livre_por_grupo_s": {
+        "local": 25.6,
+        "coletora": 501.3,
+        "arterial": 124.4,
+        "expressa": 146.2
+      },
+      "km": 10.79,
+      "lia_s": 803,
+      "tomtom_sem_transito_s": 1061,
+      "tomtom_ao_vivo_s": 1042,
+      "cobertura_lia_pct": 0.0
+    },
+    {
+      "semaforos": 1,
+      "cruzamentos": 44,
+      "cruzamentos_via": 25,
+      "tomtom_km": 31.04,
+      "lia_livre_s": 1739,
+      "livre_por_grupo_s": {
+        "local": 32.1,
+        "coletora": 210.6,
+        "expressa": 1370.6,
+        "arterial": 126.6
+      },
+      "km": 30.84,
+      "lia_s": 1769,
+      "tomtom_sem_transito_s": 1971,
+      "tomtom_ao_vivo_s": 1984,
+      "cobertura_lia_pct": 45.16
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 68,
+      "cruzamentos_via": 91,
+      "tomtom_km": 25.72,
+      "lia_livre_s": 1802,
+      "livre_por_grupo_s": {
+        "coletora": 862.4,
+        "arterial": 914.8,
+        "local": 25.6
+      },
+      "km": 25.57,
+      "lia_s": 1810,
+      "tomtom_sem_transito_s": 2261,
+      "tomtom_ao_vivo_s": 2218,
+      "cobertura_lia_pct": 0.0
+    },
+    {
+      "semaforos": 2,
+      "cruzamentos": 39,
+      "cruzamentos_via": 43,
+      "tomtom_km": 27.73,
+      "lia_livre_s": 1767,
+      "livre_por_grupo_s": {
+        "local": 844.3,
+        "coletora": 9.0,
+        "expressa": 510.4,
+        "arterial": 404.1
+      },
+      "km": 27.72,
+      "lia_s": 1769,
+      "tomtom_sem_transito_s": 3052,
+      "tomtom_ao_vivo_s": 2968,
+      "cobertura_lia_pct": 0.0
+    },
+    {
+      "semaforos": 3,
+      "cruzamentos": 60,
+      "cruzamentos_via": 42,
+      "tomtom_km": 31.06,
+      "lia_livre_s": 1888,
+      "livre_por_grupo_s": {
+        "local": 272.0,
+        "coletora": 206.2,
+        "arterial": 324.7,
+        "expressa": 1085.9
+      },
+      "km": 30.59,
+      "lia_s": 1937,
+      "tomtom_sem_transito_s": 2841,
+      "tomtom_ao_vivo_s": 2874,
+      "cobertura_lia_pct": 40.24
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 69,
+      "cruzamentos_via": 41,
+      "tomtom_km": 18.09,
+      "lia_livre_s": 1381,
+      "livre_por_grupo_s": {
+        "local": 210.4,
+        "coletora": 649.4,
+        "arterial": 521.4
+      },
+      "km": 18.24,
+      "lia_s": 1404,
+      "tomtom_sem_transito_s": 1757,
+      "tomtom_ao_vivo_s": 1723,
+      "cobertura_lia_pct": 17.86
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 59,
+      "cruzamentos_via": 60,
+      "tomtom_km": 23.43,
+      "lia_livre_s": 1651,
+      "livre_por_grupo_s": {
+        "local": 822.4,
+        "coletora": 54.6,
+        "arterial": 704.7,
+        "expressa": 70.2
+      },
+      "km": 23.48,
+      "lia_s": 1656,
+      "tomtom_sem_transito_s": 2685,
+      "tomtom_ao_vivo_s": 2614,
+      "cobertura_lia_pct": 0.0
+    },
+    {
+      "semaforos": 3,
+      "cruzamentos": 55,
+      "cruzamentos_via": 0,
+      "tomtom_km": 21.78,
+      "lia_livre_s": 1309,
+      "livre_por_grupo_s": {
+        "local": 83.6,
+        "coletora": 439.3,
+        "expressa": 786.7
+      },
+      "km": 21.84,
+      "lia_s": 1327,
+      "tomtom_sem_transito_s": 1885,
+      "tomtom_ao_vivo_s": 1892,
+      "cobertura_lia_pct": 46.92
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 15,
+      "cruzamentos_via": 100,
+      "tomtom_km": 11.35,
+      "lia_livre_s": 736,
+      "livre_por_grupo_s": {
+        "local": 24.0,
+        "coletora": 143.8,
+        "arterial": 549.4,
+        "expressa": 19.6
+      },
+      "km": 11.34,
+      "lia_s": 768,
+      "tomtom_sem_transito_s": 889,
+      "tomtom_ao_vivo_s": 906,
+      "cobertura_lia_pct": 94.17
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 23,
+      "cruzamentos_via": 24,
+      "tomtom_km": 10.06,
+      "lia_livre_s": 737,
+      "livre_por_grupo_s": {
+        "coletora": 246.9,
+        "arterial": 486.5,
+        "local": 3.9
+      },
+      "km": 9.95,
+      "lia_s": 763,
+      "tomtom_sem_transito_s": 823,
+      "tomtom_ao_vivo_s": 816,
+      "cobertura_lia_pct": 43.14
+    },
+    {
+      "semaforos": 1,
+      "cruzamentos": 22,
+      "cruzamentos_via": 25,
+      "tomtom_km": 21.59,
+      "lia_livre_s": 1324,
+      "livre_por_grupo_s": {
+        "coletora": 119.5,
+        "expressa": 897.8,
+        "arterial": 272.3,
+        "local": 35.0
+      },
+      "km": 21.63,
+      "lia_s": 1341,
+      "tomtom_sem_transito_s": 1398,
+      "tomtom_ao_vivo_s": 1424,
+      "cobertura_lia_pct": 71.32
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 42,
+      "cruzamentos_via": 67,
+      "tomtom_km": 31.14,
+      "lia_livre_s": 1936,
+      "livre_por_grupo_s": {
+        "local": 204.4,
+        "coletora": 592.3,
+        "arterial": 1139.8
+      },
+      "km": 31.23,
+      "lia_s": 1938,
+      "tomtom_sem_transito_s": 2651,
+      "tomtom_ao_vivo_s": 2573,
+      "cobertura_lia_pct": 0.0
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 22,
+      "cruzamentos_via": 133,
+      "tomtom_km": 26.38,
+      "lia_livre_s": 1723,
+      "livre_por_grupo_s": {
+        "local": 232.3,
+        "coletora": 172.3,
+        "arterial": 932.7,
+        "expressa": 386.3
+      },
+      "km": 26.4,
+      "lia_s": 1746,
+      "tomtom_sem_transito_s": 2492,
+      "tomtom_ao_vivo_s": 2503,
+      "cobertura_lia_pct": 22.95
+    },
+    {
+      "semaforos": 1,
+      "cruzamentos": 4,
+      "cruzamentos_via": 42,
+      "tomtom_km": 24.05,
+      "lia_livre_s": 1403,
+      "livre_por_grupo_s": {
+        "local": 115.9,
+        "arterial": 408.5,
+        "expressa": 879.0
+      },
+      "km": 23.47,
+      "lia_s": 1449,
+      "tomtom_sem_transito_s": 1846,
+      "tomtom_ao_vivo_s": 1870,
+      "cobertura_lia_pct": 52.83
+    },
+    {
+      "semaforos": 4,
+      "cruzamentos": 4,
+      "cruzamentos_via": 136,
+      "tomtom_km": 32.28,
+      "lia_livre_s": 1822,
+      "livre_por_grupo_s": {
+        "local": 33.2,
+        "arterial": 1078.7,
+        "expressa": 692.1,
+        "coletora": 18.2
+      },
+      "km": 32.13,
+      "lia_s": 1843,
+      "tomtom_sem_transito_s": 1975,
+      "tomtom_ao_vivo_s": 2028,
+      "cobertura_lia_pct": 47.52
+    },
+    {
+      "semaforos": 0,
+      "cruzamentos": 35,
+      "cruzamentos_via": 13,
+      "tomtom_km": 12.72,
+      "lia_livre_s": 966,
+      "livre_por_grupo_s": {
+        "coletora": 619.4,
+        "arterial": 298.3,
+        "local": 48.9
+      },
+      "km": 12.7,
+      "lia_s": 975,
+      "tomtom_sem_transito_s": 1253,
+      "tomtom_ao_vivo_s": 1218,
+      "cobertura_lia_pct": 26.92
+    },
+    {
+      "semaforos": 2,
+      "cruzamentos": 8,
+      "cruzamentos_via": 15,
+      "tomtom_km": 23.38,
+      "lia_livre_s": 1381,
+      "livre_por_grupo_s": {
+        "local": 389.5,
+        "expressa": 691.0,
+        "arterial": 300.8
+      },
+      "km": 23.5,
+      "lia_s": 1381,
+      "tomtom_sem_transito_s": 1647,
+      "tomtom_ao_vivo_s": 1628,
+      "cobertura_lia_pct": 0.0
     }
   ]
 }
