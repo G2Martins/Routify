@@ -1,0 +1,673 @@
+{
+ "descricao": "A/B no mesmo instante dos sensores virtuais (A = SENSORES_VIRTUAIS=0, B = 1), 10 viagens pelos maiores buracos de sensor (scripts/viagens_buracos.json), com scripts/ab_rotas.py. Resumo = (n, viés mediano %, MAPE %).",
+ "rodadas": {
+  "2026-11-02T14:30-03:00 (feriado, meio da tarde)": {
+   "resumo": {
+    "A": {
+     "LIA x TomTom vivo (mesmo trajeto)": [
+      9,
+      -6.6,
+      13.2
+     ],
+     "livre LIA x TomTom sem transito": [
+      9,
+      -10.4,
+      13.1
+     ],
+     "LIA x TomTom historico": [
+      9,
+      -15.0,
+      18.2
+     ],
+     "exibido x rota propria TomTom": [
+      10,
+      -2.2,
+      5.4
+     ],
+     "traco comum c/ TomTom (media %)": 66.2,
+     "rotas TomTom venceu": 2
+    },
+    "B": {
+     "LIA x TomTom vivo (mesmo trajeto)": [
+      9,
+      -6.6,
+      13.3
+     ],
+     "livre LIA x TomTom sem transito": [
+      9,
+      -10.4,
+      13.1
+     ],
+     "LIA x TomTom historico": [
+      9,
+      -15.0,
+      18.3
+     ],
+     "exibido x rota propria TomTom": [
+      10,
+      -2.2,
+      5.4
+     ],
+     "traco comum c/ TomTom (media %)": 66.2,
+     "rotas TomTom venceu": 2
+    }
+   },
+   "linhas": [
+    {
+     "corredor": "buraco-planaltina-sobradinho",
+     "tt_propria_s": 1338.0,
+     "A": {
+      "lia_s": 1587,
+      "livre_s": 1549,
+      "tt_vivo_s": 1608,
+      "tt_livre_s": 1611,
+      "tt_hist_s": 1675,
+      "fonte": "tomtom",
+      "exibido_s": 1260,
+      "km": 23.46,
+      "tt_km": 23.43,
+      "traco_pct": 48.5
+     },
+     "B": {
+      "lia_s": 1586,
+      "livre_s": 1549,
+      "tt_vivo_s": 1608,
+      "tt_livre_s": 1611,
+      "tt_hist_s": 1675,
+      "fonte": "tomtom",
+      "exibido_s": 1261,
+      "km": 23.46,
+      "tt_km": 23.43,
+      "traco_pct": 48.5
+     }
+    },
+    {
+     "corredor": "buraco-recanto-taguatinga",
+     "tt_propria_s": 1570.0,
+     "A": {
+      "lia_s": 1354,
+      "livre_s": 1324,
+      "tt_vivo_s": 1710,
+      "tt_livre_s": 1634,
+      "tt_hist_s": 1846,
+      "fonte": "lia",
+      "exibido_s": 1583,
+      "km": 18.27,
+      "tt_km": 18.25,
+      "traco_pct": 16.5
+     },
+     "B": {
+      "lia_s": 1354,
+      "livre_s": 1324,
+      "tt_vivo_s": 1710,
+      "tt_livre_s": 1634,
+      "tt_hist_s": 1846,
+      "fonte": "lia",
+      "exibido_s": 1583,
+      "km": 18.27,
+      "tt_km": 18.25,
+      "traco_pct": 16.5
+     }
+    },
+    {
+     "corredor": "buraco-itapoa-rodoviaria",
+     "tt_propria_s": 1906.0,
+     "A": {
+      "lia_s": 1799,
+      "livre_s": 1762,
+      "tt_vivo_s": 1893,
+      "tt_livre_s": 1893,
+      "tt_hist_s": 1995,
+      "fonte": "lia",
+      "exibido_s": 1864,
+      "km": 26.95,
+      "tt_km": 26.93,
+      "traco_pct": 1.3
+     },
+     "B": {
+      "lia_s": 1799,
+      "livre_s": 1762,
+      "tt_vivo_s": 1893,
+      "tt_livre_s": 1893,
+      "tt_hist_s": 1995,
+      "fonte": "lia",
+      "exibido_s": 1864,
+      "km": 26.95,
+      "tt_km": 26.93,
+      "traco_pct": 1.3
+     }
+    },
+    {
+     "corredor": "buraco-saosebastiao-rodoviaria",
+     "tt_propria_s": 1530.0,
+     "A": {
+      "lia_s": 1505,
+      "livre_s": 1481,
+      "tt_vivo_s": 1530,
+      "tt_livre_s": 1512,
+      "tt_hist_s": 1632,
+      "fonte": "lia",
+      "exibido_s": 1517,
+      "km": 21.61,
+      "tt_km": 21.59,
+      "traco_pct": 96.5
+     },
+     "B": {
+      "lia_s": 1502,
+      "livre_s": 1481,
+      "tt_vivo_s": 1530,
+      "tt_livre_s": 1512,
+      "tt_hist_s": 1632,
+      "fonte": "lia",
+      "exibido_s": 1516,
+      "km": 21.61,
+      "tt_km": 21.59,
+      "traco_pct": 96.5
+     }
+    },
+    {
+     "corredor": "buraco-samambaia-taguatinga",
+     "tt_propria_s": 886.0,
+     "A": {
+      "lia_s": 730,
+      "livre_s": 713,
+      "tt_vivo_s": 916,
+      "tt_livre_s": 846,
+      "tt_hist_s": 1009,
+      "fonte": "lia",
+      "exibido_s": 799,
+      "km": 10.07,
+      "tt_km": 10.07,
+      "traco_pct": 91.9
+     },
+     "B": {
+      "lia_s": 730,
+      "livre_s": 713,
+      "tt_vivo_s": 916,
+      "tt_livre_s": 846,
+      "tt_hist_s": 1009,
+      "fonte": "lia",
+      "exibido_s": 799,
+      "km": 10.07,
+      "tt_km": 10.07,
+      "traco_pct": 91.9
+     }
+    },
+    {
+     "corredor": "buraco-ceilandia-taguatinga",
+     "tt_propria_s": 1121.0,
+     "A": {
+      "lia_s": 904,
+      "livre_s": 877,
+      "tt_vivo_s": 1129,
+      "tt_livre_s": 1065,
+      "tt_hist_s": 1227,
+      "fonte": "lia",
+      "exibido_s": 970,
+      "km": 11.85,
+      "tt_km": 11.85,
+      "traco_pct": 89.4
+     },
+     "B": {
+      "lia_s": 904,
+      "livre_s": 877,
+      "tt_vivo_s": 1129,
+      "tt_livre_s": 1065,
+      "tt_hist_s": 1227,
+      "fonte": "lia",
+      "exibido_s": 970,
+      "km": 11.85,
+      "tt_km": 11.85,
+      "traco_pct": 89.4
+     }
+    },
+    {
+     "corredor": "buraco-santamaria-gama",
+     "tt_propria_s": 621.0,
+     "A": {
+      "lia_s": 520,
+      "livre_s": 507,
+      "tt_vivo_s": 864,
+      "tt_livre_s": 847,
+      "tt_hist_s": 914,
+      "fonte": "tomtom",
+      "exibido_s": 621,
+      "km": 7.57,
+      "tt_km": 7.96,
+      "traco_pct": 74.2
+     },
+     "B": {
+      "lia_s": 515,
+      "livre_s": 507,
+      "tt_vivo_s": 864,
+      "tt_livre_s": 847,
+      "tt_hist_s": 914,
+      "fonte": "tomtom",
+      "exibido_s": 621,
+      "km": 7.57,
+      "tt_km": 7.96,
+      "traco_pct": 74.2
+     }
+    },
+    {
+     "corredor": "buraco-gama-parkway",
+     "tt_propria_s": 663.0,
+     "A": {
+      "lia_s": 768,
+      "livre_s": 751,
+      "tt_vivo_s": null,
+      "tt_livre_s": null,
+      "tt_hist_s": null,
+      "fonte": "lia",
+      "exibido_s": 768,
+      "km": 12.24,
+      "tt_km": null,
+      "traco_pct": 96.5
+     },
+     "B": {
+      "lia_s": 768,
+      "livre_s": 751,
+      "tt_vivo_s": null,
+      "tt_livre_s": null,
+      "tt_hist_s": null,
+      "fonte": "lia",
+      "exibido_s": 768,
+      "km": 12.24,
+      "tt_km": null,
+      "traco_pct": 96.5
+     }
+    },
+    {
+     "corredor": "buraco-riachofundo2-bandeirante",
+     "tt_propria_s": 880.0,
+     "A": {
+      "lia_s": 829,
+      "livre_s": 797,
+      "tt_vivo_s": 888,
+      "tt_livre_s": 890,
+      "tt_hist_s": 975,
+      "fonte": "lia",
+      "exibido_s": 852,
+      "km": 12.93,
+      "tt_km": 12.93,
+      "traco_pct": 78.3
+     },
+     "B": {
+      "lia_s": 829,
+      "livre_s": 797,
+      "tt_vivo_s": 888,
+      "tt_livre_s": 890,
+      "tt_hist_s": 975,
+      "fonte": "lia",
+      "exibido_s": 852,
+      "km": 12.93,
+      "tt_km": 12.93,
+      "traco_pct": 78.3
+     }
+    },
+    {
+     "corredor": "buraco-sobradinho-rodoviaria",
+     "tt_propria_s": 893.0,
+     "A": {
+      "lia_s": 878,
+      "livre_s": 859,
+      "tt_vivo_s": 852,
+      "tt_livre_s": 841,
+      "tt_hist_s": 899,
+      "fonte": "lia",
+      "exibido_s": 873,
+      "km": 14.95,
+      "tt_km": 14.9,
+      "traco_pct": 68.4
+     },
+     "B": {
+      "lia_s": 878,
+      "livre_s": 859,
+      "tt_vivo_s": 852,
+      "tt_livre_s": 841,
+      "tt_hist_s": 899,
+      "fonte": "lia",
+      "exibido_s": 873,
+      "km": 14.95,
+      "tt_km": 14.9,
+      "traco_pct": 68.4
+     }
+    }
+   ]
+  },
+  "2026-11-02T18:12-03:00 (fim do feriado, pico)": {
+   "resumo": {
+    "A": {
+     "LIA x TomTom vivo (mesmo trajeto)": [
+      9,
+      -8.1,
+      11.5
+     ],
+     "livre LIA x TomTom sem transito": [
+      9,
+      -10.4,
+      13.1
+     ],
+     "LIA x TomTom historico": [
+      9,
+      -12.8,
+      17.6
+     ],
+     "exibido x rota propria TomTom": [
+      10,
+      -2.1,
+      5.6
+     ],
+     "traco comum c/ TomTom (media %)": 72.3,
+     "rotas TomTom venceu": 2
+    },
+    "B": {
+     "LIA x TomTom vivo (mesmo trajeto)": [
+      9,
+      -8.1,
+      11.8
+     ],
+     "livre LIA x TomTom sem transito": [
+      9,
+      -10.4,
+      13.1
+     ],
+     "LIA x TomTom historico": [
+      9,
+      -12.8,
+      18.0
+     ],
+     "exibido x rota propria TomTom": [
+      10,
+      -2.3,
+      5.7
+     ],
+     "traco comum c/ TomTom (media %)": 72.3,
+     "rotas TomTom venceu": 2
+    }
+   },
+   "linhas": [
+    {
+     "corredor": "buraco-planaltina-sobradinho",
+     "tt_propria_s": 1453.0,
+     "A": {
+      "lia_s": 1674,
+      "livre_s": 1549,
+      "tt_vivo_s": 1672,
+      "tt_livre_s": 1611,
+      "tt_hist_s": 1728,
+      "fonte": "tomtom",
+      "exibido_s": 1377,
+      "km": 23.46,
+      "tt_km": 23.43,
+      "traco_pct": 48.5
+     },
+     "B": {
+      "lia_s": 1672,
+      "livre_s": 1549,
+      "tt_vivo_s": 1672,
+      "tt_livre_s": 1611,
+      "tt_hist_s": 1728,
+      "fonte": "tomtom",
+      "exibido_s": 1376,
+      "km": 23.46,
+      "tt_km": 23.43,
+      "traco_pct": 48.5
+     }
+    },
+    {
+     "corredor": "buraco-recanto-taguatinga",
+     "tt_propria_s": 1600.0,
+     "A": {
+      "lia_s": 1434,
+      "livre_s": 1324,
+      "tt_vivo_s": 1726,
+      "tt_livre_s": 1634,
+      "tt_hist_s": 1914,
+      "fonte": "lia",
+      "exibido_s": 1622,
+      "km": 18.27,
+      "tt_km": 18.25,
+      "traco_pct": 63.5
+     },
+     "B": {
+      "lia_s": 1433,
+      "livre_s": 1324,
+      "tt_vivo_s": 1726,
+      "tt_livre_s": 1634,
+      "tt_hist_s": 1914,
+      "fonte": "lia",
+      "exibido_s": 1622,
+      "km": 18.27,
+      "tt_km": 18.25,
+      "traco_pct": 63.5
+     }
+    },
+    {
+     "corredor": "buraco-itapoa-rodoviaria",
+     "tt_propria_s": 1955.0,
+     "A": {
+      "lia_s": 1876,
+      "livre_s": 1762,
+      "tt_vivo_s": 1934,
+      "tt_livre_s": 1893,
+      "tt_hist_s": 2101,
+      "fonte": "lia",
+      "exibido_s": 1916,
+      "km": 26.95,
+      "tt_km": 26.93,
+      "traco_pct": 1.3
+     },
+     "B": {
+      "lia_s": 1857,
+      "livre_s": 1762,
+      "tt_vivo_s": 1934,
+      "tt_livre_s": 1893,
+      "tt_hist_s": 2101,
+      "fonte": "lia",
+      "exibido_s": 1910,
+      "km": 26.95,
+      "tt_km": 26.93,
+      "traco_pct": 1.3
+     }
+    },
+    {
+     "corredor": "buraco-saosebastiao-rodoviaria",
+     "tt_propria_s": 1563.0,
+     "A": {
+      "lia_s": 1575,
+      "livre_s": 1481,
+      "tt_vivo_s": 1562,
+      "tt_livre_s": 1512,
+      "tt_hist_s": 1693,
+      "fonte": "lia",
+      "exibido_s": 1568,
+      "km": 21.61,
+      "tt_km": 21.59,
+      "traco_pct": 96.5
+     },
+     "B": {
+      "lia_s": 1567,
+      "livre_s": 1481,
+      "tt_vivo_s": 1562,
+      "tt_livre_s": 1512,
+      "tt_hist_s": 1693,
+      "fonte": "lia",
+      "exibido_s": 1564,
+      "km": 21.61,
+      "tt_km": 21.59,
+      "traco_pct": 96.5
+     }
+    },
+    {
+     "corredor": "buraco-samambaia-taguatinga",
+     "tt_propria_s": 910.0,
+     "A": {
+      "lia_s": 774,
+      "livre_s": 713,
+      "tt_vivo_s": 921,
+      "tt_livre_s": 846,
+      "tt_hist_s": 1052,
+      "fonte": "lia",
+      "exibido_s": 828,
+      "km": 10.07,
+      "tt_km": 10.07,
+      "traco_pct": 100.0
+     },
+     "B": {
+      "lia_s": 774,
+      "livre_s": 713,
+      "tt_vivo_s": 921,
+      "tt_livre_s": 846,
+      "tt_hist_s": 1052,
+      "fonte": "lia",
+      "exibido_s": 828,
+      "km": 10.07,
+      "tt_km": 10.07,
+      "traco_pct": 100.0
+     }
+    },
+    {
+     "corredor": "buraco-ceilandia-taguatinga",
+     "tt_propria_s": 1157.0,
+     "A": {
+      "lia_s": 960,
+      "livre_s": 877,
+      "tt_vivo_s": 1145,
+      "tt_livre_s": 1065,
+      "tt_hist_s": 1304,
+      "fonte": "lia",
+      "exibido_s": 1014,
+      "km": 11.85,
+      "tt_km": 11.85,
+      "traco_pct": 96.0
+     },
+     "B": {
+      "lia_s": 960,
+      "livre_s": 877,
+      "tt_vivo_s": 1145,
+      "tt_livre_s": 1065,
+      "tt_hist_s": 1304,
+      "fonte": "lia",
+      "exibido_s": 1014,
+      "km": 11.85,
+      "tt_km": 11.85,
+      "traco_pct": 96.0
+     }
+    },
+    {
+     "corredor": "buraco-santamaria-gama",
+     "tt_propria_s": 637.0,
+     "A": {
+      "lia_s": 547,
+      "livre_s": 507,
+      "tt_vivo_s": 896,
+      "tt_livre_s": 847,
+      "tt_hist_s": 989,
+      "fonte": "tomtom",
+      "exibido_s": 637,
+      "km": 7.57,
+      "tt_km": 7.96,
+      "traco_pct": 74.2
+     },
+     "B": {
+      "lia_s": 530,
+      "livre_s": 507,
+      "tt_vivo_s": 896,
+      "tt_livre_s": 847,
+      "tt_hist_s": 989,
+      "fonte": "tomtom",
+      "exibido_s": 637,
+      "km": 7.57,
+      "tt_km": 7.96,
+      "traco_pct": 74.2
+     }
+    },
+    {
+     "corredor": "buraco-gama-parkway",
+     "tt_propria_s": 671.0,
+     "A": {
+      "lia_s": 808,
+      "livre_s": 751,
+      "tt_vivo_s": null,
+      "tt_livre_s": null,
+      "tt_hist_s": null,
+      "fonte": "lia",
+      "exibido_s": 808,
+      "km": 12.24,
+      "tt_km": null,
+      "traco_pct": 96.5
+     },
+     "B": {
+      "lia_s": 808,
+      "livre_s": 751,
+      "tt_vivo_s": null,
+      "tt_livre_s": null,
+      "tt_hist_s": null,
+      "fonte": "lia",
+      "exibido_s": 808,
+      "km": 12.24,
+      "tt_km": null,
+      "traco_pct": 96.5
+     }
+    },
+    {
+     "corredor": "buraco-riachofundo2-bandeirante",
+     "tt_propria_s": 933.0,
+     "A": {
+      "lia_s": 871,
+      "livre_s": 797,
+      "tt_vivo_s": 948,
+      "tt_livre_s": 890,
+      "tt_hist_s": 999,
+      "fonte": "lia",
+      "exibido_s": 901,
+      "km": 12.93,
+      "tt_km": 12.93,
+      "traco_pct": 78.3
+     },
+     "B": {
+      "lia_s": 871,
+      "livre_s": 797,
+      "tt_vivo_s": 948,
+      "tt_livre_s": 890,
+      "tt_hist_s": 999,
+      "fonte": "lia",
+      "exibido_s": 901,
+      "km": 12.93,
+      "tt_km": 12.93,
+      "traco_pct": 78.3
+     }
+    },
+    {
+     "corredor": "buraco-sobradinho-rodoviaria",
+     "tt_propria_s": 921.0,
+     "A": {
+      "lia_s": 905,
+      "livre_s": 859,
+      "tt_vivo_s": 875,
+      "tt_livre_s": 841,
+      "tt_hist_s": 926,
+      "fonte": "lia",
+      "exibido_s": 900,
+      "km": 14.95,
+      "tt_km": 14.9,
+      "traco_pct": 68.4
+     },
+     "B": {
+      "lia_s": 905,
+      "livre_s": 859,
+      "tt_vivo_s": 875,
+      "tt_livre_s": 841,
+      "tt_hist_s": 925,
+      "fonte": "lia",
+      "exibido_s": 900,
+      "km": 14.95,
+      "tt_km": 14.9,
+      "traco_pct": 68.4
+     }
+    }
+   ]
+  }
+ }
+}

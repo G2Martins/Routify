@@ -329,8 +329,9 @@ async def lifespan(app: FastAPI):
         # Ponto de partida das arestas sem sensor (routers/route.py): 'corredor' (padrão desde 2026-11-02)
         # = lentidão prevista agora nos trechos monitorados; 'perfil' = mediana histórica do horário (tese).
         G.graph['prior_congestionamento'] = os.getenv('PRIOR_CONGESTIONAMENTO', 'corredor')
-        # Sensores virtuais nos buracos de dados (SENSORES_VIRTUAIS=0 desliga).
-        if os.getenv('SENSORES_VIRTUAIS', '1') == '1':
+        # Sensores virtuais nos buracos de dados: desligados por padrão (sem ganho no A/B de 2026-11-02,
+        # ml/artifacts/ab_sensores_virtuais_2026-11-02.json). SENSORES_VIRTUAIS=1 liga.
+        if os.getenv('SENSORES_VIRTUAIS', '0') == '1':
             G.graph['pontos_virtuais'] = graph_enrichment.pontos_virtuais(G, G.graph.get('vias_monitoradas') or {})
             logging.info(f"{len(G.graph['pontos_virtuais']):,} pontos virtuais (células de 1 km sem sensor a 500 m)")
         logging.info(f"Grafo enriquecido em {time.time()-t0:.1f}s")
