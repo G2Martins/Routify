@@ -151,7 +151,7 @@ def avaliar(saida: str) -> dict:
 
 
 def relatorio(historico: list) -> str:
-    linhas = ['# Rotina de validação da LIA (madrugada de 2026-11-02)', '',
+    linhas = ['# Rotina de validação da LIA (2026-11-02)', '',
               'Gerado por `scripts/rotina_validacao.py`. Referência: TomTom com trânsito ao vivo. '
               '"Traçado" = % da rota igual à da TomTom (até 40 m, nos dois sentidos).', '',
               '| Hora | Checagens | LIA × TomTom no mesmo trajeto (viés / MAPE) | LIA × rota da TomTom (viés / MAPE / traçado) '
