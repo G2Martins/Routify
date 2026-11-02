@@ -81,3 +81,10 @@ def test_bairro_no_fim_vira_variante_sem_ele():
     assert 'pier 21' in search.variantes('pier 21 lago sul')
     assert search.variantes('parque aguas claras') == ['parque aguas claras']   # sobraria 1 palavra: fica inteiro
     assert _busca('pier 21 lago sul')[0]['label'] == 'Pier 21'
+
+
+def test_sobra_generica_nao_vira_variante():
+    # Bateria de produção 2026-11-02: "hospital de taguatinga" virava "hospital de" e trazia o Hospital de Base.
+    assert search.variantes('hospital de taguatinga') == ['hospital de taguatinga']
+    assert search.variantes('hospital da asa norte') == ['hospital da asa norte']
+    assert 'Hospital de Base' not in [c['label'] for c in _busca('hospital de taguatinga')][:1]

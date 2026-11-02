@@ -134,3 +134,5 @@ O comparador também deixou de gravar a linha `tomtom` sem o tempo sem trânsito
 4. Heurística do A*: o limite de velocidade não incluía a velocidade livre da TomTom dos trechos monitorados.
 
 **Diagnóstico que não deu em correção:** os corredores com pouco traçado em comum (Cruzeiro → Asa Norte, Parque da Cidade → Torre, Lago Norte → SCS, Ceilândia) não têm via faltando nem sentido errado no grafo. A diferença vem da escolha de rota (pesos) e, no Parque da Cidade, do ponto de origem dentro do parque, a 341 m da rede de carros.
+
+**Bateria de busca em produção** (79 pontos famosos × 5 jeitos de digitar, `scripts/bateria_busca.py`): top 5 de 72,7% para 94,7%, top 1 de 58,7% para 84,8%, estações de metrô de 49,6% para 99,3%, nenhum ponto sem acerto, mediana de 515 → 504 ms. Sobram: erros de digitação em palavra curta de via da malha ("eixo rodoviraio"), lugares que nem o OSM nem a TomTom têm com esse nome (Águas Claras Shopping, "Museu Nacional da República") e artefatos do gabarito (Eixão, UnB e parques: o centro do polígono fica longe da entrada que a busca devolve).

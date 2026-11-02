@@ -190,7 +190,11 @@ def variantes(qn: str) -> List[str]:
     fim = max((t for t in _bairros_tok if t and all(w.isalpha() for w in t)
                and len(t) < len(toks) - 1 and toks[-len(t):] == t), key=len, default=None)
     if fim:
-        reduzidas.append(' '.join(toks[:-len(fim)]))
+        resto = toks[:-len(fim)]
+        while resto and resto[-1] in LIGACOES:   # "hospital de [taguatinga]" -> "hospital": genérico demais
+            resto = resto[:-1]
+        if sum(1 for w in resto if w not in LIGACOES) >= 2:
+            reduzidas.append(' '.join(resto))
     for v in reduzidas:
         if v not in saida:
             saida.append(v)
