@@ -94,7 +94,11 @@ def test_fusao_lia_decide_onde_enxerga_e_tomtom_so_troca_com_ganho_claro():
     assert trajeto.escolher(700, 0, 875, None) == ('lia', 875, None)
     # Alternativa 20% mais rápida segundo a TomTom → troca; 4% → mantém a LIA.
     fonte, tempo, outra = trajeto.escolher(710, 67, 875, 700)
-    assert fonte == 'tomtom' and outra - tempo >= trajeto.MARGEM_ABS_S
+    assert fonte == 'tomtom' and tempo == 700  # ETA da própria TomTom: reescalar levava o viés da LIA
+    assert outra == 0.67 * 710 + 0.33 * 875     # a rota da LIA continua com o tempo misto
+    # Decisão na régua da TomTom: 12% mais rápida mas só 50 s de ganho não troca.
+    assert trajeto.escolher(400, 100, 420, 370)[0] == 'lia'
+    assert trajeto.escolher(400, 100, 900, 780) == ('tomtom', 780, 400)
     assert trajeto.escolher(710, 67, 875, 840)[0] == 'lia'
     assert trajeto.escolher(600, 50, None, None) == ('lia', 600, None)  # TomTom fora do ar
 

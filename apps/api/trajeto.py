@@ -156,18 +156,20 @@ def escolher(tempo_lia_s: float, cobertura_pct: float,
              eta_tt_nossa: Optional[float], eta_tt_melhor: Optional[float]) -> Tuple[str, float, Optional[float]]:
     """Decide entre a rota da LIA e a alternativa da TomTom.
 
-    Devolve (fonte, tempo da escolhida, tempo da outra). A alternativa recebe a
-    mesma calibração LIA/TomTom observada na rota da LIA (mesmo corredor, agora),
-    e só vence se a própria TomTom a considerar claramente mais rápida — a LIA
-    tem a palavra onde enxerga; a TomTom decide quando a LIA está cega.
+    Devolve (fonte, tempo da escolhida, tempo da outra). A troca é decidida pela
+    própria TomTom, com a mesma régua nos dois trajetos: a alternativa só vence
+    se for claramente mais rápida que o trajeto da LIA. Cada rota é exibida com o
+    tempo da sua fonte: a da LIA com o tempo misto, a da TomTom com o ETA da
+    TomTom. Até 2026-11-02 a rota da TomTom era reescalada pela razão LIA/TomTom
+    do outro trajeto, o que levava o otimismo da LIA para ela: −24,3% contra a
+    TomTom e −17,2% contra o Mapbox em 89 casos do comparador.
     """
     misto = tempo_misto(tempo_lia_s, cobertura_pct, eta_tt_nossa)
     if not eta_tt_nossa or not eta_tt_melhor:
         return 'lia', misto, None
-    misto_melhor = eta_tt_melhor * (misto / eta_tt_nossa)
     ganho_claro = (eta_tt_melhor <= eta_tt_nossa * (1 - MARGEM_REL)
-                   and misto - misto_melhor >= MARGEM_ABS_S)
-    return ('tomtom', misto_melhor, misto) if ganho_claro else ('lia', misto, misto_melhor)
+                   and eta_tt_nossa - eta_tt_melhor >= MARGEM_ABS_S)
+    return ('tomtom', eta_tt_melhor, misto) if ganho_claro else ('lia', misto, eta_tt_melhor)
 
 
 if __name__ == '__main__':
@@ -175,7 +177,7 @@ if __name__ == '__main__':
     assert escolher(700, 100, 875, None) == ('lia', 700, None)  # cobertura total: vale a LIA
     assert escolher(700, 0, 875, None) == ('lia', 875, None)  # sem cobertura: vale a TomTom
     fonte, t, alt = escolher(710, 67, 875, 700)  # TomTom 20% mais rápida e ganha > 60 s
-    assert fonte == 'tomtom' and alt - t >= MARGEM_ABS_S
+    assert (fonte, t) == ('tomtom', 700)  # exibida com o ETA da própria TomTom, sem reescala
     assert escolher(710, 67, 875, 840)[0] == 'lia'  # só 4% melhor: fica a LIA
     assert escolher(600, 50, None, None) == ('lia', 600, None)  # TomTom fora do ar
     linha = [[-15.79 - i * 0.001, -47.88] for i in range(500)]  # ~55 km em linha
