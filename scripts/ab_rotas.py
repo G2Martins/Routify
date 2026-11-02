@@ -11,12 +11,11 @@ sensores virtuais. Rode de services/collector (usa o comparador e o pool de chav
 viagens.json = [[id, nome, [lat, lon], [lat, lon]], ...]; sem ele, os 16 corredores do comparador.
 Exemplo de conjunto: scripts/viagens_buracos.json (as maiores lacunas de sensor da auditoria do grafo).
 """
-import json, statistics, sys, time
+import json, os, statistics, sys, time
 sys.path.insert(0, '.')  # services/collector
 import requests
 import comparar_provedores as cp
 
-import os
 APIS = dict(x.split('=', 1) for x in os.environ.get('APIS', 'A=http://127.0.0.1:8011,B=http://127.0.0.1:8012').split(','))
 s = requests.Session()
 tt_propria = cp.provedores()['tomtom']
