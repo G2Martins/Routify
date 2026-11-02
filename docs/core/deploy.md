@@ -268,3 +268,49 @@ o dono a acrescenta em `/home/ubuntu/.ssh/authorized_keys` na EC2 e libera o IP 
 
 IAM → *Users* → `pedro` → *Security credentials* → *Console sign-in* → **Disable** (ou *Delete user*).
 Se tinha SSH: tirar a linha de `authorized_keys` e a regra do security group.
+
+### 5.6 Acesso por linha de comando (automação: assistente, scripts, Actions)
+
+Para alguém (ou algo) operar a EC2 **sem** o console: AWS CLI + um usuário IAM só pra isso. É a única forma de um
+agente local (ex.: o assistente desta máquina) editar a regra de SSH, mandar comandos pela instância (SSM) e
+ligar/desligar a máquina. Custo: uma *access key* de longa duração em `~/.aws/credentials`, em texto claro.
+Mitigação: política mínima abaixo, **a key é colada pelo dono no próprio terminal** (`aws configure --profile routify`),
+nunca passa pelo chat, e é apagada em IAM quando a tarefa acaba (ou rotacionada a cada 90 dias).
+
+1. IAM → *Users* → *Create user* → `claude-ops` → **sem** acesso ao console → *Attach policies directly* →
+   *Create policy* → JSON abaixo (trocar `<id-da-conta>`, `<id-da-instância>` e `<sg-id>`) → nome `RoutifyOperacaoCLI`.
+2. Usuário → *Security credentials* → *Create access key* → *Command Line Interface* → baixar o CSV (não commitar).
+3. Na máquina que vai operar: `winget install --id Amazon.AWSCLI -e` e, para shell/scp pelo SSM,
+   `winget install --id Amazon.SessionManagerPlugin -e` (ou o instalador em docs.aws.amazon.com/systems-manager).
+4. `aws configure --profile routify` (região `us-east-1`, saída `json`). Teste sem segredo no chat:
+   `aws --profile routify sts get-caller-identity`.
+5. Com o Session Manager ativo (§5.1), SSH passa pelo SSM e a porta 22 pode ficar fechada no security group:
+   `ssh -i <chave.pem> -o ProxyCommand="aws --profile routify ssm start-session --target %h --document-name AWS-StartSSHSession --parameters portNumber=%p" ubuntu@<id-da-instância>`.
+   Sem o plugin, `aws ssm send-command --document-name AWS-RunShellScript` roda scripts sem shell interativo.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Sid": "Ler", "Effect": "Allow",
+      "Action": ["ec2:Describe*", "ssm:DescribeInstanceInformation", "ssm:GetCommandInvocation", "ssm:ListCommandInvocations"],
+      "Resource": "*" },
+    { "Sid": "RegraSSH", "Effect": "Allow",
+      "Action": ["ec2:AuthorizeSecurityGroupIngress", "ec2:RevokeSecurityGroupIngress", "ec2:ModifySecurityGroupRules"],
+      "Resource": "arn:aws:ec2:us-east-1:<id-da-conta>:security-group/<sg-id>" },
+    { "Sid": "LigarDesligar", "Effect": "Allow",
+      "Action": ["ec2:StartInstances", "ec2:StopInstances", "ec2:RebootInstances"],
+      "Resource": "arn:aws:ec2:us-east-1:<id-da-conta>:instance/<id-da-instância>" },
+    { "Sid": "ComandosPeloSSM", "Effect": "Allow",
+      "Action": ["ssm:SendCommand", "ssm:StartSession"],
+      "Resource": ["arn:aws:ec2:us-east-1:<id-da-conta>:instance/<id-da-instância>",
+                   "arn:aws:ssm:us-east-1::document/AWS-RunShellScript",
+                   "arn:aws:ssm:us-east-1::document/AWS-StartSSHSession"] },
+    { "Sid": "EncerrarPropriasSessoes", "Effect": "Allow",
+      "Action": ["ssm:TerminateSession"],
+      "Resource": "arn:aws:ssm:*:*:session/claude-ops-*" }
+  ]
+}
+```
+
+Revogar: IAM → *Users* → `claude-ops` → *Security credentials* → *Deactivate*/*Delete* a access key.
