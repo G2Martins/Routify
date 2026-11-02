@@ -1,0 +1,12 @@
+[
+ ["buraco-planaltina-sobradinho", "Planaltina -> Sobradinho", [-15.619, -47.644], [-15.652, -47.791]],
+ ["buraco-recanto-taguatinga", "Recanto -> Taguatinga", [-15.928, -48.105], [-15.833, -48.056]],
+ ["buraco-itapoa-rodoviaria", "Itapoa -> Rodoviaria", [-15.743, -47.767], [-15.7939, -47.8828]],
+ ["buraco-saosebastiao-rodoviaria", "Sao Sebastiao -> Rodoviaria", [-15.897, -47.778], [-15.7939, -47.8828]],
+ ["buraco-samambaia-taguatinga", "Samambaia -> Taguatinga", [-15.875, -48.077], [-15.833, -48.056]],
+ ["buraco-ceilandia-taguatinga", "Ceilandia -> Taguatinga", [-15.811, -48.131], [-15.833, -48.056]],
+ ["buraco-santamaria-gama", "Santa Maria -> Gama", [-16.047, -48.032], [-16.017, -48.064]],
+ ["buraco-gama-parkway", "Gama DF-001 -> Park Way", [-15.966, -48.022], [-15.905, -47.965]],
+ ["buraco-riachofundo2-bandeirante", "Riacho Fundo II -> Nucleo Bandeirante", [-15.902, -48.049], [-15.871, -47.968]],
+ ["buraco-sobradinho-rodoviaria", "Sobradinho BR-020 -> Rodoviaria", [-15.688, -47.859], [-15.7939, -47.8828]]
+]

@@ -292,3 +292,38 @@ def enrich_graph(G, sb, raio_m: float = RAIO_TRANSFER_M) -> dict:
         'raio_m': raio_m,
         'vias_monitoradas': int(len(ids_vias)),
     }
+
+
+# Grupos de via onde a leitura da TomTom faz sentido como "sensor" (a ordem é a prioridade na célula).
+_PRIORIDADE_GRUPO = {'expressa': 3, 'arterial': 2, 'coletora': 1}
+
+
+def pontos_virtuais(G, sensores: dict, raio_sem_sensor_m: float = 500.0, celula_m: float = 1000.0) -> dict:
+    """Um ponto por célula de ~1 km com via principal e nenhum sensor a `raio_sem_sensor_m`: o meio da
+    aresta mais importante da célula (expressa > arterial > coletora, depois a mais longa). Viram
+    "sensores virtuais": a API lê o fluxo da TomTom neles sob demanda (routers/route.py). A auditoria de
+    2026-11-02 achou 83% dos km do DF sem sensor a 500 m (ml/artifacts/auditoria_grafo_df.json).
+    Devolve {id: (lat, lon)} com ids negativos (não colidem com os id_ponto dos sensores reais)."""
+    from sklearn.neighbors import BallTree
+    from trajeto import grupo_via  # import local: trajeto não depende deste módulo
+    if not sensores:
+        return {}
+    coords_s = np.radians(np.array(list(sensores.values()), dtype=float))
+    arvore = BallTree(coords_s, metric='haversine')
+    melhores: dict = {}
+    for u, v, d in G.edges(data=True):
+        prioridade = _PRIORIDADE_GRUPO.get(grupo_via(_highway_principal(d.get('highway'))), 0)
+        if not prioridade:
+            continue
+        lat = (G.nodes[u]['y'] + G.nodes[v]['y']) / 2
+        lon = (G.nodes[u]['x'] + G.nodes[v]['x']) / 2
+        celula = (int(lat * 111_320 // celula_m), int(lon * 107_000 // celula_m))
+        chave = (prioridade, float(d.get('length') or 0.0))
+        if celula not in melhores or chave > melhores[celula][0]:
+            melhores[celula] = (chave, lat, lon)
+    if not melhores:
+        return {}
+    pontos = np.array([[lat, lon] for _, lat, lon in melhores.values()])
+    dist, _ = arvore.query(np.radians(pontos), k=1)
+    livres = pontos[dist[:, 0] * 6_371_000 > raio_sem_sensor_m]
+    return {-(i + 1): (round(float(a), 6), round(float(b), 6)) for i, (a, b) in enumerate(livres)}

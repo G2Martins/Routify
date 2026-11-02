@@ -66,6 +66,8 @@ class TomTomResumo(BaseModel):
     ativo: bool = Field(..., description="Há chaves TomTom configuradas.")
     degradado: bool = Field(..., description="Rota calculada só com a LIA (sem chave, cota esgotada ou TomTom fora).")
     vias_atualizadas: int = Field(0, description="Vias monitoradas do corredor lidas ao vivo (Flow Segment Data).")
+    sensores_virtuais: int = Field(0, description="Pontos sem sensor do corredor lidos na TomTom (sensores virtuais); "
+                                   "o fluxo deles vira o peso do trecho medido, onde a LIA não tinha dado.")
     arestas_interditadas: int = Field(0, description="Arestas do grafo bloqueadas por interdição no corredor.")
     interdicoes_na_rota: int = Field(0, description="Interdições que ainda tocam a rota escolhida.")
     incidentes: List[IncidenteRota] = Field([], description="Incidentes próximos à rota.")
@@ -481,7 +483,7 @@ def niveis_lia(G: nx.MultiDiGraph, nos: List[int]) -> List[Optional[int]]:
     for trecho, d in _trechos(G, nos):
         razao = d.get('lia_razao')
         nivel = (nivel_da_razao(float(razao))
-                 if razao is not None and d.get('lia_source') in ('model', 'transfer') else None)
+                 if razao is not None and d.get('lia_source') in ('model', 'transfer', 'virtual') else None)
         niveis.extend([nivel] * (len(trecho) - 1))
     return niveis
 
@@ -517,17 +519,36 @@ def _resumir_caminho(G: nx.MultiDiGraph, nos: List[int]) -> Tuple[float, float, 
     return tempo, distancia, cobertura
 
 
+# Sensores virtuais: até 3 pontos sem sensor por rota, cada leitura vale 15 min (cota do Flow).
+K_VIRTUAIS = 3
+_cache_virtuais = tomtom.CacheTTL(15 * 60, max_itens=2048)
+
+
+async def _ler_virtual(tt, ponto_id: int, lat: float, lon: float):
+    em_cache = _cache_virtuais.get(ponto_id)
+    if em_cache is not None:
+        return em_cache
+    fsd = await tt.fluxo(lat, lon)
+    leitura = (tomtom.razao_de_fluxo(fsd), tomtom.trecho_de_fluxo(fsd))
+    if leitura[0] is not None:
+        _cache_virtuais.set(ponto_id, leitura)
+    return leitura
+
+
 async def _consultar_tomtom(tt, G, origem, destino, recencia, com_referencia: bool):
-    """Uma rodada paralela: fluxo nas vias velhas do corredor + incidentes
-    (+ ETA de referência). Nunca levanta — falha vira modo degradado."""
+    """Uma rodada paralela: fluxo nas vias velhas do corredor + nos pontos sem sensor (sensores
+    virtuais) + incidentes (+ ETA de referência). Nunca levanta — falha vira modo degradado."""
     vias = G.graph.get('vias_monitoradas') or {}
     idade = recencia.idade_min if recencia is not None else (lambda _via: None)
     alvo = tomtom.selecionar_vias_corredor(vias, origem, destino, idade)
+    virtuais = G.graph.get('pontos_virtuais') or {}
+    alvo_v = tomtom.selecionar_vias_corredor(virtuais, origem, destino, lambda _p: None, k=K_VIRTUAIS, buffer_m=1200.0)
 
     tarefas = [tt.fluxo(*vias[v]) for v in alvo]
     tarefas.append(tt.incidentes(tomtom.bbox_corredor(origem, destino)))
     if com_referencia:
         tarefas.append(tt.rota_referencia(origem, destino))
+    tarefas += [_ler_virtual(tt, p, *virtuais[p]) for p in alvo_v]
     resultados = await asyncio.gather(*tarefas, return_exceptions=True)
     for r in resultados:
         if isinstance(r, Exception):
@@ -543,7 +564,8 @@ async def _consultar_tomtom(tt, G, origem, destino, recencia, com_referencia: bo
                 atualizadas += 1
     incidentes = resultados[len(alvo)] or []
     referencia = resultados[len(alvo) + 1] if com_referencia else None
-    return atualizadas, incidentes, referencia
+    leituras = [r for r in resultados[len(alvo) + 1 + int(com_referencia):] if r and r[0] is not None]
+    return atualizadas, incidentes, referencia, leituras
 
 
 _limite_ip = Limitador(20)  # cada rota gasta Flow/Incidents/Routing da TomTom
@@ -663,9 +685,9 @@ async def calculate_route(body: RouteInput, request: Request):
     # TomTom sob demanda, em paralelo: recência ao vivo nas vias velhas do
     # corredor + interdições. A rota "de referência" (GET) só é pedida fora da
     # malha ou a pedido explícito; dentro da malha a fusão reconstrói a nossa rota.
-    vias_atualizadas, incidentes_tt, referencia_tt = 0, [], None
+    vias_atualizadas, incidentes_tt, referencia_tt, leituras_virtuais = 0, [], None, []
     if tt_ativo:
-        vias_atualizadas, incidentes_tt, referencia_tt = await _consultar_tomtom(
+        vias_atualizadas, incidentes_tt, referencia_tt, leituras_virtuais = await _consultar_tomtom(
             tt, G, origem, destino, recencia_cache_obj,
             fora_da_malha or (body.referencia_tomtom and not rota_tomtom_ativa),
         )
@@ -677,6 +699,7 @@ async def calculate_route(body: RouteInput, request: Request):
             ativo=tt_ativo,
             degradado=degradado,
             vias_atualizadas=vias_atualizadas,
+            sensores_virtuais=len(leituras_virtuais),
             arestas_interditadas=len(bloqueadas),
             interdicoes_na_rota=interdicoes,
             incidentes=[IncidenteRota(**i) for i in tomtom.incidentes_na_rota(incidentes_tt, polyline)],
@@ -717,6 +740,11 @@ async def calculate_route(body: RouteInput, request: Request):
         recencia_cache_obj, transfer_confidence_obj,
         contexto_obj.para_requisicao(now, recencia_cache_obj) if contexto_obj is not None else None,
     )
+    # Sensores virtuais: o fluxo lido nos buracos vira o peso do trecho medido (antes do A*).
+    arvore_snap = getattr(request.app.state, 'arvore_nos', None)
+    if leituras_virtuais and arvore_snap is not None:
+        mudadas = trajeto.aplicar_leituras_virtuais(G, arvore_snap, leituras_virtuais)
+        logger.info(f"Sensores virtuais: {len(leituras_virtuais)} leituras, {mudadas} arestas")
     atraso_sem = float(G.graph.get('atraso_semaforo_s', 0.0))
     atraso_cruz = float(G.graph.get('atraso_cruzamento_s', 0.0))
     atraso_cruz_via = float(G.graph.get('atraso_cruzamento_via_s', 0.0))

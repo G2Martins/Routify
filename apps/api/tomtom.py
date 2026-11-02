@@ -453,6 +453,18 @@ def criar_cliente() -> TomTomClient:
 # Geometria (funções puras — testadas em tests/test_tomtom.py)
 # ---------------------------------------------------------------------------
 
+def trecho_de_fluxo(fsd: Optional[dict]) -> List[Tuple[float, float]]:
+    """Coordenadas (lat, lon) do trecho que o Flow Segment Data mediu, na ordem em que vieram."""
+    pontos = ((fsd or {}).get('coordinates') or {}).get('coordinate') or []
+    saida = []
+    for p in pontos:
+        try:
+            saida.append((float(p['latitude']), float(p['longitude'])))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return saida
+
+
 def razao_de_fluxo(fsd: Optional[dict]) -> Optional[float]:
     """Mesma definição do alvo de treino: velocidade atual / velocidade livre."""
     if not fsd:

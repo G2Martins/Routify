@@ -259,10 +259,11 @@ def test_consultar_tomtom_atualiza_recencia_e_devolve_incidentes_e_referencia():
                      {'points': [{'latitude': -15.80, 'longitude': -47.80}]}]}]})
 
     rc = recency_cache.RecenciaCache()
-    atualizadas, incidentes, ref = _rodar(
+    atualizadas, incidentes, ref, leituras = _rodar(
         _cliente(handler),
         lambda c: route._consultar_tomtom(c, G, (-15.80, -47.90), (-15.80, -47.80), rc, True),
     )
+    assert leituras == []  # grafo sem pontos virtuais
     assert atualizadas == 2  # via 3 está fora do corredor
     assert rc.get(1)['razao_lag1'] == 0.25 and rc.get(3) is None
     assert len(incidentes) == 1

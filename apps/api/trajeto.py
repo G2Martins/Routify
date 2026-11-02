@@ -252,6 +252,31 @@ def preencher_com_tomtom(polyline: List[List[float]], niveis: List[Optional[int]
     return saida
 
 
+def aplicar_leituras_virtuais(G: nx.MultiDiGraph, arvore: 'ArvoreNos', leituras, tol_m: float = 25.0) -> int:
+    """Sensores virtuais: cada leitura (razão, coordenadas do trecho que a TomTom mediu, na ordem do
+    sentido medido) vira o peso das arestas desse trecho que ainda estavam sem dado (heurística). Só o
+    sentido medido; só arestas que o A* ia estimar pela média. Devolve quantas arestas mudaram.
+    Chamar depois de assign_lia_weights e antes do A*, sem await no meio (grafo compartilhado)."""
+    from lia_inference import tempo_de_razao  # import local: lia_inference puxa o modelo
+    mudadas = 0
+    for razao, coords in leituras:
+        if razao is None or not coords or len(coords) < 2:
+            continue
+        nos, dists = arvore.snap_varios(coords)
+        seq = [n for n, dist in zip(nos, dists) if dist <= tol_m]
+        for a, b in zip(seq, seq[1:]):
+            if a == b or not G.has_edge(a, b):
+                continue
+            for d in G[a][b].values():
+                if d.get('lia_source') != 'heuristic':
+                    continue
+                d['travel_time_lia'] = tempo_de_razao(float(d.get('length') or 0.0), float(d.get('speed_kph') or 50.0), razao)
+                d['lia_source'] = 'virtual'
+                d['lia_razao'] = round(float(razao), 4)
+                mudadas += 1
+    return mudadas
+
+
 def contar_semaforos(G: nx.MultiDiGraph, nos: List[int]) -> int:
     return sum(1 for v in nos[1:] if G.nodes[v].get('highway') == 'traffic_signals')
 
