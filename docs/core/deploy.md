@@ -1,6 +1,6 @@
 # Deploy em produção (custo zero)
 
-**Última revisão:** 2026-11-01
+**Última revisão:** 2026-11-02
 
 Topologia decidida em 2026-09-23: o projeto é acadêmico e precisa custar **zero** até dez/2026
 (ver `CLAUDE.md` §6). Domínios ficam fora do repo: aqui `<app>` é o domínio do front e
@@ -180,7 +180,8 @@ Billing (5.1 item 1) e, se não houver, o budget (5.1 item 3).
    - IAM → *Roles* → *Create role* → *AWS service* → *EC2* → policy **`AmazonSSMManagedInstanceCore`** → nome `routify-ec2-ssm`.
    - EC2 → instância → *Actions* → *Security* → **Modify IAM role** → `routify-ec2-ssm`.
    - O Ubuntu 24.04 da AWS já traz o SSM Agent (snap). Em 1–2 min a instância aparece em
-     *Systems Manager → Fleet Manager*. Se não aparecer: `sudo snap start amazon-ssm-agent` por SSH.
+     *Systems Manager → Fleet Manager*. Se não aparecer: `sudo snap restart amazon-ssm-agent` por SSH (o agente guarda o estado "sem role" de antes
+     da associação; em 2026-11-02 ficou offline até esse restart).
    - Teste: EC2 → instância → *Connect* → aba **Session Manager** → *Connect*. Abre um shell como `ssm-user` (tem `sudo`).
    - Com isso funcionando, a regra de SSH do security group pode ficar fechada (ou só pro dono).
 3. **Alarme de custo:** *Billing and Cost Management* → *Budgets*. Deve existir o budget da decisão de 2026-09-23;

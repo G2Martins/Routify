@@ -2,7 +2,7 @@
 
 > **Spec viva.** Porta de entrada lida pelo agente toda sessão. Não duplica os docs profundos — **aponta** pra eles. Atualize quando uma regra, comando, módulo ou hurdle mudar.
 >
-> **Última revisão:** 2026-11-01
+> **Última revisão:** 2026-11-02
 > **Estado/decisões:** [.planning/STATE.md](.planning/STATE.md) · **Análise da plataforma (fase final TCC 2):** [.planning/research/2026-09-22-analise-plataforma.md](.planning/research/2026-09-22-analise-plataforma.md)
 
 ---
@@ -138,7 +138,7 @@ CI (`.github/workflows/`):
   - O Incident Details não aceita `pt-BR`; usar `pt-PT`.
   - A confirmar no painel my.tomtom.com: se a conta nova não tem cota diária adicional.
 - **Cobertura temporal do dataset é enviesada** (`ml/artifacts/cobertura_dataset.json`): na maioria dos dias o pool só rendeu ~2.520 linhas (4 ciclos logo após 00:00 UTC) e 64% das linhas vêm de 12 dias "cheios"; a hora 21h (Brasília) tem 23% das linhas e sábado/domingo têm 1/8 da segunda. Explica parte da subestimativa diurna da Fase 3 e motivou a volta da coleta. Declarar como limitação.
-- **SSH na EC2: o security group só libera o IP do dono** (`/32`). IP residencial muda → `Connection timed out`. Atualizar a regra no console (EC2 → Security Groups → Inbound → SSH) ou usar o Session Manager (ver `docs/core/deploy.md` §5). Sem AWS CLI/credencial na máquina, o assistente não consegue abrir o SG sozinho.
+- **SSH na EC2: o security group só libera o IP de casa do dono** (`/32`). VPN ligada sai por outro IP → `Connection timed out`: desligar a VPN. Desde 2026-11-02 a instância tem a role `routify-ec2-ssm` (Session Manager: shell sem porta 22) e existe o usuário IAM `claude-ops` (política `RoutifyOperacaoCLI`: regra SSH, start/stop, comandos via SSM), usado pelo assistente com `aws --profile routify`. A access key fica só em `~/.aws/credentials`, colada pelo dono; o assistente nunca lê esse arquivo. Tudo criado por `scripts/aws-bootstrap.sh` no CloudShell (deploy.md §5.0). Depois de associar a role, o SSM Agent só registra após `sudo snap restart amazon-ssm-agent`.
 - **httpx loga a URL inteira em INFO** (`?key=…&point=lat,lon`): `tomtom.py` põe `httpx`/`httpcore` em WARNING e o uvicorn roda com `--no-access-log`. Teste `test_log_info_nao_contem_chave_nem_url`. Logs antigos da EC2 (`journalctl`) podem ter chaves: limpar com `journalctl --rotate && journalctl --vacuum-time=1s` depois do deploy.
 - **Pool de 39 chaves × ToS TomTom §14.2** — os termos permitem suspender contas criadas pra obter requisições grátis adicionais. Declarar na tese como risco/limitação de protótipo acadêmico.
 - **Flow Segment Data só existe na API Genesis v4** (`/traffic/services/4/flowSegmentData`). O traffic flow do Orbis v2 é só tiles. Incidents, Routing e Search já têm versão Orbis, mas o código usa as versões Genesis estáveis.

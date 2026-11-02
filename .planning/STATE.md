@@ -1,6 +1,6 @@
 # STATE — Routify
 
-**Última revisão:** 2026-11-01
+**Última revisão:** 2026-11-02
 
 Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) · Pesquisa de traçado/contexto/APIs: [research/2026-09-23-tracado-contexto-apis.md](research/2026-09-23-tracado-contexto-apis.md) · **Análise de melhorias + estratégia de testes (2026-11-01):** [research/2026-11-01-analise-melhorias-e-testes.md](research/2026-11-01-analise-melhorias-e-testes.md)
 
@@ -17,7 +17,7 @@ Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) 
 | F10 Deploy (AWS + Hostinger + Actions) | **no ar desde 2026-09-23** (conferido em 2026-11-01: `/health` 200, LIA 2.2; front 200). Falta: GitHub Actions |
 | F12 LIA 2.2 (contexto) | **feita**: vizinhos + chuva + feriado, mesmo código no treino e na API; padrão da API; estresse treino × produção versionado |
 | F11 Traçado + fusão LIA × TomTom | **feita e validada ao vivo**: grafo 38 km, conector tracejado, `entryPoints`, fusão por `supportingPoints`, semáforos OSM (271 cruzamentos) + calibração |
-| F13 Coleta na EC2 (cadência pela cota) | **código pronto e testado** (17 testes do coletor, 0 antes); unidade, instalador e docs prontos. **Deploy bloqueado:** o security group só libera o IP antigo do dono e esta máquina não tem AWS CLI/credencial. Falta: dono libera o IP (ou ativa o Session Manager) → `instalar-ec2.sh` |
+| F13 Coleta na EC2 (cadência pela cota) | **no ar desde 2026-11-02 00:23 (Brasília)**: `routify-collector` ativo na EC2, 1º lote = 630 linhas de 630 pontos no banco, 36 MB de RAM, API seguiu 200. Cadência de 43 min: confirmar pelo intervalo entre o 1º e o 2º lote |
 | F14 Análise de melhorias + estratégia de testes | **entregue** (4 revisões: API/segurança, ML, front, DB/CI) com backlog priorizado e evidência arquivo:linha; artefato `cobertura_dataset.json` |
 
 ## Verificado nesta sessão (2026-11-01)
@@ -27,7 +27,14 @@ Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) 
 - Pricing (docs.tomtom.com/pricing): "Free monthly requests per API" — Flow Segment Data 20k, Incidents 2,5k, Routing 20k, Search 2,5k. A página não diz se é por conta ou por chave.
 - Dataset (`ml/artifacts/cobertura_dataset.json`): 1.513.824 linhas, 2026-03-07 → 2026-07-19, 630 pontos, 134 dias com coleta. **13 dias cheios (≥ 50 mil linhas) concentram 68,5% das linhas**; mediana 2.561 linhas/dia (4 ciclos, logo após 00:00 UTC); a hora 21h (Brasília) tem 23,3% das linhas; fim de semana = 21% do volume de um dia útil.
 - pytest API: **63 passed** (1 novo: `test_log_info_nao_contem_chave_nem_url`). Coletor: **17 passed**. `compileall` ok.
-- SSH `52.206.16.48:22` → `Connection timed out` (IP atual do dono fora do security group).
+- SSH `52.206.16.48:22` → `Connection timed out`: o security group tinha um IP antigo, e a VPN do dono sai por outro IP.
+
+## Verificado em 2026-11-02 (deploy)
+
+- `scripts/aws-bootstrap.sh` no CloudShell: porta 22 só para o IP de casa do dono; role `routify-ec2-ssm` associada (o agente só registrou depois de `snap restart`; health check a cada 5 min, sem erro); usuários IAM `pedro` (console + MFA obrigatória) e `claude-ops` (CLI, `RoutifyOperacaoCLI`) criados; 1 budget na conta.
+- Código da branch `coleta-aws-analise` (`a716681`) extraído em `/opt/routify`; `instalar-ec2.sh` e `provisionar-ec2.sh` rodaram; `/health` público 200 (39 chaves, todas disponíveis).
+- Journal rotacionado e limpo: 0 linhas com `key=` depois da coleta ligada.
+- `historico_trafego`: 630 linhas novas (630 pontos, `03:25:57` UTC), 0 inválidas; razão média 1,000 × 0,999 no histórico da mesma hora (0h de Brasília).
 
 ## Decisões tomadas (2026-11-01)
 
@@ -49,8 +56,11 @@ Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) 
 
 ## Próximos passos
 
-- [ ] **Dono:** rodar `scripts/aws-bootstrap.sh` no CloudShell (porta 22 só pro IP de casa + Session Manager + usuários IAM; deploy.md §5.0) → extrair o código (`git archive`) → `sudo bash /opt/routify/services/collector/deploy/instalar-ec2.sh` → re-rodar `provisionar-ec2.sh` (unidade da API com `--no-access-log`, Caddy com teto) → `sudo journalctl --rotate && sudo journalctl --vacuum-time=1s`.
-- [ ] **Dono:** criar o usuário IAM do Pedro (deploy.md §5.2) e ativar o Session Manager (§5.1).
+- [x] Bootstrap AWS (`scripts/aws-bootstrap.sh`) + deploy do coletor e da API (2026-11-02).
+- [ ] **Dono:** `aws configure --profile routify` com a access key do `claude-ops`, num terminal próprio (nunca no chat). Depois o assistente confere `sts get-caller-identity` e o SSM `Online`.
+- [ ] **Dono:** console → conta → ativar o acesso de usuários IAM ao Billing (só o root faz).
+- [ ] **Pedro:** 1º login (URL + senha temporária entregues pelo dono) → trocar senha → MFA → testar EC2 → Connect → Session Manager.
+- [ ] Merge de `coleta-aws-analise` em `main` + push (o CI roda os testes do coletor). Pede OK do dono.
 - [ ] Testes P0 da análise: limite por IP antes do auth em `/eventos` e `/admin`; TestClient HTTP (422 com NaN/extra/fora do DF, 429 com `Retry-After`, 401/403 do admin); contrato modelo ↔ metadata; migrations + RLS no CI (pgTAP).
 - [ ] `route_history`: grant de INSERT por coluna + CHECKs (ou a API persiste).
 - [ ] Backup semanal do dataset (Action com `pg_dump` cifrado).
