@@ -42,13 +42,14 @@ begin
 
   return (
     with c as (
-      select rodada_em, corredor, provedor, com_transito, tempo_s, distancia_km, erro
+      select rodada_em, corredor, provedor, com_transito, tempo_s, distancia_km, erro, detalhes
       from public.comparacao_provedores where rodada_em >= inicio
     ), ref as (            -- referência: a TomTom com trânsito ao vivo, na rota dela
       select rodada_em, corredor, tempo_s as ref_s from c where provedor = 'tomtom' and tempo_s > 0
     ), pares as (
       select c.provedor, c.corredor, c.tempo_s, r.ref_s,
              100.0 * (c.tempo_s - r.ref_s) / r.ref_s as erro_pct,
+             (c.detalhes ->> 'traco_comum_tomtom_pct')::numeric as traco,  -- % do traçado igual ao da TomTom
              extract(hour from c.rodada_em at time zone 'America/Sao_Paulo')::int as hora
       from c join ref r using (rodada_em, corredor)
       where c.tempo_s > 0 and c.provedor <> 'tomtom'
@@ -76,10 +77,12 @@ begin
               from c group by provedor) s), '[]'::jsonb),
       'vs_tomtom', coalesce((select jsonb_agg(jsonb_build_object(
           'provedor', provedor, 'n', n, 'vies_mediano_pct', round(vies::numeric, 1),
-          'mape_pct', round(mape::numeric, 1), 'pct_ate_20', round(dentro::numeric, 1)) order by mape)
+          'mape_pct', round(mape::numeric, 1), 'pct_ate_20', round(dentro::numeric, 1),
+          'traco_comum_pct', round(traco::numeric, 1)) order by mape)
         from (select provedor, count(*) as n,
                      percentile_cont(0.5) within group (order by erro_pct) as vies,
-                     avg(abs(erro_pct)) as mape, 100.0 * avg((abs(erro_pct) <= 20)::int) as dentro
+                     avg(abs(erro_pct)) as mape, 100.0 * avg((abs(erro_pct) <= 20)::int) as dentro,
+                     avg(traco) as traco
               from pares group by provedor) s), '[]'::jsonb),
       'lia_mesmo_trajeto', (select jsonb_build_object(
           'n', count(*), 'vies_mediano_pct', round((percentile_cont(0.5) within group (order by erro_pct))::numeric, 1),
@@ -91,8 +94,10 @@ begin
               from pares group by provedor, hora) s), '[]'::jsonb),
       'por_corredor', coalesce((select jsonb_agg(jsonb_build_object(
           'corredor', corredor, 'provedor', provedor, 'n', n, 'tempo_medio_s', round(t::numeric, 0),
-          'ref_medio_s', round(r::numeric, 0), 'erro_medio_pct', round(e::numeric, 1)) order by corredor, provedor)
-        from (select corredor, provedor, count(*) as n, avg(tempo_s) as t, avg(ref_s) as r, avg(erro_pct) as e
+          'ref_medio_s', round(r::numeric, 0), 'erro_medio_pct', round(e::numeric, 1),
+          'traco_comum_pct', round(tr::numeric, 1)) order by corredor, provedor)
+        from (select corredor, provedor, count(*) as n, avg(tempo_s) as t, avg(ref_s) as r, avg(erro_pct) as e,
+                     avg(traco) as tr
               from pares group by corredor, provedor) s), '[]'::jsonb),
       'ultima', coalesce((select jsonb_agg(jsonb_build_object(
           'corredor', corredor, 'provedor', provedor, 'tempo_s', tempo_s, 'distancia_km', distancia_km, 'erro', erro)

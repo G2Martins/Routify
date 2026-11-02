@@ -5,7 +5,8 @@ import comparar_provedores as cp
 
 ROTA = {'tempo_lia_seg': 1500, 'tempo_total_seg': 1450, 'distancia_km': 21.3, 'fonte_rota': 'lia',
         'lia_cobertura_pct': 88.0, 'modelo_utilizado': 'lia_2.3', 'hora_partida': 18, 'alternativa': None,
-        'tomtom': {'referencia_tempo_seg': 1600, 'referencia_atraso_seg': 300}}
+        'tomtom': {'referencia_tempo_seg': 1600, 'referencia_atraso_seg': 300},
+        'polyline': [[-15.8, -48.0], [-15.8, -47.98]]}
 
 
 class _Resp:
@@ -35,7 +36,7 @@ class _Sessao:
 
 
 def test_routify_devolve_lia_rota_exibida_e_tomtom_no_mesmo_trajeto():
-    s = _Sessao({'/route': _Resp(ROTA)})
+    s = _Sessao({'8000/route': _Resp(ROTA)})
     r = cp.routify((-15.8, -48.0), (-15.79, -47.88), s)
     assert set(r) == {'lia', 'routify', 'tomtom_mesmo_trajeto'}
     assert (r['lia']['tempo_s'], r['lia']['distancia_km']) == (1500, 21.3)
@@ -45,14 +46,14 @@ def test_routify_devolve_lia_rota_exibida_e_tomtom_no_mesmo_trajeto():
 
 def test_quando_a_tomtom_vence_a_distancia_da_lia_vem_da_alternativa():
     rota = {**ROTA, 'fonte_rota': 'tomtom', 'alternativa': {'fonte': 'lia', 'distancia_km': 19.8}}
-    r = cp.routify((0, 0), (1, 1), _Sessao({'/route': _Resp(rota)}))
+    r = cp.routify((0, 0), (1, 1), _Sessao({'8000/route': _Resp(rota)}))
     assert r['lia']['distancia_km'] == 19.8 and r['tomtom_mesmo_trajeto']['distancia_km'] == 19.8
     assert r['routify']['distancia_km'] == 21.3
 
 
 def test_fora_da_malha_a_lia_fica_sem_tempo_e_sem_referencia_de_trajeto():
     for rota in ({**ROTA, 'tempo_lia_seg': None}, {**ROTA, 'fora_da_malha': True}):
-        r = cp.routify((0, 0), (1, 1), _Sessao({'/route': _Resp(rota)}))
+        r = cp.routify((0, 0), (1, 1), _Sessao({'8000/route': _Resp(rota)}))
         assert r['lia']['tempo_s'] is None and 'fora da malha' in r['lia']['erro']
         assert 'tomtom_mesmo_trajeto' not in r
 
@@ -74,7 +75,7 @@ def test_cada_provedor_externo_le_tempo_e_distancia():
 
 
 def test_erro_http_nunca_grava_a_url_com_a_chave():
-    s = _Sessao({'/route': _Resp(ROTA),
+    s = _Sessao({'8000/route': _Resp(ROTA),
                  'tomtom': lambda url: _Resp({}, 403, url)})
     externos = {'tomtom': lambda o, d, ses: cp.tomtom(o, d, 'SEGREDO123', ses)}
     linhas = cp.rodada(cp.CORREDORES[:1], sessao=s, externos=externos, pausa_s=0)
@@ -84,10 +85,12 @@ def test_erro_http_nunca_grava_a_url_com_a_chave():
 
 
 def test_rodada_gera_uma_linha_por_provedor_com_a_marca_de_transito():
-    s = _Sessao({'/route': _Resp(ROTA), 'project-osrm': _Resp({'routes': [{'duration': 900, 'distance': 15000}]})})
+    s = _Sessao({'8000/route': _Resp(ROTA), 'project-osrm': _Resp({'routes': [{'duration': 900, 'distance': 15000}]})})
     linhas = cp.rodada(cp.CORREDORES[:2], sessao=s, externos={'osrm': cp.osrm}, pausa_s=0)
     assert len(linhas) == 2 * 4
     assert {l['rodada_em'] for l in linhas} == {linhas[0]['rodada_em']}
+    assert all('_traco' not in l for l in linhas)  # traçado bruto nunca vai ao banco
+    assert [l['tempo_s'] for l in linhas if l['provedor'] == 'osrm'] == [900, 900]
     assert {(l['provedor'], l['com_transito']) for l in linhas} == {
         ('lia', True), ('routify', True), ('tomtom_mesmo_trajeto', True), ('osrm', False)}
 
@@ -98,3 +101,35 @@ def test_provedores_opcionais_so_entram_com_chave(monkeypatch):
     assert set(cp.provedores()) == {'osrm', 'tomtom'}
     monkeypatch.setenv('MAPBOX_TOKEN', 't')
     assert 'mapbox' in cp.provedores()
+
+
+# --- Traçado ---------------------------------------------------------------------
+LINHA = [(-15.8, -48.0 + i * 0.002) for i in range(11)]          # ~2,1 km para leste
+PARALELA = [(-15.8 + 0.0018, lon) for _, lon in LINHA]            # ~200 m ao norte
+METADE = LINHA[:6]
+
+
+def test_sobreposicao_identica_paralela_e_parcial():
+    assert cp.sobreposicao_pct(LINHA, LINHA) == 100.0
+    assert cp.sobreposicao_pct(LINHA, PARALELA) == 0.0
+    assert 45 <= cp.sobreposicao_pct(LINHA, METADE) <= 55       # metade de A está em B
+    assert cp.sobreposicao_pct(METADE, LINHA) == 100.0          # B inteira está em A
+    assert cp.traco_comum_pct(LINHA, METADE) == cp.sobreposicao_pct(LINHA, METADE)
+    assert cp.sobreposicao_pct([], LINHA) is None and cp.traco_comum_pct(LINHA, [(0, 0)]) is None
+
+
+def test_rodada_anota_o_traco_em_comum_com_a_tomtom():
+    pontos_tt = [{'latitude': la, 'longitude': lo} for la, lo in LINHA]
+    s = _Sessao({
+        '8000/route': _Resp({**ROTA, 'polyline': [list(p) for p in LINHA]}),
+        'tomtom': _Resp({'routes': [{'summary': {'travelTimeInSeconds': 300, 'lengthInMeters': 2100},
+                                      'legs': [{'points': pontos_tt}]}]}),
+        'project-osrm': _Resp({'routes': [{'duration': 250, 'distance': 2100,
+                                           'geometry': {'coordinates': [[lo, la] for la, lo in PARALELA]}}]}),
+    })
+    externos = {'tomtom': lambda o, d, ses: cp.tomtom(o, d, 'k', ses), 'osrm': cp.osrm}
+    linhas = {l['provedor']: l for l in cp.rodada(cp.CORREDORES[:1], sessao=s, externos=externos, pausa_s=0)}
+    assert linhas['lia']['detalhes']['traco_comum_tomtom_pct'] == 100.0
+    assert linhas['routify']['detalhes']['traco_comum_tomtom_pct'] == 100.0
+    assert linhas['osrm']['detalhes']['traco_comum_tomtom_pct'] == 0.0
+    assert 'traco_comum_tomtom_pct' not in (linhas['tomtom']['detalhes'] or {})

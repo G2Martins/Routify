@@ -190,7 +190,8 @@ export type ComparacaoProvedores = {
   ultima_rodada: string | null;
   corredores: number;
   provedores: { provedor: string; com_transito: boolean; n_ok: number; n_falhas: number }[];
-  vs_tomtom: (ErroContraTomTom & { provedor: string })[];
+  /** traco_comum_pct: % da rota igual à da TomTom (até 40 m, nos dois sentidos), média da janela. */
+  vs_tomtom: (ErroContraTomTom & { provedor: string; traco_comum_pct?: number | null })[];
   lia_mesmo_trajeto: ErroContraTomTom;
   por_hora: { provedor: string; hora: number; n: number; vies_mediano_pct: number | null }[];
   por_corredor: {
@@ -200,6 +201,7 @@ export type ComparacaoProvedores = {
     tempo_medio_s: number | null;
     ref_medio_s: number | null;
     erro_medio_pct: number | null;
+    traco_comum_pct?: number | null;
   }[];
   ultima: { corredor: string; provedor: string; tempo_s: number | null; distancia_km: number | null; erro: string | null }[];
   rotas_reais: ErroContraTomTom & {

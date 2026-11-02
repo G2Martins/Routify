@@ -263,9 +263,9 @@ export function TabelaProvedores({ d }: { d: ComparacaoProvedores }) {
     <Cartao
       titulo="Cada provedor contra a TomTom"
       atraso={200}
-      nota="Pares = mesma viagem, mesma rodada. Respostas e falhas contam todas as linhas gravadas na janela, inclusive as que não formaram par."
+      nota="Pares = mesma viagem, mesma rodada. Traçado igual = quanto da rota coincide com a da TomTom (até 40 m, nos dois sentidos). Respostas e falhas contam todas as linhas gravadas na janela, inclusive as que não formaram par."
     >
-      <Tabela cabecalho={['Provedor', 'Trânsito', 'Pares', 'Viés mediano', 'MAPE', 'Dentro de ±20%', 'Respostas', 'Falhas']}>
+      <Tabela cabecalho={['Provedor', 'Trânsito', 'Pares', 'Viés mediano', 'MAPE', 'Dentro de ±20%', 'Traçado igual', 'Respostas', 'Falhas']}>
         {ids.map((id) => {
           const p = d.provedores.find((x) => x.provedor === id);
           const v = d.vs_tomtom.find((x) => x.provedor === id);
@@ -280,6 +280,7 @@ export function TabelaProvedores({ d }: { d: ComparacaoProvedores }) {
               <td className="num">{v ? fmtPctSinal(v.vies_mediano_pct) : '—'}</td>
               <td className="num">{v ? fmtPct(v.mape_pct) : '—'}</td>
               <td className="num">{v ? fmtPct(v.pct_ate_20) : '—'}</td>
+              <td className="num">{v?.traco_comum_pct != null ? fmtPct(v.traco_comum_pct) : '—'}</td>
               <td className="num">{fmtInt(p?.n_ok)}</td>
               <td className={`num ${p?.n_falhas ? 'text-destructive' : ''}`}>{fmtInt(p?.n_falhas)}</td>
             </tr>
