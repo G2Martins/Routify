@@ -163,6 +163,15 @@ AWS Organization converte a conta para o plano pago e encerra o crédito
 ([docs](https://docs.aws.amazon.com/singlesignon/latest/userguide/account-instances-identity-center.html)).
 Logo: **usuário IAM com MFA obrigatória e política mínima**.
 
+### 5.0 Atalho: tudo pelo CloudShell
+
+`scripts/aws-bootstrap.sh` faz 5.1 (Session Manager), 5.2 (usuário do colega), 5.6 (usuário de automação) e ainda
+deixa a porta 22 só com o IP do dono, de forma idempotente. Edite as variáveis do topo (instância, IP de casa com a
+VPN desligada, nomes dos usuários ou `""` para pular), abra o CloudShell no console (ícone de terminal), *Actions →
+Upload file* e `bash aws-bootstrap.sh`. Ele imprime a senha temporária do colega e a access key da automação
+**uma vez**: copie na hora, por canal seguro. Só duas coisas continuam manuais: ativar o acesso de usuários IAM ao
+Billing (5.1 item 1) e, se não houver, o budget (5.1 item 3).
+
 ### 5.1 Preparação (dono, uma vez)
 
 1. **Custo visível para usuários IAM:** console → menu da conta (canto superior direito) → *Account* →
