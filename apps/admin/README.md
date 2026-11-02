@@ -1,6 +1,6 @@
 # Routify — Painel ADM
 
-**Última revisão:** 2026-09-23
+**Última revisão:** 2026-11-02
 
 Painel de observabilidade da plataforma e de acompanhamento da LIA. Next.js 16 (App Router) + Supabase (`@supabase/ssr`) + Recharts + React Flow, no design Valerium (papel claro, tokens HSL, Instrument Serif / IBM Plex).
 
@@ -25,13 +25,21 @@ Passo a passo completo com API e app: [docs/core/rodar-local.md](../../docs/core
 | Rota | Conteúdo | Fonte |
 |---|---|---|
 | `/` | KPIs de uso, rotas por dia/hora, endpoints, eventos, status da API | RPC `admin_resumo_uso` + `/health` |
-| `/lia` | MAE/RMSE por versão × baseline, calibração isotônica, LSTM × XGBoost, congestionamento, erro real em produção (com exclusão de outlier + motivo), histórico de versões | `lia_treinos`, `lia_analises`, RPCs `admin_validacao_feedback` e `admin_feedback_excluir` |
+| `/lia` | MAE/RMSE por versão × baseline, calibração isotônica, LSTM × XGBoost, congestionamento, estresse treino × produção da LIA 2.2, erro real em produção (com exclusão de outlier + motivo), histórico de versões. KPIs, baseline e destaque dos gráficos seguem a **versão ativa** (`/health` → `modelo_ativo`; se a API não responde, cai na LIA 2.1 e avisa) | `lia_treinos`, `lia_analises` (`estresse_lia22`), RPCs `admin_validacao_feedback` e `admin_feedback_excluir`, `/health` |
+| `/provedores` | **LIA × provedores** (defesa do TCC), janela 7/30/90 dias: modelo ativo (receita, CV × persistência × perfil); KPIs contra a TomTom ao vivo (LIA no mesmo trajeto, Routify, OSRM e os opcionais que existirem); tabela da última rodada por corredor com régua de desvio; viés mediano por hora; rotas reais (dispersão + viés por hora); ablação 2.2 → 2.3 com erro por idade da leitura; avaliação fora do tempo; Fase 3 histórica; metodologia e limitações | RPC `admin_lia_vs_provedores` (migration `20261102000000_lia_vs_provedores.sql`; sem ela a página avisa e renderiza o resto), `lia_treinos`, `lia_analises` (`ablation_lia_2_3`, `avaliacao_fora_do_tempo`, `fase3_comparacao`, `cobertura_dataset`) e `/health` |
 | `/arquitetura` | diagrama vivo dos fluxos (rota, busca, treino, dados & auth) com status por componente | `/health` + sonda RPC |
 | `/uso` | funil, mistura de fontes da busca, LIA × menor distância, hora × dia, mapa de calor k-anônimo (janela 7/30/90 dias) + últimas rotas, eventos e requisições | RPC `admin_analytics_uso`, `rotas_calculadas`, `eventos_app`, `api_requisicoes` |
 | `/qualidade` | qualidade do dataset: nulos, outliers, duplicatas, cobertura hora × dia | RPC `admin_qualidade_dados` (views materializadas, pg_cron diário) |
 | `/usuarios` | contas, papel, situação + menu de ações: promover/rebaixar, bloquear, encerrar sessões, exportar dados (JSON) e apagar dados (LGPD) | RPC `admin_usuarios` + RPCs `admin_*` |
 | `/operacao` | modos da API (kill switch TomTom, só LIA, rota TomTom na fusão, orçamento/min), pool de chaves (estado a cada 15 s, pausar, testar, zerar cooldowns), avisos do app, recalcular qualidade e expurgo | `config_runtime`, `avisos_app`, API `/admin/tomtom`, RPCs `admin_*` |
 | `/auditoria` | trilha de ações do ADM, 50 por página, filtro por ação e por quem fez | `admin_auditoria` |
+
+### Notas da página `/provedores`
+
+- **Séries pelos dados.** Os provedores dos gráficos e das tabelas saem do que a RPC devolve (`por_hora`, `vs_tomtom`, `provedores`): OpenRouteService e Mapbox só aparecem se o coletor tiver a chave. Nomes de exibição, ordem e cores ficam em `src/lib/provedores.ts`; tracejado = provedor sem trânsito (`com_transito = false` no dado).
+- **Tokens de gráfico.** `--chart-4` (violeta) e `--chart-5` (rosa) foram criados em `globals.css`, nos 3 blocos de tema.
+- **Estado vazio honesto.** Cada seção diz o que falta (comparador sem rodadas, rotas reais sem referência, ablação ou fora do tempo não publicados). A ablação `--smoke` vem com aviso de que não é número de tese.
+- **Nomes dos corredores.** A tabela guarda só o slug; `src/lib/provedores.ts` espelha `CORREDORES` de `services/collector/comparar_provedores.py`, e slug novo aparece como texto legível até o espelho ser atualizado.
 
 ## Modelo de segurança
 

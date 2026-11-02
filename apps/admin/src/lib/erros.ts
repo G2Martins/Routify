@@ -2,6 +2,7 @@
 export type ErroBruto = { code?: string; message?: string; status?: number; retryAfter?: string | null };
 
 export const MIGRACAO_ACOES = '20260923020000_admin_actions.sql';
+export const MIGRACAO_PROVEDORES = '20261102000000_lia_vs_provedores.sql';
 
 // Função/tabela/coluna inexistente = migration das ações ainda não aplicada.
 const FALTA_OBJETO = new Set(['PGRST202', 'PGRST205', 'PGRST204', '42883', '42P01', '42703']);

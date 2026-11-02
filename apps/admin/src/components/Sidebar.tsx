@@ -8,12 +8,13 @@ import { clienteNavegador } from '@/lib/supabase-navegador';
 const ITENS = [
   { href: '/admin', rotulo: 'Visão geral', sigla: '01' },
   { href: '/admin/lia', rotulo: 'LIA · benchmarks', sigla: '02' },
-  { href: '/admin/arquitetura', rotulo: 'Arquitetura viva', sigla: '03' },
-  { href: '/admin/uso', rotulo: 'Uso da plataforma', sigla: '04' },
-  { href: '/admin/qualidade', rotulo: 'Qualidade dos dados', sigla: '05' },
-  { href: '/admin/usuarios', rotulo: 'Usuários', sigla: '06' },
-  { href: '/admin/operacao', rotulo: 'Operação', sigla: '07' },
-  { href: '/admin/auditoria', rotulo: 'Auditoria', sigla: '08' },
+  { href: '/admin/provedores', rotulo: 'LIA × provedores', sigla: '03' },
+  { href: '/admin/arquitetura', rotulo: 'Arquitetura viva', sigla: '04' },
+  { href: '/admin/uso', rotulo: 'Uso da plataforma', sigla: '05' },
+  { href: '/admin/qualidade', rotulo: 'Qualidade dos dados', sigla: '06' },
+  { href: '/admin/usuarios', rotulo: 'Usuários', sigla: '07' },
+  { href: '/admin/operacao', rotulo: 'Operação', sigla: '08' },
+  { href: '/admin/auditoria', rotulo: 'Auditoria', sigla: '09' },
 ];
 
 export async function sairParaApp() {

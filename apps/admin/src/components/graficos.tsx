@@ -21,6 +21,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import type { YAxisProps } from 'recharts';
 import type { Benchmark, Calibracao } from '@/lib/tipos';
 
 const TICK = { fill: 'var(--chart-eixo)', fontSize: 11, fontFamily: 'var(--font-plex-mono)' };
@@ -38,9 +39,9 @@ const DICA = {
 const LEGENDA = { wrapperStyle: { fontSize: 12, color: 'hsl(var(--muted-foreground))' } };
 const br = (v: number, casas = 1) => v.toLocaleString('pt-BR', { maximumFractionDigits: casas });
 
-function Moldura({ altura = 260, children }: { altura?: number; children: React.ReactElement }) {
+function Moldura({ altura = 260, rotulo, children }: { altura?: number; rotulo?: string; children: React.ReactElement }) {
   return (
-    <div style={{ height: altura }} className="w-full">
+    <div style={{ height: altura }} className="w-full" role={rotulo ? 'img' : undefined} aria-label={rotulo}>
       <ResponsiveContainer width="100%" height="100%">
         {children}
       </ResponsiveContainer>
@@ -213,7 +214,7 @@ export function TempoTreino({ dados }: { dados: Benchmark }) {
   );
 }
 
-export function Congestionamento({ geral, congestionado }: { geral: [number, number]; congestionado: [number, number] }) {
+export function Congestionamento({ geral, congestionado, modelo }: { geral: [number, number]; congestionado: [number, number]; modelo: string }) {
   const pontos = [
     { grupo: 'Todas as observações', baseline: geral[0], lia: geral[1] },
     { grupo: 'Trechos congestionados', baseline: congestionado[0], lia: congestionado[1] },
@@ -229,7 +230,7 @@ export function Congestionamento({ geral, congestionado }: { geral: [number, num
         <Bar dataKey="baseline" name="Baseline histórico" fill="var(--chart-neutro)" radius={[4, 4, 0, 0]}>
           <LabelList dataKey="baseline" position="top" formatter={(v) => br(Number(v))} fill="hsl(var(--foreground))" fontSize={11} />
         </Bar>
-        <Bar dataKey="lia" name="LIA 2.1" fill="var(--chart-1)" radius={[4, 4, 0, 0]}>
+        <Bar dataKey="lia" name={modelo} fill="var(--chart-1)" radius={[4, 4, 0, 0]}>
           <LabelList dataKey="lia" position="top" formatter={(v) => br(Number(v))} fill="hsl(var(--foreground))" fontSize={11} />
         </Bar>
       </BarChart>
@@ -249,6 +250,215 @@ export function DispersaoFeedback({ pontos }: { pontos: { previsto: number; real
         <ReferenceLine segment={[{ x: 0, y: 0 }, { x: maximo, y: maximo }]} stroke="hsl(var(--muted-foreground))" strokeDasharray="5 4" />
         <Scatter data={pontos} name="Viagens" fill="var(--chart-1)" />
       </ScatterChart>
+    </Moldura>
+  );
+}
+
+/* ---------- LIA × provedores ---------- */
+
+export type SerieLinha = { chave: string; nome: string; cor: string; tracejado?: boolean };
+
+// Só valores serializáveis cruzam de Server para Client Component: por isso enum, não função.
+const FORMATO_X = {
+  texto: (v: unknown) => String(v),
+  hora: (v: unknown) => `${v}h`,
+  minutos: (v: unknown) => `${v} min`,
+};
+const DOMINIO_Y: Record<'auto' | 'zero', YAxisProps['domain']> = { auto: ['auto', 'auto'], zero: [0, 'auto'] };
+
+/** Eixo do desvio contra a referência: o zero sempre aparece e as marcas caem em passos redondos. */
+function eixoComZero(dados: Record<string, number | string | null>[], chaves: string[]) {
+  const v = dados.flatMap((d) => chaves.map((k) => d[k])).filter((x): x is number => typeof x === 'number');
+  const [min, max] = [Math.min(0, ...v), Math.max(0, ...v)];
+  const passo = [1, 2, 5, 10, 20, 25, 50, 100].find((p) => (max - min) / p <= 6) ?? 100;
+  const ini = Math.floor(min / passo) * passo;
+  const fim = Math.max(Math.ceil(max / passo) * passo, ini + passo);
+  const ticks: number[] = [];
+  for (let t = ini; t <= fim; t += passo) ticks.push(t);
+  return { dominio: [ini, fim] as [number, number], ticks };
+}
+/** Sempre com 1 casa: 43,0 (e não 43) nos rótulos e tooltips. */
+const br1 = (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+/** −12,3 · +4,5 (com sinal) ou 38,5 (sem). `fixo` = 1 casa sempre; sem ele, 35 vira "35" (marcas do eixo). */
+const comSinalBr = (v: number, sinal: boolean, fixo = false) => {
+  const r = Math.round(v * 10) / 10;
+  return `${r < 0 ? '−' : sinal && r > 0 ? '+' : ''}${(fixo ? br1 : br)(Math.abs(r))}`;
+};
+
+/**
+ * Linhas por categoria do eixo X (hora, idade da leitura…). A lista de séries vem de quem chama, dos
+ * dados. Coluna `n_<chave>` na linha de dados, se existir, entra no tooltip como "n = …".
+ * `zero` liga a linha y = 0 com esse rótulo (a TomTom, quando o eixo mede desvio contra ela).
+ */
+export function GraficoLinhas({
+  dados,
+  x,
+  series,
+  formatoX = 'texto',
+  unidade = '',
+  dominioY = 'auto',
+  zero,
+  comSinal = false,
+  altura = 280,
+  ticksX,
+  rotulo,
+}: {
+  dados: Record<string, number | string | null>[];
+  x: string;
+  series: SerieLinha[];
+  formatoX?: keyof typeof FORMATO_X;
+  unidade?: string;
+  dominioY?: 'auto' | 'zero' | 'incluiZero';
+  zero?: string;
+  comSinal?: boolean;
+  altura?: number;
+  ticksX?: number[];
+  rotulo?: string;
+}) {
+  const fx = FORMATO_X[formatoX];
+  const eixo = dominioY === 'incluiZero' ? eixoComZero(dados, series.map((s) => s.chave)) : null;
+  return (
+    <Moldura altura={altura} rotulo={rotulo}>
+      <LineChart data={dados} margin={{ top: 8, right: 16, bottom: 0, left: -4 }}>
+        <CartesianGrid vertical={false} stroke="var(--chart-grade)" />
+        <XAxis dataKey={x} tick={TICK} tickLine={false} axisLine={false} tickFormatter={fx} ticks={ticksX} interval={ticksX ? 0 : 'preserveStartEnd'} />
+        <YAxis
+          tick={TICK}
+          tickLine={false}
+          axisLine={false}
+          unit={unidade}
+          domain={eixo ? eixo.dominio : DOMINIO_Y[dominioY === 'zero' ? 'zero' : 'auto']}
+          ticks={eixo?.ticks}
+          tickFormatter={(v) => comSinalBr(Number(v), comSinal)}
+        />
+        <Tooltip
+          {...DICA}
+          labelFormatter={fx}
+          formatter={(v, nome, item) => {
+            const n = (item?.payload as Record<string, unknown> | undefined)?.[`n_${String(item?.dataKey)}`];
+            return [`${comSinalBr(Number(v), comSinal, true)}${unidade}${typeof n === 'number' ? ` · n = ${n}` : ''}`, nome];
+          }}
+        />
+        <Legend {...LEGENDA} itemSorter={null} />
+        {zero ? (
+          <ReferenceLine
+            y={0}
+            stroke="hsl(var(--muted-foreground))"
+            label={{ value: zero, position: 'insideBottomRight', fill: 'var(--chart-eixo)', fontSize: 11 }}
+          />
+        ) : null}
+        {series.map((s) => (
+          <Line
+            key={s.chave}
+            type="linear"
+            dataKey={s.chave}
+            name={s.nome}
+            stroke={s.cor}
+            strokeWidth={2}
+            strokeDasharray={s.tracejado ? '6 4' : undefined}
+            dot={{ r: 3, strokeWidth: 2, fill: 'hsl(var(--card))' }}
+            connectNulls
+          />
+        ))}
+      </LineChart>
+    </Moldura>
+  );
+}
+
+export type PontoRota = { tomtom: number; lia: number; km: number | null; cobertura: number | null };
+
+function DicaRota({ active, payload }: { active?: boolean; payload?: readonly { payload?: PontoRota }[] }) {
+  const p = payload?.[0]?.payload;
+  if (!active || !p) return null;
+  const desvio = p.tomtom ? ((p.lia - p.tomtom) / p.tomtom) * 100 : null;
+  return (
+    <div style={DICA.contentStyle} className="space-y-0.5 px-3 py-2">
+      <p>
+        TomTom <b className="num">{br1(p.tomtom)} min</b> · LIA <b className="num">{br1(p.lia)} min</b>
+      </p>
+      <p className="text-muted-foreground">
+        {desvio === null ? '' : `desvio ${comSinalBr(desvio, true, true)}%`}
+        {p.km !== null ? ` · ${br(p.km)} km` : ''}
+        {p.cobertura !== null ? ` · cobertura LIA ${br(p.cobertura, 0)}%` : ''}
+      </p>
+    </div>
+  );
+}
+
+/** LIA × TomTom no mesmo trajeto, uma bolinha por rota real. Diagonal = acerto; pontilhadas = ±20%. */
+export function DispersaoRotasReais({ pontos }: { pontos: PontoRota[] }) {
+  const teto = Math.ceil(Math.max(10, ...pontos.flatMap((p) => [p.tomtom, p.lia])));
+  return (
+    <Moldura altura={320} rotulo="Dispersão do tempo previsto pela LIA contra o tempo da TomTom, em minutos, nas rotas reais">
+      <ScatterChart margin={{ top: 12, right: 16, bottom: 4, left: -8 }}>
+        <CartesianGrid stroke="var(--chart-grade)" />
+        <XAxis type="number" dataKey="tomtom" name="TomTom" unit=" min" domain={[0, teto]} tick={TICK} tickLine={false} />
+        <YAxis type="number" dataKey="lia" name="LIA" unit=" min" domain={[0, teto]} tick={TICK} tickLine={false} axisLine={false} />
+        <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<DicaRota />} />
+        <ReferenceLine segment={[{ x: 0, y: 0 }, { x: teto, y: teto }]} stroke="hsl(var(--muted-foreground))" strokeDasharray="5 4" />
+        <ReferenceLine segment={[{ x: 0, y: 0 }, { x: teto, y: teto * 1.2 }]} stroke="var(--chart-eixo)" strokeDasharray="2 4" ifOverflow="hidden" />
+        <ReferenceLine segment={[{ x: 0, y: 0 }, { x: teto, y: teto * 0.8 }]} stroke="var(--chart-eixo)" strokeDasharray="2 4" />
+        <Scatter data={pontos} name="Rotas reais" fill="var(--chart-1)" fillOpacity={0.7} />
+      </ScatterChart>
+    </Moldura>
+  );
+}
+
+/** Viés mediano (%) por hora de partida, com o n de cada barra no tooltip. */
+export function BarrasVies({ dados }: { dados: { hora: number; vies: number; n: number }[] }) {
+  const pontos = dados.map((d) => ({ ...d, rotulo: `${d.hora}h` }));
+  const eixo = eixoComZero(pontos, ['vies']);
+  return (
+    <Moldura altura={320} rotulo="Viés mediano da LIA contra a TomTom, por hora de partida, nas rotas reais">
+      <BarChart data={pontos} margin={{ top: 8, right: 8, bottom: 0, left: -4 }}>
+        <CartesianGrid vertical={false} stroke="var(--chart-grade)" />
+        <XAxis dataKey="rotulo" tick={TICK} tickLine={false} axisLine={false} />
+        <YAxis
+          tick={TICK}
+          tickLine={false}
+          axisLine={false}
+          unit="%"
+          domain={eixo.dominio}
+          ticks={eixo.ticks}
+          tickFormatter={(v) => comSinalBr(Number(v), true)}
+        />
+        <Tooltip
+          {...DICA}
+          labelFormatter={(h) => `Saída às ${h}`}
+          formatter={(v, _nome, item) => [`${comSinalBr(Number(v), true, true)}% · n = ${item?.payload?.n}`, 'Viés mediano']}
+        />
+        <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" />
+        <Bar dataKey="vies" name="Viés mediano" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
+      </BarChart>
+    </Moldura>
+  );
+}
+
+/** Estresse treino × produção: RMSE de duas versões da LIA por cenário de entrada degradada. */
+export function EstresseCenarios({
+  dados,
+  nomeBase,
+  nomeNova,
+}: {
+  dados: { cenario: string; base: number; nova: number }[];
+  nomeBase: string;
+  nomeNova: string;
+}) {
+  return (
+    <Moldura altura={300} rotulo={`RMSE de ${nomeBase} e ${nomeNova} em cada cenário de estresse`}>
+      <BarChart data={dados} margin={{ top: 22, right: 12, bottom: 0, left: -12 }}>
+        <CartesianGrid vertical={false} stroke="var(--chart-grade)" />
+        <XAxis dataKey="cenario" tick={TICK} tickLine={false} axisLine={false} interval={0} />
+        <YAxis tick={TICK} tickLine={false} axisLine={false} unit=" s" />
+        <Tooltip {...DICA} formatter={(v) => `${br1(Number(v))} s`} />
+        <Legend {...LEGENDA} itemSorter={null} />
+        <Bar dataKey="base" name={nomeBase} fill="var(--chart-neutro)" radius={[4, 4, 0, 0]}>
+          <LabelList dataKey="base" position="top" formatter={(v) => br1(Number(v))} fill="hsl(var(--foreground))" fontSize={11} />
+        </Bar>
+        <Bar dataKey="nova" name={nomeNova} fill="var(--chart-1)" radius={[4, 4, 0, 0]}>
+          <LabelList dataKey="nova" position="top" formatter={(v) => br1(Number(v))} fill="hsl(var(--foreground))" fontSize={11} />
+        </Bar>
+      </BarChart>
     </Moldura>
   );
 }

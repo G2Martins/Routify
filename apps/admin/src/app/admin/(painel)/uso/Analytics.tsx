@@ -1,5 +1,5 @@
 import { HeatmapCobertura } from '@/components/Heatmap';
-import { Aviso, Cartao } from '@/components/ui';
+import { Aviso, Cartao, Mini } from '@/components/ui';
 import { fmtDec, fmtDuracao, fmtInt, fmtPct, num } from '@/lib/formato';
 import type { AnalyticsUso } from '@/lib/tipos';
 
@@ -19,16 +19,6 @@ const PLATAFORMA: Record<string, string> = { web: 'Web', ios: 'iOS', android: 'A
 
 const pct = (parte: number, total: number) => (total ? (parte / total) * 100 : null);
 const comSinal = (seg: number | null) => (seg === null ? '—' : `${seg < 0 ? '−' : ''}${fmtDuracao(Math.abs(seg))}`);
-
-function Mini({ rotulo, valor, detalhe }: { rotulo: string; valor: string; detalhe?: string }) {
-  return (
-    <div className="rounded-lg border border-border px-4 py-3">
-      <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">{rotulo}</p>
-      <p className="num mt-1 text-2xl font-medium leading-none">{valor}</p>
-      {detalhe ? <p className="mt-1.5 text-[11px] text-muted-foreground">{detalhe}</p> : null}
-    </div>
-  );
-}
 
 function Funil({ a }: { a: AnalyticsUso }) {
   const escolhidas = Object.values(a.busca_por_fonte).reduce((s, n) => s + n, 0);

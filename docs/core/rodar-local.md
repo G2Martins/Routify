@@ -1,6 +1,6 @@
 # Rodar o Routify localmente — visão de usuário e visão ADM
 
-**Última revisão:** 2026-11-01
+**Última revisão:** 2026-11-02
 
 Passo a passo para subir API, app e painel ADM na sua máquina e testar os dois lados. Tempo estimado: ~15 min na primeira vez.
 
@@ -43,6 +43,7 @@ As migrations de `supabase/migrations/` precisam estar aplicadas, na ordem:
 5. `20260923020000_admin_actions.sql` — ações do painel (papel, bloqueio, sessões, exportar/apagar dados, TomTom, avisos, outliers), auditoria append-only e analytics de uso;
 6. `20260923030000_economia_combustivel.sql` — RPC `admin_economia_combustivel`;
 7. `20260923040000_minutos_economizados.sql` — minutos economizados nos painéis.
+8. `20261102000000_lia_vs_provedores.sql` — tabela do comparador LIA × provedores e a RPC da página `/admin/provedores` (sem ela a página mostra o aviso de migration pendente).
 
 **Opção A — SQL Editor (mais simples).** No painel do Supabase → **SQL Editor** → **New query**, cole o conteúdo dos arquivos (nessa ordem) e clique em **Run**. Tudo é idempotente: rodar de novo não estraga nada.
 

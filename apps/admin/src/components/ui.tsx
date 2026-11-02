@@ -51,6 +51,17 @@ export function Kpi({ rotulo, valor, detalhe, atraso = 0 }: { rotulo: string; va
   );
 }
 
+/** Número menor, sem animação: para blocos dentro de um Cartao. */
+export function Mini({ rotulo, valor, detalhe }: { rotulo: string; valor: string; detalhe?: string }) {
+  return (
+    <div className="rounded-lg border border-border px-4 py-3">
+      <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">{rotulo}</p>
+      <p className="num mt-1 text-2xl font-medium leading-none">{valor}</p>
+      {detalhe ? <p className="mt-1.5 text-[11px] text-muted-foreground">{detalhe}</p> : null}
+    </div>
+  );
+}
+
 type Tom = 'ok' | 'alerta' | 'erro' | 'neutro';
 
 const TOM: Record<Tom, string> = {
@@ -80,14 +91,24 @@ export function Aviso({ titulo, children }: { titulo: string; children?: ReactNo
 }
 
 /** Mensagem amigável para erro de RPC/consulta (42501 = não é admin).
- *  `acoes`: a consulta depende da migration das ações do ADM. */
-export function ErroConsulta({ erro, acoes = false }: { erro: { code?: string; message?: string } | null; acoes?: boolean }) {
+ *  `acoes`: a consulta depende da migration das ações do ADM.
+ *  `migracao`: nome do arquivo de outra migration de que a consulta depende. */
+export function ErroConsulta({
+  erro,
+  acoes = false,
+  migracao,
+}: {
+  erro: { code?: string; message?: string } | null;
+  acoes?: boolean;
+  migracao?: string;
+}) {
   if (!erro) return null;
   const semAcesso = erro.code === '42501';
-  if (acoes && faltaMigracao(erro)) {
+  const pendente = migracao ?? (acoes ? MIGRACAO_ACOES : undefined);
+  if (pendente && faltaMigracao(erro)) {
     return (
       <Aviso titulo="Migration pendente">
-        Aplique a migration <span className="num">{MIGRACAO_ACOES}</span> (ver docs/core/rodar-local.md).
+        Aplique a migration <span className="num">{pendente}</span> (ver docs/core/rodar-local.md).
       </Aviso>
     );
   }

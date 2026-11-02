@@ -173,3 +173,144 @@ export type AnalyticsUso = {
   hora_dia: { hora: number; dia: number; n: number }[];
   calor: { lat: number | string; lon: number | string; n: number }[];
 };
+
+/* ---------- LIA × provedores (migration 20261102000000_lia_vs_provedores) ---------- */
+
+/** Erro contra a TomTom ao vivo: viés mediano e MAPE em %, e a fatia dentro de ±20%. Sem pares = null. */
+export type ErroContraTomTom = {
+  n: number;
+  vies_mediano_pct: number | null;
+  mape_pct: number | null;
+  pct_ate_20: number | null;
+};
+
+export type ComparacaoProvedores = {
+  janela_dias: number;
+  rodadas: number;
+  ultima_rodada: string | null;
+  corredores: number;
+  provedores: { provedor: string; com_transito: boolean; n_ok: number; n_falhas: number }[];
+  vs_tomtom: (ErroContraTomTom & { provedor: string })[];
+  lia_mesmo_trajeto: ErroContraTomTom;
+  por_hora: { provedor: string; hora: number; n: number; vies_mediano_pct: number | null }[];
+  por_corredor: {
+    corredor: string;
+    provedor: string;
+    n: number;
+    tempo_medio_s: number | null;
+    ref_medio_s: number | null;
+    erro_medio_pct: number | null;
+  }[];
+  ultima: { corredor: string; provedor: string; tempo_s: number | null; distancia_km: number | null; erro: string | null }[];
+  rotas_reais: ErroContraTomTom & {
+    por_hora: { hora: number; n: number; vies_mediano_pct: number | null }[];
+    amostras: { lia_s: number; tomtom_s: number; km: number | null; cobertura_pct: number | null; hora: number | null }[];
+  };
+};
+
+/* ---------- Análises de lia_analises (ml/publish_metrics.py) ---------- */
+
+export type ErroSeg = { rmse_seg: number; mae_seg: number };
+
+/** Erro por idade da última leitura da via (min): `cv_por_idade_recencia_min` e a ablação usam este formato. */
+export type PorIdadeCV = Record<
+  string,
+  {
+    modelo_rmse_seg: number;
+    modelo_mae_seg: number;
+    persistencia_rmse_seg: number;
+    persistencia_mae_seg: number;
+    baseline_rmse_seg: number;
+    baseline_mae_seg: number;
+    folds?: number;
+  }
+>;
+
+export type FoldAblacao = {
+  rmse_seg: number;
+  mae_seg: number;
+  baseline_rmse_seg?: number;
+  persistencia_rmse_seg: number;
+  persistencia_mae_seg: number;
+  arvores?: number;
+};
+
+export type VarianteAblacao = {
+  nome: string;
+  receita: { oof: boolean; envelhecer: boolean; es_interno: boolean };
+  segundos?: number;
+  cv: Record<string, number | undefined>;
+  por_idade: PorIdadeCV;
+  folds: FoldAblacao[];
+};
+
+/** ml/artifacts/ablation_lia_2.3.json. `smoke` = execução de teste (150 mil linhas, 60 árvores). */
+export type AblacaoLia23 = {
+  gerado_em: string;
+  smoke?: boolean;
+  linhas: number;
+  periodo: [string, string];
+  variantes: VarianteAblacao[];
+};
+
+/** ml/artifacts/avaliacao_fora_do_tempo.json (ml/avaliar_fora_do_tempo.py): só leituras posteriores ao treino. */
+export type AvaliacaoForaDoTempo = {
+  gerado_em: string;
+  desde: string;
+  versoes: Record<
+    string,
+    {
+      fim_do_treino: string;
+      n_linhas: number;
+      n_descartadas_recencia_antiga?: number;
+      periodo?: [string, string];
+      idade_mediana_leitura_min: number;
+      fresca: { modelo: ErroSeg; persistencia: ErroSeg; perfil: ErroSeg };
+      por_hora: { hora: number; n: number; modelo: ErroSeg; persistencia: ErroSeg }[];
+      por_idade: Record<string, { n: number; modelo: ErroSeg; persistencia: ErroSeg }>;
+    }
+  >;
+};
+
+/** ml/artifacts/fase3_comparacao.csv publicado linha a linha (hora/dia_semana chegam como texto). */
+export type Fase3Comparacao = {
+  fonte: string;
+  modelo: string;
+  linhas: {
+    timestamp: string | null;
+    hora: string | number | null;
+    dia_semana: string | number | null;
+    par: string | null;
+    lia_tempo_seg: number | null;
+    lia_distancia_km: number | null;
+    menor_dist_tempo_seg: number | null;
+    tomtom_tempo_seg: number | null;
+    tomtom_distancia_km: number | null;
+    tomtom_atraso_transito_seg: number | null;
+  }[];
+};
+
+/** ml/artifacts/cobertura_dataset.json (ml/dataset_coverage.py). */
+export type CoberturaDataset = {
+  gerado_em: string;
+  periodo_inicio: string;
+  periodo_fim: string;
+  total_linhas: number;
+  pontos_distintos: number;
+  dias_com_coleta: number;
+  n_dias_cheios: number;
+  pct_linhas_em_dias_cheios: number;
+  mediana_linhas_dia: number;
+  hora_mais_coberta: number;
+  pct_hora_mais_coberta: number;
+  razao_fim_de_semana_vs_dia_util: number;
+};
+
+/** ml/artifacts/lia_2.2_estresse.json: cenário → versão → erro (treino × produção, fold 5). */
+export type EstresseLia22 = {
+  fold: number;
+  val_periodo: [string, string];
+  pct_linhas_sem_vizinho_recente: number;
+  pct_linhas_com_chuva: number;
+  cenarios: Record<string, Record<string, ErroSeg>>;
+};

@@ -25,6 +25,8 @@
   --chart-1: hsl(215 98% 49%);
   --chart-2: hsl(169 91% 41%);
   --chart-3: hsl(36 100% 45%);
+  --chart-4: hsl(262 83% 58%);
+  --chart-5: hsl(338 78% 52%);
   --chart-neutro: hsl(216 16% 72%);
   --chart-grade: hsl(214 29% 91%);
   --chart-eixo: hsl(218 14% 55%);
@@ -52,6 +54,8 @@
     --chart-1: hsl(216 100% 62%);
     --chart-2: hsl(169 74% 47%);
     --chart-3: hsl(38 90% 61%);
+    --chart-4: hsl(262 90% 72%);
+    --chart-5: hsl(340 90% 70%);
     --chart-neutro: hsl(219 16% 40%);
     --chart-grade: hsl(221 35% 17%);
     --chart-eixo: hsl(218 16% 55%);
@@ -78,6 +82,8 @@
   --chart-1: hsl(216 100% 62%);
   --chart-2: hsl(169 74% 47%);
   --chart-3: hsl(38 90% 61%);
+  --chart-4: hsl(262 90% 72%);
+  --chart-5: hsl(340 90% 70%);
   --chart-neutro: hsl(219 16% 40%);
   --chart-grade: hsl(221 35% 17%);
   --chart-eixo: hsl(218 16% 55%);

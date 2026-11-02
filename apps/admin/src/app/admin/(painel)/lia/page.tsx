@@ -1,35 +1,39 @@
 import { BarrasVersao, BenchmarkFolds, Congestionamento, CurvaCalibracao, DispersaoFeedback, TempoTreino, type BarraVersao } from '@/components/graficos';
-import { Aviso, Cabecalho, Cartao, ErroConsulta, Kpi, Tabela } from '@/components/ui';
+import Link from 'next/link';
+import { Aviso, BTN_SECUNDARIO, Cabecalho, Cartao, ErroConsulta, Kpi, Selo, Tabela } from '@/components/ui';
 import { exigirAdmin } from '@/lib/auth';
-import { fmtData, fmtDec, fmtInt, num } from '@/lib/formato';
+import { fmtData, fmtDec, fmtInt, num, rotuloVersao as rotulo } from '@/lib/formato';
 import { MIGRACAO_ACOES } from '@/lib/erros';
-import type { Benchmark, Calibracao, Feedback, LiaTreino } from '@/lib/tipos';
+import { modeloAtivo } from '@/lib/saude';
+import type { Benchmark, Calibracao, EstresseLia22, Feedback, LiaTreino } from '@/lib/tipos';
+import { Estresse } from './Estresse';
 import { FeedbackOutliers } from './FeedbackOutliers';
 
-/** lia_2.1_retreino_20260923 → "LIA 2.1 re-treino 23/09" */
-function rotulo(versao: string) {
-  const m = versao.match(/^lia_([\d.]+)(?:_retreino_(\d{4})(\d{2})(\d{2}))?$/);
-  if (!m) return versao;
-  return m[2] ? `LIA ${m[1]} re-treino ${m[4]}/${m[3]}` : `LIA ${m[1]}`;
-}
+// Sem resposta da API (/health), o destaque cai na versão que a tese cita, e a página avisa.
+const VERSAO_DA_TESE = 'lia_2.1';
 
 const ganho = (valor: number | null, base: number | null) =>
   valor === null || base === null || base === 0 ? null : ((valor - base) / base) * 100;
 
 export default async function LiaPage() {
   const { sb } = await exigirAdmin();
-  const [treinos, analises, feedback] = await Promise.all([
+  const [treinos, analises, feedback, ativo] = await Promise.all([
     sb.from('lia_treinos').select('*').order('versao'),
     sb.from('lia_analises').select('chave, dados, atualizado_em'),
     sb.rpc('admin_validacao_feedback'),
+    modeloAtivo(),
   ]);
 
   const linhas = (treinos.data ?? []) as LiaTreino[];
   const calibracao = analises.data?.find((a) => a.chave === 'calibracao_transfer')?.dados as Calibracao | undefined;
   const benchmark = analises.data?.find((a) => a.chave === 'benchmark_lstm_xgboost')?.dados as Benchmark | undefined;
-  const lia21 = linhas.find((l) => l.versao === 'lia_2.1');
-  const baseMae = num(lia21?.baseline_mae_seg);
-  const baseRmse = num(lia21?.baseline_rmse_seg);
+  const estresse = analises.data?.find((a) => a.chave === 'estresse_lia22')?.dados as EstresseLia22 | undefined;
+  // A versão em destaque é a que a API está servindo agora; os KPIs e o baseline seguem ela.
+  const destaque = ativo ?? VERSAO_DA_TESE;
+  const ativa = linhas.find((l) => l.versao === destaque);
+  const baseMae = num(ativa?.baseline_mae_seg);
+  const baseRmse = num(ativa?.baseline_rmse_seg);
+  const ganhoRmse = ativa ? ganho(num(ativa.rmse_seg), baseRmse) : null;
 
   const barras = (campo: 'mae_seg' | 'rmse_seg', desvio: 'mae_seg_std' | 'rmse_seg_std'): BarraVersao[] =>
     linhas
@@ -39,7 +43,7 @@ export default async function LiaPage() {
         valor: num(l[campo]) ?? 0,
         desvio: num(l[desvio]) ?? 0,
         comparavel: l.validacao === 'temporal',
-        destaque: l.versao === 'lia_2.1',
+        destaque: l.versao === destaque,
       }));
 
   const linhasFeedback = (feedback.data ?? []) as Feedback[];
@@ -58,6 +62,11 @@ export default async function LiaPage() {
       <Cabecalho
         titulo="LIA · desempenho e benchmarks"
         sobre="Acompanhamento contínuo dos resultados pedidos pelo orientador. Todo número vem dos artefatos versionados em ml/artifacts, publicados por ml/publish_metrics.py."
+        direita={
+          <Link href="/admin/provedores" className={BTN_SECUNDARIO}>
+            LIA × provedores →
+          </Link>
+        }
       />
       <ErroConsulta erro={treinos.error ?? analises.error} />
 
@@ -67,17 +76,30 @@ export default async function LiaPage() {
         </Aviso>
       ) : null}
 
-      {lia21 ? (
+      {linhas.length ? (
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          {ativo ? <Selo tom="ok">ativa na API · {rotulo(ativo)}</Selo> : <Selo tom="alerta">API fora do ar · destacando {rotulo(destaque)}</Selo>}
+          <span>KPIs, baseline e destaque dos gráficos seguem esta versão.</span>
+        </div>
+      ) : null}
+
+      {ativa ? (
         <div className="mb-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <Kpi rotulo="RMSE LIA 2.1" valor={`${fmtDec(lia21.rmse_seg)} s`} detalhe={`baseline ${fmtDec(baseRmse)} s`} />
+          <Kpi rotulo={`RMSE ${rotulo(ativa.versao)}`} valor={`${fmtDec(ativa.rmse_seg)} s`} detalhe={`baseline ${fmtDec(baseRmse)} s`} />
           <Kpi
             rotulo="Ganho em RMSE"
-            valor={`${fmtDec(Math.abs(ganho(num(lia21.rmse_seg), baseRmse) ?? 0))}%`}
-            detalhe="menor que o baseline histórico"
+            valor={`${fmtDec(Math.abs(ganhoRmse ?? 0))}%`}
+            detalhe={ganhoRmse !== null && ganhoRmse > 0 ? 'PIOR que o baseline histórico' : 'menor que o baseline histórico'}
             atraso={40}
           />
-          <Kpi rotulo="MAE LIA 2.1" valor={`${fmtDec(lia21.mae_seg)} s`} detalhe={`baseline ${fmtDec(baseMae)} s`} atraso={80} />
-          <Kpi rotulo="Amostras de treino" valor={fmtInt(lia21.total_amostras)} detalhe="validação temporal, 5 folds" atraso={120} />
+          <Kpi rotulo={`MAE ${rotulo(ativa.versao)}`} valor={`${fmtDec(ativa.mae_seg)} s`} detalhe={`baseline ${fmtDec(baseMae)} s`} atraso={80} />
+          <Kpi rotulo="Amostras de treino" valor={fmtInt(ativa.total_amostras)} detalhe="validação temporal, 5 folds" atraso={120} />
+        </div>
+      ) : ativo && linhas.length ? (
+        <div className="mb-5">
+          <Aviso titulo="A versão ativa ainda não foi publicada">
+            Não há linha de <span className="num">{ativo}</span> em lia_treinos. Rode <span className="num">python ml/publish_metrics.py</span>.
+          </Aviso>
         </div>
       ) : null}
 
@@ -114,7 +136,7 @@ export default async function LiaPage() {
         </div>
       ) : null}
 
-      {lia21 && num(lia21.rmse_congestionado_seg) !== null ? (
+      {ativa && num(ativa.rmse_congestionado_seg) !== null ? (
         <Cartao
           titulo="Erro geral × trechos congestionados (razão < 0,95)"
           className="mb-5"
@@ -122,11 +144,14 @@ export default async function LiaPage() {
           nota="Limitação conhecida: o ganho sobre o baseline se mantém no congestionamento, mas o erro absoluto mais que dobra."
         >
           <Congestionamento
-            geral={[baseRmse ?? 0, num(lia21.rmse_seg) ?? 0]}
-            congestionado={[num(lia21.baseline_rmse_congestionado_seg) ?? 0, num(lia21.rmse_congestionado_seg) ?? 0]}
+            geral={[baseRmse ?? 0, num(ativa.rmse_seg) ?? 0]}
+            congestionado={[num(ativa.baseline_rmse_congestionado_seg) ?? 0, num(ativa.rmse_congestionado_seg) ?? 0]}
+            modelo={rotulo(ativa.versao)}
           />
         </Cartao>
       ) : null}
+
+      {estresse ? <Estresse e={estresse} ativo={ativo} /> : null}
 
       <Cartao
         titulo="Erro real em produção — previsto × informado pelo usuário"
@@ -164,7 +189,14 @@ export default async function LiaPage() {
           <Tabela cabecalho={['Versão', 'Validação', 'MAE', 'RMSE', 'Amostras', 'Fonte', 'Publicado em']}>
             {linhas.map((l) => (
               <tr key={l.versao}>
-                <td className="font-medium">{rotulo(l.versao)}</td>
+                <td className="font-medium">
+                  {rotulo(l.versao)}
+                  {l.versao === ativo ? (
+                    <span className="ml-2 align-middle">
+                      <Selo tom="ok">ativa</Selo>
+                    </span>
+                  ) : null}
+                </td>
                 <td>{l.validacao === 'temporal' ? 'temporal' : 'não temporal'}</td>
                 <td className="num">{fmtDec(l.mae_seg)} s</td>
                 <td className="num">{fmtDec(l.rmse_seg)} s</td>

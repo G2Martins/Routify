@@ -53,3 +53,35 @@ export const fmtBytes = (v: unknown) => {
 /** Ator/alvo da auditoria: e-mail quando resolvível, senão uuid curto. */
 export const nomeUsuario = (id: string | null | undefined, emails: Record<string, string>) =>
   !id ? '—' : (emails[id] ?? `${id.slice(0, 8)}…`);
+
+const soDia = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeZone: 'America/Sao_Paulo' });
+
+/** "2026-03-07 19:26:09-03:00" → "07/03/2026" (horário de Brasília). Data sem hora não passa por fuso. */
+export const fmtDia = (iso: unknown) => {
+  if (typeof iso !== 'string' || !iso) return '—';
+  const so = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (so) return `${so[3]}/${so[2]}/${so[1]}`;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '—' : soDia.format(d);
+};
+
+/** Viés com sinal: +8,2% / −12,3%. Usa o menos tipográfico; o que arredonda para zero vira "0,0%". */
+export const fmtPctSinal = (v: unknown) => {
+  const n = num(v);
+  if (n === null) return '—';
+  const r = Math.round(n * 10) / 10;
+  return `${r > 0 ? '+' : r < 0 ? '−' : ''}${decimal.format(Math.abs(r))}%`;
+};
+
+/** 754 → "12,6 min" */
+export const fmtMin = (seg: unknown) => {
+  const n = num(seg);
+  return n === null ? '—' : `${decimal.format(n / 60)} min`;
+};
+
+/** lia_2.1_retreino_20260923 → "LIA 2.1 re-treino 23/09"; lia_2.2 → "LIA 2.2". Outro formato volta como veio. */
+export function rotuloVersao(versao: string) {
+  const m = versao.match(/^lia_([\d.]+)(?:_retreino_(\d{4})(\d{2})(\d{2}))?$/);
+  if (!m) return versao;
+  return m[2] ? `LIA ${m[1]} re-treino ${m[4]}/${m[3]}` : `LIA ${m[1]}`;
+}
