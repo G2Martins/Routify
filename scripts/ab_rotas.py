@@ -8,6 +8,8 @@ sensores virtuais. Rode de services/collector (usa o comparador e o pool de chav
 
     APIS="A=http://127.0.0.1:8011,B=http://127.0.0.1:8012" python ../../scripts/ab_rotas.py saida.json [viagens.json]
 
+Na EC2, nos picos de dia útil, quem chama é scripts/ab_ec2.sh (A = produção, B = mesma versão com uma variável trocada).
+
 viagens.json = [[id, nome, [lat, lon], [lat, lon]], ...]; sem ele, os 16 corredores do comparador.
 Exemplo de conjunto: scripts/viagens_buracos.json (as maiores lacunas de sensor da auditoria do grafo).
 """
@@ -31,7 +33,8 @@ for cid, nome, o, d in pares:
     for k, api in APIS.items():
         try:
             r = s.post(f'{api}/route', json={'origem': {'lat': o[0], 'lon': o[1]}, 'destino': {'lat': d[0], 'lon': d[1]},
-                                              'referencia_tomtom': True}, timeout=120)
+                                              'referencia_tomtom': True},
+                   headers={'X-Routify-Interno': '1'}, timeout=120)  # loopback: fora da captura de uso
             j = r.json()
             if r.status_code != 200:
                 linha[k] = {'erro': r.status_code}; continue

@@ -1,15 +1,18 @@
 """
-Rotina de validação da LIA em produção (roda no PC do dono, de hora em hora).
+Rotina de validação da LIA em produção. Roda NA EC2, logo depois de cada rodada do comparador
+(routify-comparador.service → OnSuccess/OnFailure → routify-rotina.service; 8 rodadas por dia,
+picos inclusos — services/collector/deploy/routify-comparador.timer).
 
-Cada execução, via AWS SSM (perfil `routify`, usuário IAM claude-ops), roda NA EC2:
-  1. checagens das correções da LIA contra 127.0.0.1 com X-Routify-Interno (fora da
-     captura de uso): fuso do timestamp, NaN/Infinity/ano 1/override pela metade → 422,
-     previsão normal na faixa, busca, erros no log da API, coletor vivo;
-  2. uma rodada do comparador LIA × provedores (ETA e traçado contra a TomTom).
-Depois consolida em services/collector/dados/rotina/: historico.jsonl (uma linha por
-execução) e relatorio.md (tabela hora a hora). Só stdlib + AWS CLI.
+Cada execução:
+  1. checagens contra 127.0.0.1 com X-Routify-Interno (fora da captura de uso): fuso do timestamp,
+     NaN/Infinity/ano 1/override pela metade → 422, previsão na faixa, busca, erros no log da API
+     desde a execução anterior, coletor vivo;
+  2. lê o log da rodada do comparador que a disparou (LIA × TomTom no mesmo trajeto e contra a rota
+     própria da TomTom, Mapbox, OSRM).
+Grava em $STATE_DIRECTORY (/var/lib/routify-rotina): historico.jsonl (uma linha por execução) e
+relatorio.md (tabela). Só stdlib. Como ver o relatório: docs/core/deploy.md §1.1.
 
-    python scripts/rotina_validacao.py            # uma execução (o agendador chama de hora em hora)
+    python3 scripts/rotina_validacao.py      # na EC2; sem o systemd, lê a rodada dos últimos 20 min
 """
 import json
 import os
@@ -17,18 +20,14 @@ import re
 import statistics as st
 import subprocess
 import sys
-import time
 from datetime import datetime, timedelta, timezone
 
-RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SAIDA = os.path.join(RAIZ, 'services', 'collector', 'dados', 'rotina')
-AWS = r'C:\Program Files\Amazon\AWSCLIV2\aws.exe'
-INSTANCIA = os.getenv('ROUTIFY_INSTANCIA', 'i-08246de2d4ff93725')
+SAIDA = os.getenv('STATE_DIRECTORY') or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                                     'services', 'collector', 'dados', 'rotina')
 BRT = timezone(timedelta(hours=-3))
-ENV = {**os.environ, 'AWS_CLI_OUTPUT_ENCODING': 'utf-8', 'AWS_PAGER': ''}
 
-# Roda na EC2 como root (SSM). Cada linha "CHECK nome valor" vira um item do relatório.
-SCRIPT_EC2 = r'''
+# Cada linha "CHECK nome valor" vira um item do relatório. DESDE = execução anterior (hora local).
+SCRIPT = r'''
 H=http://127.0.0.1:8000
 cj(){ curl -s -m 25 -H 'X-Routify-Interno: 1' -H 'Content-Type: application/json' "$@"; }
 cc(){ curl -s -o /dev/null -w '%{http_code}' -m 25 -H 'X-Routify-Interno: 1' -H 'Content-Type: application/json' "$@"; }
@@ -40,36 +39,17 @@ echo "CHECK override $(cc -X POST $H/predict -d '{"id_ponto":100,"velocidade_liv
 echo "CHECK predict $(cj -X POST $H/predict -d '{"id_ponto":100,"velocidade_livre":60}' | grep -o '"razao_congestionamento":[0-9.]*')"
 echo "CHECK health $(curl -s -m 15 $H/health | tr -d '\n' | head -c 3000)"
 echo "CHECK busca $(cj "$H/search/places?q=rodoviaria&limit=3" | grep -o '"label":"[^"]*"' | head -3 | tr '\n' ' ')"
-echo "CHECK imatch $(journalctl -u routify-api --since '-70 min' -o cat | grep -c 'imatch recusado')"
-echo "CHECK erros_api $(journalctl -u routify-api --since '-70 min' -o cat | grep -cE 'ERROR|Traceback')"
+echo "CHECK imatch $(journalctl -u routify-api --since "$DESDE" -o cat | grep -c 'imatch recusado')"
+echo "CHECK erros_api $(journalctl -u routify-api --since "$DESDE" -o cat | grep -cE 'ERROR|Traceback')"
 echo "CHECK coletor $(systemctl is-active routify-collector) $(journalctl -u routify-collector --since '-70 min' -o cat | grep -c 'inseridos')"
-T0=$(date '+%Y-%m-%d %H:%M:%S')
-systemctl start routify-comparador.service
 echo RODADA_INICIO
-journalctl -u routify-comparador --since "$T0" -o cat | grep -E ' - (INFO|WARNING) - ' | sed 's/^.* - \(INFO\|WARNING\) - //'
+if [ -n "${MONITOR_INVOCATION_ID:-}" ]; then
+  journalctl "_SYSTEMD_INVOCATION_ID=$MONITOR_INVOCATION_ID" -o cat
+else
+  journalctl -u routify-comparador --since '-20 min' -o cat
+fi | grep -E ' - (INFO|WARNING) - ' | sed 's/^.* - \(INFO\|WARNING\) - //'
 echo RODADA_FIM
 '''
-
-
-def ssm(script: str, espera_max_s: int = 900) -> str:
-    """Manda o script pela SSM e devolve a saída (o SSM corta em 24 mil caracteres)."""
-    params = json.dumps({'commands': [script], 'executionTimeout': [str(espera_max_s)]})
-    cid = subprocess.run([AWS, '--profile', 'routify', 'ssm', 'send-command', '--instance-ids', INSTANCIA,
-                          '--document-name', 'AWS-RunShellScript', '--comment', 'rotina de validacao da LIA',
-                          '--parameters', params, '--query', 'Command.CommandId', '--output', 'text'],
-                         capture_output=True, text=True, encoding='utf-8', env=ENV, check=True).stdout.strip()
-    fim = time.time() + espera_max_s + 60
-    while time.time() < fim:
-        time.sleep(10)
-        r = subprocess.run([AWS, '--profile', 'routify', 'ssm', 'get-command-invocation', '--command-id', cid,
-                            '--instance-id', INSTANCIA, '--output', 'json'], capture_output=True, text=True,
-                           encoding='utf-8', env=ENV)
-        if r.returncode != 0:
-            continue
-        j = json.loads(r.stdout)
-        if j['Status'] in ('Success', 'Failed', 'TimedOut', 'Cancelled'):
-            return j.get('StandardOutputContent') or ''
-    raise TimeoutError('SSM não terminou a tempo')
 
 
 PROV = re.compile(r'(\w+) (?:(\d+)s(?: \((\d+)% tra.{1,2}ado\))?|([^|]+?))\s*(?:\||$)')
@@ -109,7 +89,6 @@ def avaliar(saida: str) -> dict:
         idade = round((datetime.now(timezone.utc) - datetime.fromisoformat(rec)).total_seconds() / 60, 1)
     ok = {
         'api_ok': health.get('status') == 'ok',
-        'lia_2_3': health.get('modelo_ativo') == 'lia_2.3',
         'velocidade_calibrada': health.get('velocidade_livre') == 'calibrada',
         'recencia_fresca': idade is not None and idade <= 60,
         'fuso': checks.get('fuso', '').endswith(':17'),
@@ -140,7 +119,8 @@ def avaliar(saida: str) -> dict:
             resumo[nome] = {'n': len(e), 'vies_mediano_pct': round(st.median(e), 1),
                             'mape_pct': round(st.mean(abs(x) for x in e), 1),
                             'traco_comum_pct': round(st.mean(t), 1) if t else None}
-    return {'quando': datetime.now(BRT).isoformat(timespec='minutes'), 'checks': ok,
+    return {'quando': datetime.now(BRT).isoformat(timespec='minutes'), 'modelo': health.get('modelo_ativo'),
+            'rodada_resultado': os.getenv('MONITOR_SERVICE_RESULT'), 'checks': ok,
             'checks_falhos': [k for k, v in ok.items() if not v], 'recencia_idade_min': idade,
             'gravou_no_supabase': 'gravadas em comparacao_provedores' in saida,
             'pendentes': re.findall(r'(\d+) linhas esperam', saida)[-1:] or None,
@@ -151,17 +131,18 @@ def avaliar(saida: str) -> dict:
 
 
 def relatorio(historico: list) -> str:
-    linhas = ['# Rotina de validação da LIA (2026-11-02)', '',
-              'Gerado por `scripts/rotina_validacao.py`. Referência: TomTom com trânsito ao vivo. '
-              '"Traçado" = % da rota igual à da TomTom (até 40 m, nos dois sentidos).', '',
-              '| Hora | Checagens | LIA × TomTom no mesmo trajeto (viés / MAPE) | LIA × rota da TomTom (viés / MAPE / traçado) '
-              '| Mapbox × TomTom (viés / MAPE / traçado) | OSRM traçado | Recência | Supabase |',
-              '|---|---|---|---|---|---|---|---|']
+    linhas = ['# Rotina de validação da LIA em produção', '',
+              'Gerado por `scripts/rotina_validacao.py` depois de cada rodada do comparador. Referência: TomTom com '
+              'trânsito ao vivo. "Traçado" = % da rota igual à da TomTom (até 40 m, nos dois sentidos).', '',
+              '| Quando | Modelo | Checagens | LIA × TomTom no mesmo trajeto (viés / MAPE) | LIA × rota da TomTom '
+              '(viés / MAPE / traçado) | Mapbox × TomTom (viés / MAPE / traçado) | OSRM traçado | Recência | Supabase |',
+              '|---|---|---|---|---|---|---|---|---|']
     for h in historico:
         mt, vt = h['lia_vs_tomtom_mesmo_trajeto'], h['vs_tomtom']
         f = lambda d, *k: ' / '.join('—' if (d or {}).get(x) is None else f"{d[x]}%" for x in k)
         falhos = h['checks_falhos']
-        linhas.append(f"| {h['quando'][11:16]} | {'ok' if not falhos else 'FALHOU: ' + ', '.join(falhos)} "
+        linhas.append(f"| {h['quando'][:16].replace('T', ' ')} | {h.get('modelo') or '—'} "
+                      f"| {'ok' if not falhos else 'FALHOU: ' + ', '.join(falhos)} "
                       f"| {f(mt, 'vies_mediano_pct', 'mape_pct')} "
                       f"| {f(vt.get('lia'), 'vies_mediano_pct', 'mape_pct', 'traco_comum_pct')} "
                       f"| {f(vt.get('mapbox'), 'vies_mediano_pct', 'mape_pct', 'traco_comum_pct')} "
@@ -172,20 +153,28 @@ def relatorio(historico: list) -> str:
 
 def main():
     os.makedirs(SAIDA, exist_ok=True)
+    arq = os.path.join(SAIDA, 'historico.jsonl')
+    historico = []
+    if os.path.exists(arq):
+        with open(arq, encoding='utf-8') as fh:
+            historico = [json.loads(l) for l in fh if l.strip()]
+    # Erros no log desde a execução anterior (8 rodadas por dia: até 4,5 h entre uma e outra).
+    desde = datetime.fromisoformat(historico[-1]['quando']).strftime('%Y-%m-%d %H:%M:%S') if historico else '-70 min'
     try:
-        r = avaliar(ssm(SCRIPT_EC2))
-    except Exception as e:  # registra a falha da própria rotina e segue na próxima hora
+        saida = subprocess.run(['bash', '-c', SCRIPT], capture_output=True, text=True, timeout=240,
+                               env={**os.environ, 'DESDE': desde}).stdout
+        r = avaliar(saida)
+    except Exception as e:  # registra a falha da própria rotina e segue na próxima rodada
         r = {'quando': datetime.now(BRT).isoformat(timespec='minutes'), 'erro_rotina': f'{type(e).__name__}: {e}'[:400],
              'checks': {}, 'checks_falhos': ['rotina'], 'lia_vs_tomtom_mesmo_trajeto': {}, 'vs_tomtom': {},
              'recencia_idade_min': None, 'gravou_no_supabase': False}
-    with open(os.path.join(SAIDA, 'historico.jsonl'), 'a', encoding='utf-8') as fh:
+    historico.append(r)
+    with open(arq, 'a', encoding='utf-8') as fh:
         fh.write(json.dumps(r, ensure_ascii=False) + '\n')
-    with open(os.path.join(SAIDA, 'historico.jsonl'), encoding='utf-8') as fh:
-        historico = [json.loads(l) for l in fh if l.strip()]
     with open(os.path.join(SAIDA, 'relatorio.md'), 'w', encoding='utf-8') as fh:
         fh.write(relatorio(historico))
-    print(json.dumps({k: r.get(k) for k in ('quando', 'checks_falhos', 'lia_vs_tomtom_mesmo_trajeto', 'erro_rotina')},
-                     ensure_ascii=True))
+    print(json.dumps({k: r.get(k) for k in ('quando', 'modelo', 'checks_falhos', 'lia_vs_tomtom_mesmo_trajeto',
+                                            'erro_rotina')}, ensure_ascii=True))
     return 0 if not r.get('checks_falhos') else 1
 
 

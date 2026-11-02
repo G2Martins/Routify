@@ -28,11 +28,9 @@ import json
 import logging
 import argparse
 import time
-from pathlib import Path
 import numpy as np
 import pandas as pd
 import joblib
-import mlflow
 import xgboost as xgb
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import mean_squared_error, mean_absolute_error
@@ -140,29 +138,69 @@ def _metricas(y_true, y_pred, tempo_real_s, prefixo=''):
 
 
 IDADES_AVALIACAO_MIN = (15, 30, 60, 120)
+IDADE_PRODUCAO_MIN = 30  # coleta a cada 43 min na EC2: a leitura chega à API com 0 a 43 min
 
 
-def _ajustar(params: dict, X, y, es_interno: bool = False, eval_set=None):
+def pesos_periodo(df: pd.DataFrame, alfa: float) -> np.ndarray:
+    """LIA 2.4: peso de cada linha = (média das células / linhas da célula) ** alfa, média 1.
+
+    Célula = (hora, fim de semana). O dataset tem 23% das linhas às 21h e o fim de
+    semana com 1/8 do volume de um dia útil (artifacts/cobertura_dataset.json): sem
+    peso, o erro das 21h manda no ajuste e os picos do dia ficam com pouca voz.
+    """
+    celula = df['hora'].to_numpy() * 2 + (df['dia_semana'].to_numpy() >= 5)
+    n = np.bincount(celula, minlength=48).astype(float)
+    w = np.clip((n[n > 0].mean() / n[celula]) ** alfa, 0.1, 10.0)
+    return w / w.mean()
+
+
+def periodo(df: pd.DataFrame) -> np.ndarray:
+    """Rótulo do período de cada linha (hora de Brasília); os picos só em dia útil."""
+    h, util = df['hora'].to_numpy(), df['dia_semana'].to_numpy() < 5
+    return np.select([util & (h >= 6) & (h <= 9), util & (h >= 17) & (h <= 19), util & (h >= 10) & (h <= 16),
+                      ~util & (h >= 6) & (h <= 19), h >= 20],
+                     ['pico_manha_util', 'pico_tarde_util', 'dia_util', 'dia_fim_de_semana', 'noite'],
+                     default='madrugada')
+
+
+def _acumular(acc: dict, rotulos, t_real, t_pred) -> None:
+    """Soma o erro em segundos (previsto − real) por período; _fechar tira as médias."""
+    e = np.asarray(t_pred) - np.asarray(t_real)
+    for p in np.unique(rotulos):
+        m = rotulos == p
+        a = acc.setdefault(str(p), [0, 0.0, 0.0, 0.0])
+        a[0] += int(m.sum()); a[1] += float(e[m].sum()); a[2] += float(np.abs(e[m]).sum()); a[3] += float((e[m] ** 2).sum())
+
+
+def _fechar(acc: dict) -> dict:
+    """vies_seg < 0 = previu mais rápido que o real (subestimou o congestionamento)."""
+    return {p: {'n': n, 'vies_seg': round(s / n, 3), 'mae_seg': round(a / n, 3), 'rmse_seg': round((q / n) ** 0.5, 3)}
+            for p, (n, s, a, q) in sorted(acc.items())}
+
+
+def _ajustar(params: dict, X, y, es_interno: bool = False, eval_set=None, pesos=None):
     """Treina um XGBRegressor e devolve (modelo, nº de árvores).
 
     es_interno (LIA 2.3): o nº de árvores sai de um early stopping no último 10%
     do PRÓPRIO treino, em ordem temporal, e o modelo é refeito com 100% do
     treino. Sem ele, o early stopping usa `eval_set`, que na CV é a própria
     validação (como até a 2.2: otimista, a parada escolhe pelo conjunto que
-    depois é medido). Sem eval_set, treina as n_estimators fixas.
+    depois é medido). Sem eval_set, treina as n_estimators fixas. pesos = sample_weight
+    (LIA 2.4), também no conjunto da parada interna.
     """
     sem_es = {k: v for k, v in params.items() if k != 'early_stopping_rounds'}
     if es_interno:
         corte = int(len(X) * 0.9)
         sonda = xgb.XGBRegressor(**params)
-        sonda.fit(X.iloc[:corte], y.iloc[:corte],
-                  eval_set=[(X.iloc[corte:], y.iloc[corte:])], verbose=False)
+        sonda.fit(X.iloc[:corte], y.iloc[:corte], sample_weight=None if pesos is None else pesos[:corte],
+                  eval_set=[(X.iloc[corte:], y.iloc[corte:])],
+                  sample_weight_eval_set=None if pesos is None else [pesos[corte:]], verbose=False)
         n = int(sonda.best_iteration) + 1
-        return xgb.XGBRegressor(**{**sem_es, 'n_estimators': n}).fit(X, y, verbose=False), n
+        return xgb.XGBRegressor(**{**sem_es, 'n_estimators': n}).fit(X, y, sample_weight=pesos, verbose=False), n
     if eval_set is not None:
-        m = xgb.XGBRegressor(**params).fit(X, y, eval_set=eval_set, verbose=False)
+        m = xgb.XGBRegressor(**params).fit(X, y, sample_weight=pesos, eval_set=eval_set, verbose=False)
         return m, int(m.best_iteration) + 1
-    return xgb.XGBRegressor(**sem_es).fit(X, y, verbose=False), int(sem_es['n_estimators'])
+    return xgb.XGBRegressor(**sem_es).fit(X, y, sample_weight=pesos, verbose=False), int(sem_es['n_estimators'])
 
 
 def _media(lista, chave):
@@ -172,14 +210,15 @@ def _media(lista, chave):
 
 def evaluate_cv(df: pd.DataFrame, params: dict, cols: list = None, oof: bool = False,
                 envelhecer: bool = False, es_interno: bool = False,
-                idades=IDADES_AVALIACAO_MIN) -> dict:
+                idades=IDADES_AVALIACAO_MIN, alfa_pesos: float = 0.0) -> dict:
     """CV temporal. Cada fold recalcula os perfis só com o seu treino.
 
     Mede nos mesmos folds o modelo, o perfil puro e a persistência (repetir a
     última leitura da via). Repete a medida com a recência envelhecida em
     `idades` minutos, como ela chega na API: com leitura de 8 min a persistência
     é difícil de bater, mas isso não é a produção. Acima da janela dos vizinhos
-    (60 min) a medida também tira os vizinhos, que a API não teria.
+    (60 min) a medida também tira os vizinhos, que a API não teria. O erro também sai
+    por período (pico de dia útil × resto), com a leitura fresca e com a de 30 min.
     """
     cols = cols or feat.FEATURE_COLS
     tscv = TimeSeriesSplit(n_splits=N_SPLITS)
@@ -187,10 +226,13 @@ def evaluate_cv(df: pd.DataFrame, params: dict, cols: list = None, oof: bool = F
     nomes = ('modelo', 'baseline', 'persistencia')
     resultados = {n: [] for n in nomes}
     por_idade = {i: {n: [] for n in nomes} for i in idades}
+    por_periodo = {n: {} for n in nomes}
+    por_periodo_prod = {n: {} for n in nomes}
     arvores = []
 
     logging.info(f"TimeSeriesSplit temporal ({N_SPLITS} folds) | perfis OOF: {oof} | "
-                 f"recência envelhecida: {envelhecer} | early stopping interno: {es_interno}")
+                 f"recência envelhecida: {envelhecer} | early stopping interno: {es_interno} | "
+                 f"pesos por período: {alfa_pesos or 'não'}")
 
     for fold, (tr_idx, val_idx) in enumerate(tscv.split(df)):
         df_tr, df_val = df.iloc[tr_idx], df.iloc[val_idx]
@@ -207,15 +249,18 @@ def evaluate_cv(df: pd.DataFrame, params: dict, cols: list = None, oof: bool = F
 
         t0 = time.time()
         model, n_arv = _ajustar(params, tr[cols], tr[feat.TARGET_COL], es_interno,
-                                eval_set=[(X_val, y_val)])
+                                eval_set=[(X_val, y_val)],
+                                pesos=pesos_periodo(tr, alfa_pesos) if alfa_pesos else None)
         dur = time.time() - t0
         arvores.append(n_arv)
 
-        m = {'modelo': _metricas(y_val, model.predict(X_val), tempo_val),
-             'baseline': _metricas(y_val, val['perfil_via_hora_dow'].values, tempo_val),
-             'persistencia': _metricas(y_val, val['razao_lag1'].values, tempo_val)}
+        prev = {'modelo': model.predict(X_val), 'baseline': val['perfil_via_hora_dow'].values,
+                'persistencia': val['razao_lag1'].values}
+        rot = periodo(val)
         for n in nomes:
-            resultados[n].append(m[n])
+            resultados[n].append(_metricas(y_val, prev[n], tempo_val))
+            _acumular(por_periodo[n], rot, tempo_val, feat.razao_para_segundos(tempo_val, y_val.values, prev[n]))
+        m = {n: resultados[n][-1] for n in nomes}
 
         for idade in idades:
             r, d = feat.recencia_envelhecida(val, serie, idade)
@@ -227,9 +272,12 @@ def evaluate_cv(df: pd.DataFrame, params: dict, cols: list = None, oof: bool = F
             if idade > feat.ctx.JANELA_VIZINHOS_MIN and 'vizinhos_razao' in v:
                 v['vizinhos_razao'], v['vizinhos_n'] = np.nan, 0.0
             yv, tv = v[feat.TARGET_COL].values, v['tempo_viagem_segundos'].values
-            por_idade[idade]['modelo'].append(_metricas(yv, model.predict(v[cols]), tv))
-            por_idade[idade]['persistencia'].append(_metricas(yv, v['razao_lag1'].values, tv))
-            por_idade[idade]['baseline'].append(_metricas(yv, v['perfil_via_hora_dow'].values, tv))
+            pv = {'modelo': model.predict(v[cols]), 'persistencia': v['razao_lag1'].values,
+                  'baseline': v['perfil_via_hora_dow'].values}
+            for n in nomes:
+                por_idade[idade][n].append(_metricas(yv, pv[n], tv))
+                if idade == IDADE_PRODUCAO_MIN:
+                    _acumular(por_periodo_prod[n], periodo(v), tv, feat.razao_para_segundos(tv, yv, pv[n]))
 
         logging.info(
             f"  Fold {fold+1}/{N_SPLITS} — treino {len(tr):,} → val {len(val):,} | "
@@ -261,6 +309,13 @@ def evaluate_cv(df: pd.DataFrame, params: dict, cols: list = None, oof: bool = F
         logging.info(f"  leitura com {idade:>3} min: modelo {p['modelo_rmse_seg']:.2f} · "
                      f"persistência {p['persistencia_rmse_seg']:.2f} · perfil {p['baseline_rmse_seg']:.2f}")
 
+    resumo['por_periodo'] = {n: _fechar(por_periodo[n]) for n in nomes}
+    resumo[f'por_periodo_recencia_{IDADE_PRODUCAO_MIN}min'] = {n: _fechar(por_periodo_prod[n]) for n in nomes}
+    for nome_p, chave in (('fresca', 'por_periodo'), (f'{IDADE_PRODUCAO_MIN} min', f'por_periodo_recencia_{IDADE_PRODUCAO_MIN}min')):
+        for p, d in resumo[chave]['modelo'].items():
+            logging.info(f"  [{nome_p}] {p:<18} modelo viés {d['vies_seg']:+.2f}s MAE {d['mae_seg']:.2f}s | "
+                         f"persistência MAE {resumo[chave]['persistencia'][p]['mae_seg']:.2f}s (n={d['n']:,})")
+
     # Por fold, para comparação pareada entre versões (mesmos folds nas duas).
     resumo['folds'] = [{'rmse_seg': round(a['rmse_seg'], 4), 'mae_seg': round(a['mae_seg'], 4),
                         'baseline_rmse_seg': round(b['rmse_seg'], 4),
@@ -272,7 +327,7 @@ def evaluate_cv(df: pd.DataFrame, params: dict, cols: list = None, oof: bool = F
 
 
 def train_final(df: pd.DataFrame, params: dict, cols: list = None, oof: bool = False,
-                envelhecer: bool = False, n_arvores: int = None):
+                envelhecer: bool = False, n_arvores: int = None, alfa_pesos: float = 0.0):
     """Modelo final: perfis sobre 100% dos dados (viram artefato para a API).
 
     n_arvores (LIA 2.3): a mediana das paradas da CV. Um early stopping no fim
@@ -288,14 +343,15 @@ def train_final(df: pd.DataFrame, params: dict, cols: list = None, oof: bool = F
         full = feat.envelhecer_recencia(full, feat.serie_observacoes(df))
 
     X, y = full[cols], full[feat.TARGET_COL]
-    model, n_arv = _ajustar({**params, 'n_estimators': n_arvores} if n_arvores else params, X, y)
+    model, n_arv = _ajustar({**params, 'n_estimators': n_arvores} if n_arvores else params, X, y,
+                            pesos=pesos_periodo(full, alfa_pesos) if alfa_pesos else None)
     logging.info(f"  modelo final com {n_arv} árvores")
     return model, perfis, X
 
 
 def run(version: str = 'lia_2.0', use_gpu: bool = True, skip_silver: bool = False,
         params_nome: str = 'manual', com_contexto: bool = False, oof: bool = False,
-        envelhecer: bool = False, es_interno: bool = False):
+        envelhecer: bool = False, es_interno: bool = False, alfa_pesos: float = 0.0):
     os.makedirs(MODELS_DIR, exist_ok=True)
     params = dict(PARAMS_POR_NOME[params_nome])
     cols = feat.feature_cols(com_contexto)
@@ -314,19 +370,17 @@ def run(version: str = 'lia_2.0', use_gpu: bool = True, skip_silver: bool = Fals
     logging.info("=== Passo 2: Preparando features ===")
     df, _ = feat.run(version=version, com_contexto=com_contexto)
 
-    mlruns_path = Path(MODELS_DIR) / 'mlruns'
-    mlruns_path.mkdir(parents=True, exist_ok=True)
-    mlflow.set_tracking_uri(mlruns_path.as_uri())
-    mlflow.set_experiment("LIA")
-
     logging.info("=== Passo 3: Validação cruzada temporal ===")
-    resumo = evaluate_cv(df, params, cols, oof=oof, envelhecer=envelhecer, es_interno=es_interno)
+    resumo = evaluate_cv(df, params, cols, oof=oof, envelhecer=envelhecer, es_interno=es_interno,
+                         alfa_pesos=alfa_pesos)
     folds = resumo.pop('folds')
     por_idade = resumo.pop('por_idade')
+    por_periodo = {k: resumo.pop(k) for k in list(resumo) if k.startswith('por_periodo')}
 
     logging.info("=== Passo 4: Modelo final ===")
     n_final = int(np.median([f['arvores'] for f in folds])) if es_interno else None
-    model, perfis, X_full = train_final(df, params, cols, oof=oof, envelhecer=envelhecer, n_arvores=n_final)
+    model, perfis, X_full = train_final(df, params, cols, oof=oof, envelhecer=envelhecer, n_arvores=n_final,
+                                        alfa_pesos=alfa_pesos)
 
     importance = dict(zip(X_full.columns, model.feature_importances_))
     logging.info("Importância das features:")
@@ -361,37 +415,18 @@ def run(version: str = 'lia_2.0', use_gpu: bool = True, skip_silver: bool = Fals
         'com_contexto': com_contexto,
         'cv_folds': folds,
         'cv_por_idade_recencia_min': por_idade,
+        **{f'cv_{k}': v for k, v in por_periodo.items()},
         'receita': {'perfis_oof': oof, 'recencia_envelhecida': envelhecer,
                     'idades_envelhecimento_min': list(feat.IDADES_RECENCIA_MIN) if envelhecer else [],
                     'early_stopping': 'interno (último 10% do treino)' if es_interno else 'na validação da CV',
                     'arvores_modelo_final': int(model.get_params()['n_estimators']),
-                    'regra_arvores_final': 'mediana das paradas da CV' if es_interno else 'n_estimators fixo'},
+                    'regra_arvores_final': 'mediana das paradas da CV' if es_interno else 'n_estimators fixo',
+                    'pesos_periodo_alfa': alfa_pesos},
         'formula_inferencia': 'tempo_s = comprimento_m / (velocidade_livre_kmh * razao_prevista / 3.6)',
     })
     with open(meta_path, 'w', encoding='utf-8') as f:
         json.dump(meta, f, ensure_ascii=False, indent=2)
     logging.info(f"Metadata atualizada: {meta_path}")
-
-    try:
-        with mlflow.start_run(run_name=version.upper().replace('_', ' ')):
-            mlflow.log_params({k: v for k, v in params.items()})
-            mlflow.log_param('n_splits_cv', N_SPLITS)
-            mlflow.log_param('total_amostras', len(df))
-            mlflow.log_param('n_features', len(cols))
-            mlflow.log_param('n_pontos', df['id_ponto'].nunique())
-            mlflow.log_param('alvo', feat.TARGET_COL)
-            for k, v in resumo.items():
-                if isinstance(v, float) and not np.isnan(v):
-                    mlflow.log_metric(k, v)
-            for nome, imp in importance.items():
-                mlflow.log_metric(f'importance_{nome}', float(imp))
-            mlflow.log_artifact(model_path)
-            mlflow.log_artifact(profiles_path)
-            mlflow.log_artifact(meta_path)
-            mlflow.log_artifact(os.path.join(MODELS_DIR, f'{version}_encoder.pkl'))
-    except Exception as e:
-        logging.error(f"MLflow falhou: {e}")
-        logging.warning("Os artefatos em models/ foram salvos normalmente.")
 
     logging.info("")
     logging.info("=== Treinamento concluído ===")
@@ -420,6 +455,8 @@ if __name__ == '__main__':
                         help='LIA 2.3: metade do treino com a recência envelhecida (15 a 480 min)')
     parser.add_argument('--es-interno', action='store_true',
                         help='LIA 2.3: early stopping no fim do próprio treino, não na validação')
+    parser.add_argument('--pesos-periodo', type=float, default=0.0, metavar='ALFA',
+                        help='LIA 2.4: peso por (hora, fim de semana) = (média/célula)^ALFA; 0 = sem peso')
     args = parser.parse_args()
 
     t0 = time.time()
@@ -429,7 +466,7 @@ if __name__ == '__main__':
 
     run(version=args.version, use_gpu=not args.cpu, skip_silver=args.skip_silver,
         params_nome=args.params, com_contexto=args.contexto, oof=args.oof_perfis,
-        envelhecer=args.envelhecer, es_interno=args.es_interno)
+        envelhecer=args.envelhecer, es_interno=args.es_interno, alfa_pesos=args.pesos_periodo)
 
     logging.info("=" * 70)
     logging.info(f"Concluído em {time.time() - t0:.1f}s")

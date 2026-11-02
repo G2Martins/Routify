@@ -1,0 +1,28 @@
+[Unit]
+Description=Routify — rotina de validação (checagens da API + resumo da rodada do comparador)
+# Disparada pelo routify-comparador.service (OnSuccess/OnFailure), não por timer próprio.
+After=routify-api.service
+
+[Service]
+Type=oneshot
+# Sem acesso ao .env nem às chaves: só curl no loopback, journalctl e systemctl is-active.
+DynamicUser=yes
+SupplementaryGroups=systemd-journal
+StateDirectory=routify-rotina
+Environment=TZ=America/Sao_Paulo
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/bin/python3 /opt/routify/scripts/rotina_validacao.py
+TimeoutStartSec=5min
+MemoryMax=150M
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+LockPersonality=true
+UMask=0077

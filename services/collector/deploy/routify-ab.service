@@ -1,0 +1,33 @@
+[Unit]
+Description=Routify — A/B no mesmo instante contra a API de produção (picos de dia útil)
+After=network-online.target routify-api.service
+Wants=network-online.target
+ConditionPathExists=/opt/routify/services/collector/config/.env
+
+[Service]
+Type=oneshot
+User=routify
+Environment=TZ=America/Sao_Paulo
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+# Cota da TomTom: cada passada gasta Flow/Routing dos dois braços; depois desta data o A/B não roda.
+Environment=AB_ATE=2026-11-13
+ExecStart=/bin/bash /opt/routify/scripts/ab_ec2.sh sensores lia24
+TimeoutStartSec=40min
+StateDirectory=routify-ab
+StateDirectoryMode=0700
+# B (~0,8 GB, igual à produção) + o script. A produção tem o próprio teto (MemoryMax=1500M);
+# a máquina tem 2 GB de swap. Estourou aqui, o kernel mata só o A/B.
+MemoryMax=1100M
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+LockPersonality=true
+UMask=0077

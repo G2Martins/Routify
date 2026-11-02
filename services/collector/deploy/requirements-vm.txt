@@ -2,10 +2,9 @@
 # (services/collector/main.py, que agora também agenda external_validation.run()).
 #
 # União de apps/api/requirements.txt + services/collector/requirements.txt +
-# ml/requirements.txt, SEM torch e SEM mlflow — nenhum dos dois é
-# importado por main.py, traffic_collector.py, map_extractor.py,
-# external_validation.py, apps/api/main.py ou apps/api/routers/route.py (torch só é usado por
-# benchmark_lstm_xgboost.py, mlflow só por train.py — nenhum roda no VM).
+# ml/requirements.txt, SEM torch — não é importado por main.py, traffic_collector.py,
+# map_extractor.py, external_validation.py, apps/api/main.py ou apps/api/routers/route.py
+# (só benchmark_lstm_xgboost.py usa, e ele não roda no VM).
 # Isso evita baixar CUDA wheels desnecessárias (torch==2.9.0+cu128 nem
 # instalaria certo numa VM ARM64 como a Ampere A1 da Oracle).
 #

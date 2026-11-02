@@ -30,13 +30,14 @@ um CSV a cada execução (append, não overwrite), em vez de sobrescritos.
 Rodar uma vez dá um sinal inicial rápido; rodar repetidas vezes ao longo de
 semanas é o que dá poder estatístico real para separar pico de fora-pico.
 
-Uma chave TomTom é reaproveitada do pool existente (services/collector/config/
-tomtom_keys.json) — o volume desta análise é muito menor que a cota diária de
-qualquer conta (2.500 req/dia), então uma chave sozinha basta.
+Uma chave TomTom sorteada do pool existente (services/collector/config/
+tomtom_keys.json) — o volume desta análise é pequeno perto da cota mensal de
+Routing de cada chave (20 mil/mês, docs.tomtom.com/pricing).
 """
 import json
 import logging
 import os
+import random
 import sys
 import time
 from datetime import datetime, timezone, timedelta
@@ -106,7 +107,8 @@ PARES = [
 def carregar_chave_tomtom() -> str:
     with open(TOMTOM_KEYS_PATH, 'r', encoding='utf-8') as f:
         data = json.load(f)
-    return data['tomtom_keys'][7]['key']  # key_08 — confirmada funcionando em 19/08/2026
+    # Sorteia do pool: a posição fixa ([7], a key_08 de 19/08/2026) quebrava se o pool mudasse de ordem ou tamanho.
+    return random.choice(data['tomtom_keys'])['key']
 
 
 def montar_ambiente_lia():

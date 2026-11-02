@@ -101,6 +101,23 @@ cresce ~630 por ciclo. O painel ADM (Qualidade dos dados) mostra a recência por
 liga o timer (8 rodadas por dia). Teste manual sem gravar:
 `sudo -u routify bash -c 'cd /opt/routify/services/collector && .venv/bin/python comparar_provedores.py --sem-gravar'`.
 
+**Rotina de validação** (`scripts/rotina_validacao.py`, unit `routify-rotina.service`, instalada pelo mesmo script):
+roda ao fim de cada rodada do comparador (`OnSuccess`/`OnFailure`), sem timer próprio e sem gastar TomTom além de
+1 busca. Confere a API pelo loopback (fuso, 422 com NaN/Infinity/ano 1/override, previsão na faixa, busca, erros no
+log desde a execução anterior, coletor vivo) e resume a rodada que a disparou (LIA × TomTom no mesmo trajeto e
+contra a rota própria, Mapbox, OSRM). Roda com usuário dinâmico do systemd que só lê o journal: não enxerga o
+`.env` nem as chaves. Saída em `/var/lib/routify-rotina/` (`historico.jsonl` + `relatorio.md`):
+`sudo cat /var/lib/routify-rotina/relatorio.md` (do PC, pelo SSH por dentro do SSM do §5.6).
+
+**A/B nos picos de dia útil** (`scripts/ab_ec2.sh`, `routify-ab.service` + `.timer`; liga com
+`sudo AB=1 bash …/instalar-ec2.sh`): às 07:40, 08:40, 17:40 e 18:40 (seg–sex) sobe um braço B na porta 8001, o
+mesmo código da produção com UMA variável trocada, e roda `scripts/ab_rotas.py` contra a produção (A) no mesmo
+instante, viagem a viagem; no fim derruba o B. Variantes: `sensores` (`SENSORES_VIRTUAIS=1`, 10 viagens pelos
+buracos de sensor) e `lia24` (`LIA_VERSION=lia_2.4`, 16 corredores; pulada sem o `lia_2.4.pkl`). Resultado em
+`/var/lib/routify-ab/<variante>_<data>_<hora>.json`. Teto de 1,1 GB (o B ocupa ~0,8 GB, igual à produção; a
+máquina tem 2 GB de swap). Para sozinho depois de `AB_ATE` (2026-11-13), porque cada passada gasta Flow e Routing
+da TomTom nos dois braços. Rodar fora do horário: `sudo systemctl start routify-ab.service`.
+
 Parar: `sudo systemctl disable --now routify-collector`. Pausar chaves no painel ADM **não** afeta o coletor
 (ele não lê `config_runtime`); para tirar chaves dele, aponte `TOMTOM_KEYS_FILE` para um JSON com o subconjunto.
 
@@ -154,7 +171,8 @@ Resend, grátis até 3 mil e-mails por mês, com o domínio já verificado.
 ## 4. Rollback e desligamento
 
 - API: `LIA_VERSION=lia_2.2` (ou `lia_2.1`), `VEL_LIVRE_CALIBRADA=0` e/ou `PRIOR_CONGESTIONAMENTO=perfil` num drop-in do systemd → `systemctl restart routify-api`. Fatores por grupo e δ de 2026-09-23: copiar `semaforos_calibracao_2026-09-23.json` por cima de `semaforos_calibracao.json`.
-- Comparador: `sudo systemctl disable --now routify-comparador.timer`.
+- Comparador: `sudo systemctl disable --now routify-comparador.timer` (a rotina de validação para junto).
+- A/B: `sudo systemctl disable --now routify-ab.timer`.
 - Coletor: `sudo systemctl disable --now routify-collector` (a API continua chamando a TomTom sob demanda).
 - Front: republicar o pacote anterior pelo mesmo MCP.
 - Fim do projeto (dez/2026): terminar a EC2, liberar o IP elástico (IP parado também consome crédito), apagar o site na Hostinger e os registros DNS. O código fica no GitHub.

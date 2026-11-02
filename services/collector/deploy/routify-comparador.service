@@ -3,6 +3,9 @@ Description=Routify — comparador LIA × provedores (uma rodada)
 After=network-online.target routify-api.service
 Wants=network-online.target
 ConditionPathExists=/opt/routify/services/collector/config/.env
+# Ao fim de cada rodada, ok ou não, a rotina de validação confere a API e resume a rodada.
+OnSuccess=routify-rotina.service
+OnFailure=routify-rotina.service
 
 [Service]
 Type=oneshot

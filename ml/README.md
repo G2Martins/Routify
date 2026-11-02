@@ -7,7 +7,6 @@
 ![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&logo=python&logoColor=white)
 ![XGBoost](https://img.shields.io/badge/XGBoost-3.2-FF6F00?style=flat-square)
 ![Optuna](https://img.shields.io/badge/Optuna-4.9-0083CC?style=flat-square)
-![MLflow](https://img.shields.io/badge/MLflow-3.12-0194E2?style=flat-square&logo=mlflow&logoColor=white)
 ![scikit-learn](https://img.shields.io/badge/scikit--learn-1.8-F7931E?style=flat-square&logo=scikit-learn&logoColor=white)
 
 </div>
@@ -39,7 +38,6 @@ A saída é um conjunto de artefatos versionados (`lia_X.Y.pkl` + encoder + perf
                                                                     lia_2.1_encoder.pkl
                                                                     lia_2.1_profiles.pkl
                                                                     lia_2.1_metadata.json
-                                                                    mlruns/
 ```
 
 Cada `python train.py` executa as 3 etapas em sequência. **Silver não é
@@ -210,20 +208,11 @@ dados de treino.
 
 ---
 
-## 📊 MLflow
+## 📊 Onde ficam as métricas
 
-Visualizar runs:
-```bash
-mlflow ui --backend-store-uri "file:///<caminho-absoluto>/artifacts/mlruns"
-```
-
-> O `mlflow` 3.12 pede `pandas<3`; o venv fixa `pandas==3.0.0` (o pip avisa do
-> conflito, o treino funciona). "MLflow falhou: Run … not found" vem do store
-> antigo em `artifacts/mlruns` e não afeta os artefatos — eles já foram salvos.
-
-Métricas logadas por run: RMSE/MAE (em razão e em segundos, geral e só no
-subconjunto congestionado), importância de cada feature, hiperparâmetros,
-total de amostras, nº de pontos monitorados, período coberto.
+Cada treino grava as métricas no `artifacts/<versão>_metadata.json` (CV por fold, por idade da leitura e, desde a
+2.4, por período do dia) e o `publish_metrics.py` as leva para `lia_treinos`/`lia_analises` (painel ADM). O MLflow
+saiu em 2026-11-02: gravava runs que ninguém lia.
 
 ---
 
@@ -245,8 +234,6 @@ abandono:
 ---
 
 ## 🚨 Troubleshooting
-
-**`KeyError: 'c'` no `mlflow.set_experiment`** — Path Windows interpretado como scheme. Já corrigido com `Path(...).as_uri()`.
 
 **`Shape X: (0, N)` após features** — Silver pegou poucos rows (Supabase corta default em 1000/req). `CHUNK_SIZE = 1000` em `silver.py` já cobre isso via paginação — confirme que os dados existem no Supabase.
 
