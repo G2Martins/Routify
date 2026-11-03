@@ -481,7 +481,15 @@ vinha primeiro uma loja de São Sebastião. Sinais usados:
 ```
 `categoria` também pode ser `Região` ou `Bairro` (localidades do OSM, `source: "malha"`). Consulta só de
 pontuação devolve `[]` sem gastar cota. Limite de 90/min por IP (429 com `Retry-After`); depois de 400 buscas
-no dia, o IP segue só com a base local (sem TomTom).
+no dia, o IP segue só com a base local (sem TomTom); a bateria de validação no loopback (`X-Routify-Interno`) fica fora desse teto.
+
+### `POST /search/recentes`
+Confere até 10 destinos do histórico (`{"recentes": [{"label", "lat", "lon"}]}`, corpo estrito, só dentro do DF). Para cada
+um devolve `lat`, `lon`, `area` (a região administrativa que contém o ponto, pelos polígonos do OSM em
+`ml/artifacts/ras_df.json`) e `corrigido`. Se o nome é de um marco do OSM com dono único (`pois_df.json`) e o ponto salvo
+está a mais de 3 km dele, a coordenada vira a do marco: um "Park Shopping" salvo em São Sebastião (POI homônimo da
+TomTom, escolhido com o ranking antigo) volta para o ParkShopping do Guará. Rótulo já desambiguado pelo app
+("Park Shopping · São Sebastião") não casa e fica. Sem TomTom e sem gravar nada; 90/min por IP.
 
 ---
 
@@ -505,7 +513,7 @@ O `Dockerfile` copia só os artefatos da lista de permissão do `.dockerignore` 
 
 **Swagger UI:** <http://localhost:8000/docs> · **ReDoc:** <http://localhost:8000/redoc>
 
-Textos, grupos e parâmetros do Swagger ficam em `openapi.py`; exemplos e descrições dos campos ficam nos modelos Pydantic de cada router. Para testar rotas com login, cole o `access_token` da sessão Supabase em **Authorize** (não fica salvo: `persistAuthorization` desligado). `/admin/*` e `/mfa/*` ficam fora do Swagger público (auditoria de 2026-11-03, B3) e estão descritos neste README. O cabeçalho `Server-Timing` do `/route` (tempo por fase) só sai em chamada interna (`X-Routify-Interno` do 127.0.0.1); de fora, os números ficam no log.
+Textos, grupos e parâmetros do Swagger ficam em `openapi.py`; exemplos e descrições dos campos ficam nos modelos Pydantic de cada router. Para testar rotas com login, cole o `access_token` da sessão Supabase em **Authorize** (não fica salvo: `persistAuthorization` desligado). `/admin/*` e `/mfa/*` ficam fora do Swagger público (auditoria de 2026-11-03, B3) e estão descritos neste README. O tempo de cada fase do `/route` fica só no log (`| ms prep=… snap=…`).
 
 ---
 

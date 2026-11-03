@@ -132,8 +132,17 @@ instala só `dependencies`, sem as devDeps do Tailwind. Então o build roda em L
    o script para se faltar ou vier com caminho. Vira o `canonical`, o `og:url`, o sitemap e os links do `llms.txt`, e **não
    fica no repositório** (público): `apps/mobile/public` guarda os modelos com marcadores e o script os troca no pacote
    (§2.1). No GitHub Actions (`front-build.yml`) a origem vem da variável do repositório `ROUTIFY_SITE_URL`.
-2. Em qualquer Linux x64 com Node 22 (usamos a própria EC2, usuário `builder` **sem sudo**):
-   `NEXT_PUBLIC_SUPABASE_URL=… NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=… NEXT_PUBLIC_API_URL=https://api-<app> NEXT_PUBLIC_APP_URL=/ bash montar-front-linux.sh ~/routify-front.tar.gz`.
+2. Em qualquer Linux x64 com Node 22. Duas opções:
+   - **GitHub Actions** (`front-build.yml`, recomendado): precisa dos secrets `SUPABASE_URL` e `SUPABASE_PUBLISHABLE_KEY` e
+     das variáveis `ROUTIFY_API_URL` e `ROUTIFY_SITE_URL` no repositório (o dono configura; o assistente não grava secret).
+   - **Na EC2, usuário `builder`, sempre num escopo com teto de memória**: sem ele, o `next build` jogou a API no swap e
+     duas rotas levaram 32 e 41 s (2026-11-02). Com o teto, a API respondeu em 1–8 ms durante o build (2026-11-03):
+
+     ```bash
+     sudo systemd-run --scope --quiet -p MemoryHigh=700M -p MemoryMax=1400M --        sudo -u builder env PATH=/home/builder/node/bin:/usr/bin:/bin HOME=/home/builder        NEXT_PUBLIC_SUPABASE_URL=… NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=… NEXT_PUBLIC_API_URL=https://api-<app> NEXT_PUBLIC_APP_URL=/        bash -c "cd <pasta do pacote> && nice -n 19 bash montar-front-linux.sh /home/builder/routify-front.tar.gz"
+     ```
+
+     Não buildar enquanto o `routify-ab.service` roda (07:40/08:40/17:40/18:40 em dia útil): o braço B ocupa ~0,7 GB.
 3. Publicar com o MCP da Hostinger: `hosting_deploy` (domínio `<app>`, arquivo do passo 2, `type: nodejs`, `appType: other`,
    `buildScript: build`, `entryFile: index.js`, Node 22) e acompanhar com `hosting_get-deployment`. O arquivo não pode
    estar dentro da pasta do usuário: a ferramenta recusa. Antes de 2026-11 a operação se chamava `hosting_deployJsApplication`.

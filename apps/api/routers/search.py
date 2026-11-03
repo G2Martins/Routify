@@ -740,7 +740,8 @@ async def autocomplete(
 
     # 20 = recall: com 10, lojas "...Aeroporto" empurravam o aeroporto para fora. Mesma chamada.
     # Sem acento nem pontuação: "Park-Shopping" e "park shopping" dividem o cache de 24 h (e a cota).
-    usar_tomtom = tt is not None and tt.ativo and tomtom_liberado(ip)
+    # A bateria de validação (loopback interno) faz ~400 buscas de uma vez: fora do teto por IP.
+    usar_tomtom = tt is not None and tt.ativo and (usage.requisicao_interna(request) or tomtom_liberado(ip))
     remotas = [tt.buscar(t, 20, perto) for t in [texto_tomtom(q)] + vs[1:2]] if usar_tomtom else []
     achados = await asyncio.gather(_malha(sb, q) if sb is not None else _nada(), *remotas, return_exceptions=True)
     locais = _lista(achados[0], 'malha')

@@ -12,7 +12,7 @@ from typing import Dict, List, Tuple, Optional
 import networkx as nx
 import osmnx as ox
 import numpy as np
-from fastapi import APIRouter, Request, Response, HTTPException, Security
+from fastapi import APIRouter, Request, HTTPException, Security
 from pydantic import BaseModel, ConfigDict, Field
 
 import combustivel
@@ -648,12 +648,12 @@ def _snap(request: Request, G: nx.MultiDiGraph, lat: float, lon: float) -> Tuple
         429: erro("Limite de rotas por minuto excedido.", "Muitas requisições. Tente de novo em instantes."),
     },
 )
-async def calculate_route(body: RouteInput, request: Request, response: Response):
+async def calculate_route(body: RouteInput, request: Request):
     limitar(_limite_ip, ip_cliente(request))
     if not usage.requisicao_interna(request):
         limitar(_limite_global, 'todas', 'Muitas rotas sendo calculadas agora. Tente de novo em instantes.')
     inicio_req = time.perf_counter()
-    # Tempo por fase (ms) no Server-Timing e no log: a auditoria de latência de 2026-11-02 começou sem isso.
+    # Tempo por fase (ms) no log: a auditoria de latência de 2026-11-02 começou sem isso.
     etapas: Dict[str, float] = {}
     ultima = [inicio_req]
 
@@ -662,11 +662,6 @@ async def calculate_route(body: RouteInput, request: Request, response: Response
         etapas[nome] = (agora - ultima[0]) * 1000
         ultima[0] = agora
 
-    def server_timing() -> None:
-        # Só na chamada interna (A/B, comparador): de fora, o tempo de cada fase ajudava a calibrar um DoS (auditoria
-        # de 2026-11-03, B8). O log segue com os números.
-        if usage.requisicao_interna(request):
-            response.headers['Server-Timing'] = ', '.join(f'{k};dur={v:.0f}' for k, v in etapas.items())
     # Usuário é opcional (rota anônima segue funcionando); com token válido, o
     # uso fica associado à conta para o painel ADM.
     sb = getattr(request.app.state, 'supabase', None)
@@ -752,7 +747,6 @@ async def calculate_route(body: RouteInput, request: Request, response: Response
             )
         resumo_tt = resumo_tomtom(ref['polyline'], 0, ref)
         request.state.degradado = degradado
-        server_timing()
         _registrar_rota(sb, user_id, body, version, hora, dia_semana, resumo_tt, inicio_req,
                         distancia_km=ref.get('distancia_km'), tempo_lia=None, tempo_curta=None,
                         rotas_diferentes=None, cobertura=0.0)
@@ -888,7 +882,6 @@ async def calculate_route(body: RouteInput, request: Request, response: Response
     niveis = trajeto.preencher_com_tomtom(polyline, niveis, nossa.get('polyline'), nossa.get('trafego'))
     trafego_final = (melhor or {}).get('trafego') if fonte_rota == 'tomtom' else niveis
     marca('fusao')
-    server_timing()
 
     logger.info(
         f"Rota ({fonte_rota}): {len(path_nodes)} nós, exibido {tempo_exibido:.0f}s (LIA {tempo_lia:.0f}s, "
