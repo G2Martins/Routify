@@ -3,6 +3,7 @@
 # B = o mesmo código com UMA variável trocada (:8001), de pé só durante a medida. Variantes:
 #   sensores  SENSORES_VIRTUAIS=1, nas 10 viagens pelos buracos de sensor (scripts/viagens_buracos.json)
 #   restricoes RESTRICOES_CONVERSAO=1 (conversões proibidas do OSM), nas 30 viagens do comparador
+#   snap      SNAP_CANDIDATOS=4 (4 nós candidatos por ponta, A* único), nas 30 viagens do comparador
 #   lia24     LIA_VERSION=lia_2.4, nos 16 corredores do comparador
 # Saída: $STATE_DIRECTORY/<variante>_<data>_<hora>.json (/var/lib/routify-ab). Depois de AB_ATE não roda
 # mais (cota da TomTom: cada passada gasta Flow/Routing dos dois braços).
@@ -15,6 +16,7 @@ for V in "$@"; do
   case $V in
     sensores) VAR=SENSORES_VIRTUAIS=1; VIAGENS=$RAIZ/scripts/viagens_buracos.json ;;
     restricoes) VAR=RESTRICOES_CONVERSAO=1; VIAGENS=todos ;;
+    snap)     VAR=SNAP_CANDIDATOS=4; VIAGENS=todos ;;
     lia24)    VAR=LIA_VERSION=lia_2.4; VIAGENS= ;;
     *) echo "variante desconhecida: $V"; continue ;;
   esac

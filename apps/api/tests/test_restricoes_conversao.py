@@ -78,3 +78,45 @@ def test_artefato_real_carrega():
     assert sum(map(len, proibidas.values())) == 1260  # triplas únicas da medição de 2026-11-02
     assert len({via for _u, via in proibidas}) == 808
     assert all(isinstance(u, int) and isinstance(w, int) for (u, _v), ws in proibidas.items() for w in ws)
+
+
+def test_multi_escolhe_a_pista_certa_quando_a_mais_proxima_obriga_a_um_retorno():
+    """Via dupla: o nó mais perto (1) é da pista que vai para o lado errado; dela até o destino há uma volta
+    de 300 s. O nó da outra pista (2) está 20 m mais longe (≈ 14 s a pé) e segue direto (60 s)."""
+    G = nx.MultiDiGraph()
+    for u, v, t in [(1, 5, 150), (5, 9, 150), (2, 9, 60)]:
+        G.add_edge(u, v, travel_time_lia=t)
+    origens = {1: 10 / 1.4, 2: 30 / 1.4}
+    assert trajeto.astar_multi(G, origens, {9: 0.0}, lambda n: 0.0, 'travel_time_lia') == [2, 9]
+    # Só o mais próximo: o caminho é o da volta.
+    assert trajeto.astar_multi(G, {1: 0.0}, {9: 0.0}, lambda n: 0.0, 'travel_time_lia') == [1, 5, 9]
+
+
+def test_multi_soma_o_custo_de_saida_de_cada_destino():
+    G = nx.MultiDiGraph()
+    G.add_edge(1, 2, travel_time_lia=10)
+    G.add_edge(1, 3, travel_time_lia=12)
+    # O destino 2 é mais rápido de alcançar, mas fica 100 m mais longe do ponto pedido.
+    assert trajeto.astar_multi(G, {1: 0.0}, {2: 100 / 1.4, 3: 0.0}, lambda n: 0.0, 'travel_time_lia') == [1, 3]
+
+
+def test_multi_com_restricao_e_sem_caminho():
+    G = cruzamento()
+    assert trajeto.astar_multi(G, {1: 0.0, 6: 50.0}, {4: 0.0}, ZERO_1, 'travel_time_lia', {(1, 2): {4}}) == [1, 2, 3, 4]
+    G2 = nx.MultiDiGraph()
+    G2.add_edge(1, 2, travel_time_lia=1)
+    assert trajeto.astar_multi(G2, {2: 0.0}, {1: 0.0}, ZERO_1, 'travel_time_lia') is None
+
+
+def test_candidatos_respeitam_a_folga():
+    G = nx.MultiDiGraph()
+    # Nós ao longo de uma latitude: 0 m, ~55 m, ~111 m e ~555 m do ponto.
+    for no, dlat in [(1, 0.0), (2, 0.0005), (3, 0.001), (4, 0.005)]:
+        G.add_node(no, y=-15.8 + dlat, x=-47.9)
+    arv = trajeto.ArvoreNos(G)
+    nos = [n for n, _ in arv.candidatos(-15.8, -47.9, k=4, folga_m=100.0)]
+    assert nos == [1, 2]
+    assert [n for n, _ in arv.candidatos(-15.8, -47.9, k=4, folga_m=600.0)] == [1, 2, 3, 4]
+
+
+ZERO_1 = lambda n: 0.0  # noqa: E731  (heurística de um argumento, como a do astar_multi)

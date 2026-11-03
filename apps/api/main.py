@@ -342,6 +342,9 @@ async def lifespan(app: FastAPI):
         G.graph['prior_congestionamento'] = os.getenv('PRIOR_CONGESTIONAMENTO', 'corredor')
         # Sensores virtuais nos buracos de dados: desligados por padrão (sem ganho no A/B de 2026-11-02,
         # ml/artifacts/ab_sensores_virtuais_2026-11-02.json). SENSORES_VIRTUAIS=1 liga.
+        # Snap com vários candidatos (pista certa em via dupla, sem retorno): k nós por ponta num A* só.
+        # 1 = só o mais próximo (padrão até o A/B de dia útil: scripts/ab_ec2.sh snap).
+        G.graph['snap_candidatos'] = max(1, int(os.getenv('SNAP_CANDIDATOS', '1')))
         # Conversões proibidas do OSM (o OSMnx ignora): desligadas por padrão até o A/B de dia útil
         # (scripts/ab_ec2.sh restricoes). RESTRICOES_CONVERSAO=1 liga. Ver ml/restricoes_conversao.py.
         if os.getenv('RESTRICOES_CONVERSAO', '0') == '1':

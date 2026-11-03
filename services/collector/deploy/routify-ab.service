@@ -13,7 +13,7 @@ Environment=PYTHONDONTWRITEBYTECODE=1
 # Variantes de scripts/ab_ec2.sh (lia24 entra quando houver uma candidata a LIA 2.4).
 # Cota da TomTom: cada passada gasta Flow/Routing dos dois braços; depois desta data o A/B não roda.
 Environment=AB_ATE=2026-11-13
-ExecStart=/bin/bash /opt/routify/scripts/ab_ec2.sh sensores restricoes
+ExecStart=/bin/bash /opt/routify/scripts/ab_ec2.sh sensores restricoes snap
 TimeoutStartSec=40min
 StateDirectory=routify-ab
 StateDirectoryMode=0700

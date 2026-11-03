@@ -309,6 +309,12 @@ Campos extras são rejeitados (422). O ETA da TomTom vem sempre pela fusão, ent
 - **Troca de rota:** a alternativa da TomTom só assume (`fonte_rota: "tomtom"`) se a própria TomTom a considerar ≥ 10% **e** ≥ 60 s mais rápida. A candidata não escolhida volta em `alternativa`, e o app a desenha tracejada.
 - **Fora da malha** (ponto a mais de 600 m do grafo, uma caixa de ±38 km em volta do centro): a rota é só da TomTom (`fora_da_malha: true`).
 - **Trânsito por trecho (`trafego`):** um nível por trecho da `polyline` (ponto i → i+1): 0 livre, 1 moderado, 2 lento, 3 parado, `null` sem dado. Na rota da LIA vem da razão prevista na aresta (só sensor e transferência); os buracos pegam as seções de trânsito da TomTom no mesmo lugar (`sectionType=traffic` na chamada da fusão, sem custo extra). Na rota da TomTom, as seções dela. O mapa pinta só os níveis 1–3 por cima do gradiente da rota.
+- **Snap com vários candidatos** (`SNAP_CANDIDATOS=4` liga; padrão 1 = só o nó mais próximo, até o A/B de dia
+  útil): o nó mais perto de um ponto costuma ser o da pista errada de uma via dupla, e chega-se a ele com um retorno.
+  Com k > 1, os k nós mais próximos de cada ponta (até 100 m além do mais perto) entram num A* só
+  (`trajeto.astar_multi`), cada um com o custo da ligação a pé (metros ÷ 1,4 m/s), e o melhor par sai exato.
+  Também honra as conversões proibidas quando elas estão ligadas. No grafo real, 25 das 30 viagens do comparador
+  mudam (várias só nos nós das pontas; Parque de Águas Claras → Rodoviária 19,4 → 17,7 km), por +0,1 s por rota.
 - **Conversões proibidas do OSM** (`RESTRICOES_CONVERSAO=1` liga; **desligado por padrão** até o A/B de dia útil): o
   OSMnx ignora as relações `type=restriction` (no_left_turn, only_straight_on, no_u_turn…). `ml/restricoes_conversao.py`
   as mapeia offline em 1.260 triplas proibidas (u → via → w) em 808 cruzamentos (`restricoes_conversao_38km.json`).

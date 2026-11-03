@@ -44,6 +44,12 @@ class ArvoreNos:
         dist, idx = self._arvore.query(np.radians([[lat, lon]]), k=1)
         return int(self.nos[idx[0][0]]), float(dist[0][0] * RAIO_TERRA_M)
 
+    def candidatos(self, lat: float, lon: float, k: int = 4, folga_m: float = 100.0) -> List[Tuple[int, float]]:
+        """Até k nós mais próximos, só os a no máximo folga_m além do mais próximo: (nó, distância em m)."""
+        dist, idx = self._arvore.query(np.radians([[lat, lon]]), k=min(k, len(self.nos)))
+        metros = dist[0] * RAIO_TERRA_M
+        return [(int(self.nos[i]), float(m)) for i, m in zip(idx[0], metros) if m <= metros[0] + folga_m]
+
     def snap_varios(self, pontos: Sequence[Sequence[float]]) -> Tuple[List[int], List[float]]:
         """snap() de uma polyline inteira numa consulta só: (nós, distâncias em m)."""
         dist, idx = self._arvore.query(np.radians(np.asarray(pontos, dtype=float)[:, :2]), k=1)
@@ -349,28 +355,46 @@ def viola_conversao(nos: List[int], proibidas: dict) -> bool:
 
 def astar_com_restricoes(G: nx.MultiDiGraph, origem: int, destino: int, heuristica, peso,
                          proibidas: dict) -> Optional[List[int]]:
-    """A* exato que honra as conversões proibidas: o estado é (nó, anterior) só nos nós-via (~1% do grafo)
-    e o nó sozinho no resto. Mesmo `peso` do nx.astar_path (nome do atributo ou função u, v, paralelas).
-    None se não houver caminho legal."""
+    """A* exato que honra as conversões proibidas (caso de uma origem e um destino do astar_multi).
+    Mesmo `peso` do nx.astar_path (nome do atributo ou função u, v, paralelas). None se não houver caminho legal."""
+    return astar_multi(G, {origem: 0.0}, {destino: 0.0}, lambda n: heuristica(n, destino), peso, proibidas)
+
+
+def astar_multi(G: nx.MultiDiGraph, origens: dict, destinos: dict, heuristica, peso,
+                proibidas: Optional[dict] = None) -> Optional[List[int]]:
+    """A* de várias origens para vários destinos: {nó: custo de entrada em s} e {nó: custo de saída em s}.
+    Serve ao snap com vários candidatos (a pista certa de uma via dupla, sem retorno) e às conversões
+    proibidas: o estado é (nó, anterior) só nos nós-via (~1% do grafo). `heuristica(nó)` tem de ser admissível
+    para o conjunto de destinos. Um destino virtual soma o custo de saída, então o melhor par sai exato.
+    None se não houver caminho (legal)."""
+    proibidas = proibidas or {}
     pesar = peso if callable(peso) else (lambda u, v, paralelas: min(d.get(peso, 1) for d in paralelas.values()))
     vias = {via for _u, via in proibidas}
-    inicio = (origem, None)
-    custo, pai = {inicio: 0.0}, {inicio: None}
+    fim = ('<fim>', None)
+    custo, pai = {}, {}
     contador = itertools.count()
-    fila = [(heuristica(origem, destino), next(contador), inicio)]
+    fila = []
+    for no, c0 in origens.items():
+        estado = (no, None)
+        if c0 < custo.get(estado, math.inf):
+            custo[estado], pai[estado] = c0, None
+            heapq.heappush(fila, (c0 + heuristica(no), next(contador), estado))
     fechados = set()
     while fila:
         _, _, estado = heapq.heappop(fila)
         if estado in fechados:
             continue
-        no, anterior = estado
-        if no == destino:
-            caminho = []
+        if estado == fim:
+            caminho, estado = [], pai[fim]
             while estado is not None:
                 caminho.append(estado[0])
                 estado = pai[estado]
             return caminho[::-1]
         fechados.add(estado)
+        no, anterior = estado
+        if no in destinos and custo[estado] + destinos[no] < custo.get(fim, math.inf):
+            custo[fim], pai[fim] = custo[estado] + destinos[no], estado
+            heapq.heappush(fila, (custo[fim], next(contador), fim))
         vetados = proibidas.get((anterior, no), ()) if anterior is not None else ()
         for viz, paralelas in G[no].items():
             if viz in vetados:
@@ -382,5 +406,5 @@ def astar_com_restricoes(G: nx.MultiDiGraph, origem: int, destino: int, heuristi
             novo = custo[estado] + c
             if novo < custo.get(prox, math.inf):
                 custo[prox], pai[prox] = novo, estado
-                heapq.heappush(fila, (novo + heuristica(viz, destino), next(contador), prox))
+                heapq.heappush(fila, (novo + heuristica(viz), next(contador), prox))
     return None

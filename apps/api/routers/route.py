@@ -518,6 +518,9 @@ def _resumir_caminho(G: nx.MultiDiGraph, nos: List[int]) -> Tuple[float, float, 
 
 # Sensores virtuais: até 3 pontos sem sensor por rota, cada leitura vale 15 min (cota do Flow).
 K_VIRTUAIS = 3
+# Snap com vários candidatos (SNAP_CANDIDATOS): cada nó entra no A* com o custo da ligação a pé até ele
+# (regra da pesquisa de 2026-11-02, ml/restricoes_conversao.py › snap_alternativo).
+VEL_LIGACAO_MS = 1.4
 _cache_virtuais = tomtom.CacheTTL(15 * 60, max_itens=2048)
 
 
@@ -771,16 +774,35 @@ async def calculate_route(body: RouteInput, request: Request, response: Response
     bloqueadas = tomtom.arestas_interditadas(G, incidentes_tt) if incidentes_tt else set()
     peso = (tomtom.peso_sem_interditadas(bloqueadas, PENALTY_NON_DRIVABLE_S, atraso_sem, atraso_cruz, atraso_cruz_via)
             if bloqueadas or atraso_sem or atraso_cruz or atraso_cruz_via else 'travel_time_lia')
-    try:
-        path_nodes = nx.astar_path(G, orig_node, dest_node, heuristic=heuristic, weight=peso)
-    except nx.NetworkXNoPath:
-        raise HTTPException(status_code=422, detail="Sem rota disponível entre origem e destino.")
-    except nx.NodeNotFound as e:
-        raise HTTPException(status_code=422, detail=f"Nó não encontrado no grafo: {e}")
+    proibidas = G.graph.get('conversoes_proibidas')
+    k_snap = G.graph.get('snap_candidatos', 1)
+    if k_snap > 1 and arvore_snap is not None:
+        # Snap com vários candidatos: o nó mais perto pode ser o da pista errada de uma via dupla (chega-se a
+        # ele com um retorno). Um A* só, de todos os candidatos de origem para todos os de destino.
+        entrada = {n: d / VEL_LIGACAO_MS for n, d in arvore_snap.candidatos(*origem, k_snap)}
+        saida = {n: d / VEL_LIGACAO_MS for n, d in arvore_snap.candidatos(*destino, k_snap)}
+        cy = sum(G.nodes[n]['y'] for n in saida) / len(saida)
+        cx = sum(G.nodes[n]['x'] for n in saida) / len(saida)
+        raio = max(haversine_m(cy, cx, G.nodes[n]['y'], G.nodes[n]['x']) for n in saida)
+
+        def h_multi(n):  # admissível para o conjunto: distância ao centro menos o raio dos candidatos
+            return max(0.0, haversine_m(G.nodes[n]['y'], G.nodes[n]['x'], cy, cx) - raio) / vmax
+
+        path_nodes = (trajeto.astar_multi(G, entrada, saida, h_multi, peso, proibidas)
+                      or (trajeto.astar_multi(G, entrada, saida, h_multi, peso) if proibidas else None))
+        if not path_nodes or len(path_nodes) < 2:
+            raise HTTPException(status_code=422, detail="Sem rota disponível entre origem e destino.")
+        orig_node, dest_node = path_nodes[0], path_nodes[-1]
+    else:
+        try:
+            path_nodes = nx.astar_path(G, orig_node, dest_node, heuristic=heuristic, weight=peso)
+        except nx.NetworkXNoPath:
+            raise HTTPException(status_code=422, detail="Sem rota disponível entre origem e destino.")
+        except nx.NodeNotFound as e:
+            raise HTTPException(status_code=422, detail=f"Nó não encontrado no grafo: {e}")
     # Conversões proibidas do OSM (RESTRICOES_CONVERSAO=1): o A* restrito só roda quando o caminho
     # livre fez uma (~22% das rotas na medição de ml/restricoes_conversao.py).
-    proibidas = G.graph.get('conversoes_proibidas')
-    if proibidas and trajeto.viola_conversao(path_nodes, proibidas):
+    if proibidas and k_snap <= 1 and trajeto.viola_conversao(path_nodes, proibidas):
         legal = trajeto.astar_com_restricoes(G, orig_node, dest_node, heuristic, peso, proibidas)
         if legal:
             path_nodes = legal
