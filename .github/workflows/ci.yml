@@ -17,11 +17,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      # Só o necessário pros testes unitários; o teste de integração do /route
-      # pula sozinho sem osmnx/supabase.
-      - run: pip install pytest httpx numpy networkx fastapi scikit-learn==1.8.0  # trajeto.py usa BallTree
+          cache: pip
+          cache-dependency-path: apps/api/requirements.txt
+      # O ambiente da produção inteiro (osmnx, xgboost, pandas dos .pkl). Com um subconjunto, teste que importava a
+      # rota passava no PC e quebrava aqui (3 vermelhos em 2026-11-02/03) e 14 testes pulavam calados.
+      - run: pip install -r apps/api/requirements.txt pytest
       - run: python -m compileall -q apps/api services ml
-      - run: pytest -q
+      - run: pytest -q -rs
         working-directory: apps/api
       # Coletor: rotação de chaves e cadência pela cota (rede e banco simulados).
       - run: pip install requests schedule python-dotenv
