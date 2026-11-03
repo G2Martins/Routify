@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { chamarApi, ConfirmarDialog, Giro, Interruptor, MensagemRetorno, useAcao } from '@/components/acoes';
 import { Aviso, BTN_SECUNDARIO, Cartao, Selo, Tabela } from '@/components/ui';
+import { usePolling } from '@/components/useSaude';
 import { mensagemErro, type ErroBruto } from '@/lib/erros';
 import { fmtInt } from '@/lib/formato';
 import { clienteNavegador } from '@/lib/supabase-navegador';
@@ -49,18 +50,7 @@ export function PoolTomTom({ pausadas: pausadasServidor }: { pausadas: string[] 
   }, []);
 
   // Atualiza a cada 15 s só com a aba visível (e na hora em que ela volta a ficar visível).
-  useEffect(() => {
-    const tick = () => {
-      if (document.visibilityState === 'visible') carregar();
-    };
-    tick();
-    const id = setInterval(tick, INTERVALO_MS);
-    document.addEventListener('visibilitychange', tick);
-    return () => {
-      clearInterval(id);
-      document.removeEventListener('visibilitychange', tick);
-    };
-  }, [carregar]);
+  usePolling(carregar, INTERVALO_MS);
 
   const testar = async (id: string) => {
     if (testando.current.has(id)) return;

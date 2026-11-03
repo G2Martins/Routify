@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { chamarApi } from '@/components/acoes';
-import { API, useSaude } from '@/components/useSaude';
+import { API, usePolling, useSaude } from '@/components/useSaude';
 import { Cartao, Mini, Selo, Tabela } from '@/components/ui';
 import { fmtBytes, fmtInt } from '@/lib/formato';
 import { clienteNavegador } from '@/lib/supabase-navegador';
@@ -83,18 +83,7 @@ export function PainelStatus() {
     }
   }, []);
 
-  useEffect(() => {
-    const tick = () => {
-      if (document.visibilityState === 'visible') carregar();
-    };
-    tick();
-    const id = setInterval(tick, INTERVALO_MS);
-    document.addEventListener('visibilitychange', tick);
-    return () => {
-      clearInterval(id);
-      document.removeEventListener('visibilitychange', tick);
-    };
-  }, [carregar]);
+  usePolling(carregar, INTERVALO_MS);
 
   // --- Avaliação de cada peça (texto sempre junto da cor) ---
   const tomApi: Tom = api.erro || api.dados?.status !== 'ok' ? (api.dados || api.erro ? 'erro' : 'neutro') : (api.ms ?? 0) > 1500 ? 'alerta' : 'ok';

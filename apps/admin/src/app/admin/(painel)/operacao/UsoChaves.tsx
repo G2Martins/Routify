@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { chamarApi } from '@/components/acoes';
+import { useCallback, useState } from 'react';
+import { usePolling, useSaude } from '@/components/useSaude';
 import { Cartao, Mini, Selo, Tabela } from '@/components/ui';
 import { fmtInt } from '@/lib/formato';
 import { clienteNavegador } from '@/lib/supabase-navegador';
@@ -37,7 +37,6 @@ type Uso = { hoje: string; dia_do_mes: number; dias_no_mes: number; linhas: Linh
 export function UsoChaves() {
   const [uso, setUso] = useState<Uso | null>(null);
   const [erro, setErro] = useState<string | null>(null);
-  const [nChaves, setNChaves] = useState<number | null>(null);
 
   const carregar = useCallback(async () => {
     const { data, error } = await clienteNavegador().rpc('admin_tomtom_uso');
@@ -49,21 +48,8 @@ export function UsoChaves() {
     setErro(null);
   }, []);
 
-  useEffect(() => {
-    chamarApi<{ tomtom?: { chaves?: number } }>('/admin/saude').then(({ data }) =>
-      setNChaves(typeof data?.tomtom?.chaves === 'number' ? data.tomtom.chaves : null),
-    );
-    const tick = () => {
-      if (document.visibilityState === 'visible') carregar();
-    };
-    tick();
-    const id = setInterval(tick, INTERVALO_MS);
-    document.addEventListener('visibilitychange', tick);
-    return () => {
-      clearInterval(id);
-      document.removeEventListener('visibilitychange', tick);
-    };
-  }, [carregar]);
+  usePolling(carregar, INTERVALO_MS);
+  const nChaves = useSaude(INTERVALO_MS).saude?.tomtom.chaves ?? null;
 
   if (erro) return <Cartao titulo="Uso real das chaves no mês"><p className="text-sm text-destructive">{erro}</p></Cartao>;
   if (!uso) return <Cartao titulo="Uso real das chaves no mês"><p className="text-sm text-muted-foreground">Carregando…</p></Cartao>;
