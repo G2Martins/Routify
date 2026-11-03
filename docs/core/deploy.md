@@ -127,8 +127,11 @@ Parar: `sudo systemctl disable --now routify-collector`. Pausar chaves no painel
 A Hostinger compartilhada **não builda** o Next: estoura o limite de recursos do plano (LVE) e
 instala só `dependencies`, sem as devDeps do Tailwind. Então o build roda em Linux e sobe pronto:
 
-1. Local: `API_URL=https://api-<app> bash scripts/empacotar-front.sh /tmp/front-src.tar.gz`
-   (export web do Expo com `--clear` + código do painel).
+1. Local: `SITE_URL=https://<app> API_URL=https://api-<app> bash scripts/empacotar-front.sh /tmp/front-src.tar.gz`
+   (export web do Expo com `--clear` + código do painel). **`SITE_URL`** é a origem pública do site: só `https://`, sem caminho;
+   o script para se faltar ou vier com caminho. Vira o `canonical`, o `og:url`, o sitemap e os links do `llms.txt`, e **não
+   fica no repositório** (público): `apps/mobile/public` guarda os modelos com marcadores e o script os troca no pacote
+   (§2.1). No GitHub Actions (`front-build.yml`) a origem vem da variável do repositório `ROUTIFY_SITE_URL`.
 2. Em qualquer Linux x64 com Node 22 (usamos a própria EC2, usuário `builder` **sem sudo**):
    `NEXT_PUBLIC_SUPABASE_URL=… NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=… NEXT_PUBLIC_API_URL=https://api-<app> NEXT_PUBLIC_APP_URL=/ bash montar-front-linux.sh ~/routify-front.tar.gz`.
 3. Publicar com o MCP da Hostinger: `hosting_deploy` (domínio `<app>`, arquivo do passo 2, `type: nodejs`, `appType: other`,
@@ -140,14 +143,41 @@ Pegadinhas já resolvidas:
 - **tar sem prefixo `./`**: com `./` a Hostinger responde 500;
 - **loader** (`apps/admin/deploy/index.js`) força `HOSTNAME=0.0.0.0` e encerra nos sinais de parada. Sem isso o restart deixa processo zumbi e estoura o teto de processos da conta;
 - **Metro**: sem `--clear` o export reaproveita os `EXPO_PUBLIC_*` do dev (`localhost`). O empacotador falha se o bundle não contiver a `API_URL`.
+- **`index.html` do Expo**: o único molde aceito é `apps/mobile/public/index.html` (título, metas, JSON-LD). `expo.web.description` e `expo.web.themeColor` do `app.json` injetariam metas duplicadas: não usar. O React Navigation trocaria o `<title>` pelo nome da tela; o `documentTitle` está desligado em `MainNavigator.tsx`.
 
 **Verificar:**
 - `/` → 200 com o app;
 - `/admin` sem sessão → 307 para `/`;
 - headers: CSP (Report-Only), HSTS, `Permissions-Policy` com `geolocation=(self)`;
-- fontes em `/assets/node_modules/...` → 200.
+- fontes em `/assets/node_modules/...` → 200;
+- `/robots.txt`, `/sitemap.xml`, `/llms.txt`, `/llms-full.txt` e `/og-image.png` → 200 (§2.1).
 
 **Supabase Auth** (dono, no painel): *URL Configuration* → Site URL `https://<app>` e Redirect `https://<app>/**`.
+
+### 2.1 Indexação (SEO e llms.txt)
+
+O site é um app de página única atrás de login: o que o rastreador lê é o `index.html`. Tudo mora em `apps/mobile/public`
+(o Expo copia para `/`). O `scripts/empacotar-front.sh` troca os marcadores de origem e de data e **falha** se algo ficar errado
+(arquivo ausente, marcador sem troca, `canonical`/`og:*` com outra origem, título ou descrição diferentes entre `title`, `og:*` e
+`twitter:*`, JSON-LD inválido, `lang` diferente de `pt-BR`, `Disallow` no robots, painel citado).
+
+| Arquivo | Papel |
+| --- | --- |
+| `index.html` | molde do Expo: `title`, `description`, `canonical`, `robots`, Open Graph, Twitter, `theme-color` (claro e escuro), ícones, manifesto, JSON-LD (`WebSite` + `WebApplication`, equipe como autores, sem nota nem avaliação inventada) e um `noscript` com o texto do projeto |
+| `robots.txt` | libera tudo, aceita os agentes de IA pelo nome e aponta o sitemap. **Sem `Disallow`**: listar o painel anunciaria o caminho dele |
+| `sitemap.xml` | a única URL pública; `lastmod` = data do empacotamento (UTC) |
+| `llms.txt`, `llms-full.txt` | padrão llmstxt.org: índice curto e texto completo (como funciona, fontes de dados, resultados com o artefato de cada número, limitações, equipe, FAQ) |
+| `og-image.png`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, `manifest.webmanifest` | cartão de compartilhamento 1200×630, ícones e manifesto. O `favicon.ico` (com 48 px, que o Google exige) o Expo gera do `app.json` |
+
+- O painel fica fora do índice por `robots: { index: false, follow: false }` no layout raiz (`apps/admin/src/app/layout.tsx`). O caminho dele
+  não aparece em `robots.txt`, `sitemap.xml`, `llms*.txt` nem no `index.html`.
+- Mudou a descrição, um número ou a equipe? Atualize `index.html`, `llms.txt` e `llms-full.txt` juntos; número novo cita o JSON de origem em `ml/artifacts`.
+- Mudou a logo ou o texto do cartão: `apps/api/.venv/Scripts/python.exe scripts/gerar_assets_seo.py` (só Pillow) e commite os PNGs.
+- **Dono, uma vez (fora do repo):** Google Search Console como propriedade de domínio (verificação por TXT no DNS: nenhum ID entra no
+  código) → enviar `https://<app>/sitemap.xml` → inspecionar `/` e pedir indexação. Bing Webmaster Tools: importar do Search Console.
+- Limite conhecido: sem JavaScript, ou na renderização do Google, o texto indexável é o das metas, do JSON-LD e do `noscript`; o app em si
+  é a tela de login. Para indexar mais texto, o caminho é uma landing estática em `/` (Next) e o app em outra rota.
+- O teste de resultados ricos do Google aponta a falta de `aggregateRating`/`review` no `WebApplication`: é de propósito, não existe avaliação real.
 
 ## 3. E-mails de autenticação (cadastro, senha, troca de e-mail)
 

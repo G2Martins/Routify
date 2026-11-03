@@ -58,6 +58,7 @@ Cliente do **Routify** rodando em **iOS, Android e Web** via Expo + React Native
 ```text
 📦 apps/mobile
  ┣ 📂 assets/             # Logos, ícones
+ ┣ 📂 public/             # copiado para / no export: index.html (molde do Expo, SEO), robots/sitemap/llms*.txt, og-image, ícones (docs/core/deploy.md §2.1)
  ┣ 📂 src/
  ┃ ┣ 📂 components/       # MapComponent.web/native, SideRail, AddressAutocomplete...
  ┃ ┣ 📂 constants/        # Theme.ts (cores, tile URLs)

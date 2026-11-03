@@ -1,0 +1,21 @@
+# Routify (TCC 2026). A página pública e os arquivos de apoio podem ser rastreados e citados.
+
+User-agent: *
+Allow: /
+
+# Rastreadores e agentes de IA: aceite explícito (citação em respostas; ver /llms.txt).
+User-agent: GPTBot
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: ClaudeBot
+User-agent: Claude-User
+User-agent: anthropic-ai
+User-agent: PerplexityBot
+User-agent: Perplexity-User
+User-agent: Google-Extended
+User-agent: Applebot-Extended
+User-agent: CCBot
+User-agent: Meta-ExternalAgent
+Allow: /
+
+Sitemap: %SITE_URL%/sitemap.xml

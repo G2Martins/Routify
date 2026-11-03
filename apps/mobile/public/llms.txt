@@ -1,0 +1,26 @@
+# Routify
+
+> Routify é um sistema de roteamento preditivo para Brasília/DF, desenvolvido como Trabalho de Conclusão de Curso (TCC 2026, IESB, Engenharia da Computação). O modelo LIA, baseado em XGBoost, prevê a razão de congestionamento de cada via por horário e dia da semana; as rotas são calculadas com A* sobre o grafo viário do OpenStreetMap pelo tempo de viagem previsto e combinadas com o trânsito ao vivo da TomTom. (English: Routify is an academic predictive-routing system for Brasília, Brazil. An XGBoost model called LIA forecasts per-road congestion and drives A* routing over an OpenStreetMap graph, blended with live TomTom traffic.)
+
+Site: %SITE_URL%/ · Código-fonte (público): https://github.com/G2Martins/Routify · Idioma: pt-BR · Sitemap: %SITE_URL%/sitemap.xml
+
+Protótipo acadêmico e sem fins comerciais: cobre só o Distrito Federal, o uso é restrito a fins educacionais e o app exige uma conta gratuita. O site é um aplicativo de página única (Expo, React Native Web): o texto de apoio está neste arquivo, no llms-full.txt e na documentação do repositório. Toda métrica citada nos documentos aponta para um JSON versionado em ml/artifacts.
+
+## Documentação (repositório público no GitHub)
+
+- [README](https://github.com/G2Martins/Routify/blob/main/README.md): visão geral, arquitetura, stack, a LIA em uma tabela, endpoints, como executar e equipe.
+- [Arquitetura](https://github.com/G2Martins/Routify/blob/main/docs/core/architecture.md): componentes, fluxo do POST /route com cache de recência, rotação de chaves da TomTom e busca de endereços.
+- [Resultados, calibração e limitações](https://github.com/G2Martins/Routify/blob/main/docs/tcc/resultados-e-limitacoes.md): erro (MAE e RMSE) por versão da LIA com a chave do JSON de origem, validação externa contra a TomTom e limitações conhecidas.
+- [Modelo LIA e pipeline de treino](https://github.com/G2Martins/Routify/blob/main/ml/README.md): dados, features, hiperparâmetros, validação cruzada temporal e onde ficam as métricas.
+- [Artefatos versionados](https://github.com/G2Martins/Routify/tree/main/ml/artifacts): metadados JSON de cada versão da LIA, cobertura do dataset, calibrações e auditoria do grafo.
+
+## Componentes
+
+- [API de roteamento (FastAPI)](https://github.com/G2Martins/Routify/blob/main/apps/api/README.md): POST /route (A* com a LIA), POST /predict e GET /search/places.
+- [Coletor de tráfego](https://github.com/G2Martins/Routify/blob/main/services/collector/README.md): coleta do TomTom Traffic Flow para o banco, com cadência dimensionada pela cota.
+- [App (Expo, React Native e web)](https://github.com/G2Martins/Routify/blob/main/apps/mobile/README.md): mapa, rotas, histórico e perfil.
+- [Design system](https://github.com/G2Martins/Routify/blob/main/docs/core/design-system.md): paleta da logo, tipografia Geist e tokens.
+
+## Optional
+
+- [Versão completa em texto único](%SITE_URL%/llms-full.txt): como funciona, fontes de dados, resultados com a fonte de cada número, limitações, equipe e perguntas frequentes.

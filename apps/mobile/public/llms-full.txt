@@ -1,0 +1,98 @@
+# Routify — conteúdo completo para LLMs
+
+> Routify é um sistema de roteamento preditivo para Brasília/DF, desenvolvido como Trabalho de Conclusão de Curso (TCC 2026, IESB, Engenharia da Computação). O modelo LIA, baseado em XGBoost, prevê a razão de congestionamento de cada via por horário e dia da semana; as rotas são calculadas com A* sobre o grafo viário do OpenStreetMap pelo tempo de viagem previsto e combinadas com o trânsito ao vivo da TomTom. (English: Routify is an academic predictive-routing system for Brasília, Brazil. An XGBoost model called LIA forecasts per-road congestion and drives A* routing over an OpenStreetMap graph, blended with live TomTom traffic.)
+
+Site: %SITE_URL%/ · Índice curto: %SITE_URL%/llms.txt · Código-fonte (público): https://github.com/G2Martins/Routify · Gerado em %LASTMOD%. Os números abaixo são de 2026-11-02 e cada um traz o artefato de origem; os arquivos do repositório têm os valores atuais.
+
+# VISÃO GERAL
+
+O Routify busca a rota de menor tempo de viagem no Distrito Federal. Em vez de apenas reagir ao trânsito atual, ele aprende o padrão histórico de cada via (por horário e dia da semana) e prevê o quanto ela está congestionada na hora da consulta. A rota minimiza o tempo de viagem previsto, não a distância.
+
+É um protótipo acadêmico e sem fins comerciais. Cobre o Distrito Federal, o uso é restrito a fins educacionais e o aplicativo exige uma conta gratuita. O site é um aplicativo de página única (Expo, React Native Web), por isso o texto de apoio fica neste arquivo, no llms.txt e na documentação do repositório.
+
+# COMO FUNCIONA
+
+1. Dados históricos. Um coletor consultou o TomTom Traffic Flow (Flow Segment Data) e gravou a série num banco Postgres (Supabase): 630 pontos monitorados e 1.513.824 linhas, de 2026-03-07 a 2026-07-19 (ml/artifacts/cobertura_dataset.json › pontos_distintos, total_linhas, periodo_inicio, periodo_fim). A coleta foi retomada em 2026-11 com cadência de cerca de 43 minutos, dimensionada pela cota gratuita da TomTom.
+2. Modelo LIA. A sigla é "Logística de Inteligência Artificial". É um XGBoost (regressor) que prevê a razão de congestionamento, isto é, velocidade atual dividida pela velocidade livre, entre 0,05 e 1,0. Usa perfis históricos por via, hora e dia da semana, a última leitura real da via (recência) e contexto: congestionamento das vias vizinhas, chuva (Open-Meteo) e feriados. A LIA 2.3 tem 21 features. A validação é cruzada e temporal (5 folds, sem vazamento de dados futuros).
+3. Vias sem sensor. Há só 630 pontos monitorados. Uma via sem sensor herda o padrão do ponto monitorado mais próximo, até 500 m, com confiança calibrada por regressão isotônica sobre pares reais. Além desse raio só existe a mediana global do horário, e o tempo do trecho recorre à TomTom na fusão (item 5).
+4. Roteamento. A* (NetworkX) sobre o grafo viário do OpenStreetMap (OSMnx), com peso de aresta igual ao tempo previsto: comprimento da aresta dividido por (velocidade livre × razão prevista). Semáforos do OpenStreetMap entram como atraso no cruzamento. A API também calcula uma rota de menor distância como comparação.
+5. Fusão com a TomTom. A TomTom Routing reconstrói o trajeto da LIA e informa o tempo ao vivo do mesmo caminho. O tempo exibido mistura as duas fontes pela fração do trajeto que a LIA cobre. Se origem ou destino ficam fora da malha (caixa de 76 × 76 km em volta do Plano Piloto), a rota vem só da TomTom.
+6. Busca de endereços. A base local do DF (malha viária, localidades e cerca de 1.700 pontos de interesse do OpenStreetMap) e a TomTom Search são ranqueadas juntas; o Nominatim entra só por último, com limite de uso, por exigência da política dele.
+
+# O APLICATIVO
+
+- Rodando em Expo e React Native: o mesmo código gera web, iOS e Android. A versão publicada é a web.
+- Mapa interativo (MapLibre GL com tiles vetoriais da OpenFreeMap; Leaflet de reserva) e rota desenhada com o trânsito por trecho; o painel da rota mostra a fonte, os semáforos e a comparação LIA × TomTom.
+- Conta com e-mail e senha (Supabase Auth); verificação em duas etapas opcional (TOTP).
+- Histórico de rotas por usuário, perfil, aviso de privacidade acessível antes do cadastro (LGPD) e um painel com as métricas do modelo.
+- Tema claro e escuro; interface em português do Brasil.
+
+# FONTES DE DADOS E SERVIÇOS
+
+- TomTom: Traffic Flow (dataset de treino e leituras ao vivo), Routing, Incidents e Search, sob demanda e dentro da cota gratuita.
+- OpenStreetMap: grafo viário (OSMnx), semáforos, localidades e pontos de interesse.
+- Open-Meteo: chuva; BrasilAPI e calendário distrital: feriados.
+- OpenFreeMap: tiles do mapa na web. Supabase: Auth e Postgres.
+- OSRM público e Mapbox (com token gratuito): apenas para comparar o tempo de viagem com o da LIA.
+
+# RESULTADOS (COM A FONTE DE CADA NÚMERO)
+
+Erro em segundos de tempo de viagem por trecho, na validação cruzada temporal (5 folds) da LIA 2.3 (ml/artifacts/lia_2.3_metadata.json › cv):
+
+- LIA 2.3: RMSE 35,5 s (modelo_rmse_seg) e MAE 13,3 s (modelo_mae_seg).
+- Baseline histórico (mediana da mesma via, hora e dia da semana, sem aprendizado de máquina): RMSE 57,2 s (baseline_rmse_seg) e MAE 17,3 s (baseline_mae_seg). A LIA 2.3 reduz o RMSE em 37,9%.
+- Persistência (repetir a última leitura da via): RMSE 40,0 s (persistencia_rmse_seg) e MAE 12,0 s (persistencia_mae_seg). Com leitura muito recente, a persistência ainda ganha no MAE.
+- Com a leitura mais velha, como ela chega na API (cv_por_idade_recencia_min): leitura de 30 min, RMSE de 43,8 s para a LIA e 64,8 s para a persistência; leitura de 60 min, 47,2 s e 88,0 s.
+
+Outras decisões documentadas: a migração planejada para LSTM não foi feita, porque, com a mesma informação de recência, XGBoost e LSTM empataram e o XGBoost é mais barato de treinar e servir (ml/artifacts/benchmark_lstm_vs_xgboost.json). A validação externa contra a TomTom mostrou concordância direcional dos atrasos por congestionamento e subestimativa nos casos mais congestionados; a amostra é pequena (docs/tcc/resultados-e-limitacoes.md, seção 5).
+
+# LIMITAÇÕES CONHECIDAS
+
+- É um protótipo: não substitui um aplicativo de navegação comercial e não foi avaliado contra o tempo real de viagens de usuários.
+- Cobertura: o grafo é uma caixa de 76 × 76 km (resumo.grafo.lado_da_caixa_km) que cobre 92,2% dos quilômetros de via do OpenStreetMap no DF (resumo.df_vias_osm_vs_grafo.pct_coberto), em ml/artifacts/auditoria_grafo_df.json. Em 83,2% dos quilômetros de via não há sensor a menos de 500 m (resumo.df_dentro_do_grafo.pct_buraco_api); nesses trechos o tempo usa a TomTom.
+- Dataset enviesado no tempo: a coleta foi interrompida de julho a outubro de 2026 e, antes, só 13 dias tiveram cobertura do dia inteiro; eles concentram 68,5% das linhas, e o fim de semana tem cerca de um quinto do volume de um dia útil (ml/artifacts/cobertura_dataset.json › n_dias_cheios, pct_linhas_em_dias_cheios, razao_fim_de_semana_vs_dia_util).
+- Subestimativa em congestionamento extremo: o erro é bem maior nos trechos congestionados, que são minoria das amostras.
+- Semáforos e velocidade livre: o tempo da rota precisou de calibração contra a TomTom; a calibração foi medida em poucos horários.
+- O OSMnx ignora por padrão as restrições de conversão do OpenStreetMap (uma opção para aplicá-las está em teste).
+- Depende de uma API comercial (TomTom) em cota gratuita, o que limita o volume de consultas. Não há modo offline.
+
+Detalhes e a fonte de cada afirmação: https://github.com/G2Martins/Routify/blob/main/docs/tcc/resultados-e-limitacoes.md
+
+# EQUIPE E CONTEXTO ACADÊMICO
+
+- Pedro Borges Alves: desenvolvimento (backend, IA/LIA, infraestrutura de dados, frontend).
+- Gustavo Martins Gripaldi: desenvolvimento (backend, IA/LIA, infraestrutura de dados, frontend).
+- Prof. Marcelo Alves Farias: orientador.
+- Trabalho de Conclusão de Curso, IESB, Engenharia da Computação, 2026. Licença: projeto acadêmico, uso restrito a fins educacionais.
+
+# ONDE ESTÁ A DOCUMENTAÇÃO
+
+- README: https://github.com/G2Martins/Routify/blob/main/README.md
+- Arquitetura: https://github.com/G2Martins/Routify/blob/main/docs/core/architecture.md
+- Resultados, calibração e limitações: https://github.com/G2Martins/Routify/blob/main/docs/tcc/resultados-e-limitacoes.md
+- Modelo e treino: https://github.com/G2Martins/Routify/blob/main/ml/README.md
+- API: https://github.com/G2Martins/Routify/blob/main/apps/api/README.md
+- Coletor: https://github.com/G2Martins/Routify/blob/main/services/collector/README.md
+- App: https://github.com/G2Martins/Routify/blob/main/apps/mobile/README.md
+- Design system: https://github.com/G2Martins/Routify/blob/main/docs/core/design-system.md
+- Artefatos de métricas (JSON): https://github.com/G2Martins/Routify/tree/main/ml/artifacts
+
+# PERGUNTAS FREQUENTES
+
+Q: O que é o Routify?
+A: Um sistema acadêmico de roteamento preditivo para Brasília/DF. O modelo LIA prevê o congestionamento de cada via e as rotas usam o tempo de viagem previsto, combinado com o trânsito ao vivo da TomTom.
+
+Q: O que é a LIA?
+A: O nome do modelo de previsão do projeto ("Logística de Inteligência Artificial"): um XGBoost que prevê a razão de congestionamento de cada via. A versão atual é a 2.3.
+
+Q: O Routify funciona fora do Distrito Federal?
+A: Foi desenhado e validado só para o DF. Para origem ou destino fora da malha carregada (caixa de 76 × 76 km), a rota vem apenas da TomTom, sem a LIA.
+
+Q: Quão precisa é a previsão?
+A: Na validação cruzada temporal, o erro da LIA 2.3 é de 35,5 s (RMSE) por trecho, contra 57,2 s do baseline histórico. Com leitura muito recente, repetir a última leitura ainda tem MAE menor (12,0 s contra 13,3 s). A fonte de cada número está na seção Resultados.
+
+Q: O Routify é um produto comercial?
+A: Não. É um TCC (2026), sem fins comerciais, com uso restrito a fins educacionais e gratuito para quem usa.
+
+Q: Onde está o código?
+A: Em https://github.com/G2Martins/Routify (repositório público).

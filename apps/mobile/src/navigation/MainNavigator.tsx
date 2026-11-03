@@ -224,8 +224,10 @@ export default function RootNavigator() {
     },
   };
 
+  // documentTitle desligado: o React Navigation trocaria o <title> da página pelo nome da tela ("Login", "Mapa"), e o
+  // app não tem URL por tela. O título fica o do public/index.html (SEO).
   return (
-    <NavigationContainer ref={navigationRef} theme={navTheme}>
+    <NavigationContainer ref={navigationRef} theme={navTheme} documentTitle={{ enabled: false }}>
       {PREVIEW_MFA || (session && mfaPendente) ? <MfaVerificarScreen /> : session || PREVIEW ? <MainTabs /> : <AuthStack />}
     </NavigationContainer>
   );
