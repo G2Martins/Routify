@@ -23,6 +23,7 @@ import logging
 import math
 import os
 import time
+from datetime import datetime, timezone
 from collections import deque
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 from urllib.parse import quote
@@ -110,6 +111,9 @@ class KeyPool:
         self.chamadas = {c['id']: 0 for c in self._chaves}
         self.falhas = {c['id']: 0 for c in self._chaves}
         self.pausadas: set = set()  # ids pausados pelo painel ADM (config_runtime)
+        # Uso por (chave, serviço) desde o último envio ao banco: [chamadas, falhas, último status HTTP].
+        # main.py manda para tomtom_uso_dia a cada 60 s (/admin/operacao soma com o coletor).
+        self._uso: Dict[Tuple[str, str], List[int]] = {}
 
     @property
     def total(self) -> int:
@@ -158,13 +162,41 @@ class KeyPool:
             } for s in SERVICOS},
         } for c in self._chaves]
 
+    def contar(self, chave_id: str, servico: str, status: int, falhou: bool) -> None:
+        u = self._uso.setdefault((chave_id, servico), [0, 0, 0])
+        u[0] += 1
+        u[1] += int(falhou)
+        u[2] = status
+
+    def descarregar_uso(self) -> List[dict]:
+        """Linhas para a RPC registrar_tomtom_uso (contadores desde o último envio, com o cooldown atual) e zera."""
+        agora = time.time()
+        linhas = []
+        for (chave_id, servico), (n, f, status) in self._uso.items():
+            ate = self._cooldown.get((chave_id, servico), 0.0)
+            linhas.append({'chave_id': chave_id, 'servico': servico, 'chamadas': n, 'falhas': f,
+                           'ultimo_status': status or None,
+                           'cooldown_ate': datetime.fromtimestamp(ate, timezone.utc).isoformat() if ate > agora else None})
+        self._uso = {}
+        return linhas
+
+    def devolver_uso(self, linhas: List[dict]) -> None:
+        """O envio falhou: os contadores voltam para o próximo."""
+        for linha in linhas:
+            u = self._uso.setdefault((linha['chave_id'], linha['servico']), [0, 0, 0])
+            u[0] += linha['chamadas']
+            u[1] += linha['falhas']
+            u[2] = u[2] or (linha['ultimo_status'] or 0)
+
     def sucesso(self, chave_id: str, servico: str) -> None:
         self.chamadas[chave_id] += 1
+        self.contar(chave_id, servico, 200, False)
         self._strikes.pop((chave_id, servico), None)
 
     def falha(self, chave_id: str, servico: str, motivo: str) -> None:
         self.chamadas[chave_id] += 1
         self.falhas[chave_id] += 1
+        self.contar(chave_id, servico, 403 if motivo == 'chave' else 429, True)
         par = (chave_id, servico)
         if motivo == 'qps':
             self._strikes[par] = self._strikes.get(par, 0) + 1
@@ -303,6 +335,7 @@ class TomTomClient:
             motivo = classificar_erro(resp.status_code, resp.text[:500])
             if motivo is None:
                 self.pool.chamadas[chave['id']] += 1
+                self.pool.contar(chave['id'], servico, resp.status_code, True)
                 logger.warning(f"TomTom {servico}: HTTP {resp.status_code}")
                 return None
             self.pool.falha(chave['id'], servico, motivo)

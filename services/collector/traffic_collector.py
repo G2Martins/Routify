@@ -89,6 +89,10 @@ class TrafficCollector:
         # Estado persistente ENTRE chamadas de _fetch_tomtom_data e ENTRE pontos do ciclo.
         self.cooldown_until: Dict[str, float] = {}
 
+        # Uso por chave desde o último envio: [chamadas, falhas, último status HTTP]. Vai para tomtom_uso_dia no
+        # fim de cada ciclo (painel /admin/operacao compara com a cota mensal); só o id da chave sai daqui.
+        self.uso: Dict[str, List[int]] = {}
+
         # Session HTTP única: reaproveita conexão TCP/TLS e evita vazamento de sockets
         # depois de milhares de requests por dia.
         self.session = requests.Session()
@@ -106,6 +110,28 @@ class TrafficCollector:
         )
         self.session.mount("https://", adapter)
         self.session.mount("http://", adapter)
+
+    def _contar(self, key_id: str, status: int) -> None:
+        u = self.uso.setdefault(key_id, [0, 0, 0])
+        u[0] += 1
+        u[1] += int(status != 200)
+        u[2] = status
+
+    def _enviar_uso(self) -> None:
+        """Manda o uso do ciclo para o banco. Nunca levanta: contagem não pode parar a coleta.
+        Se o envio falhar, os contadores ficam para o próximo ciclo."""
+        if not self.uso:
+            return
+        agora = time.time()
+        linhas = [{'chave_id': k, 'servico': 'fluxo', 'chamadas': n, 'falhas': f, 'ultimo_status': st or None,
+                   'cooldown_ate': (datetime.fromtimestamp(self.cooldown_until[k], tz=timezone.utc).isoformat()
+                                    if self.cooldown_until.get(k, 0.0) > agora else None)}
+                  for k, (n, f, st) in self.uso.items()]
+        try:
+            db_manager.registrar_uso_tomtom('coletor', linhas)
+            self.uso = {}
+        except Exception as e:
+            logging.warning(f"Uso das chaves não gravado ({type(e).__name__}); vai no próximo ciclo.")
 
     def _key_at(self, idx: int) -> dict:
         return self.api_keys_data[idx]
@@ -187,10 +213,12 @@ class TrafficCollector:
             try:
                 response = self.session.get(self.base_url, params=params, timeout=REQUEST_TIMEOUT)
             except requests.exceptions.RequestException as e:
-                logging.error(f"Falha de rede ao contatar a API da TomTom: {e}")
+                self._contar(key_entry['id'], 0)
+                logging.error(f"Falha de rede ao contatar a API da TomTom: {type(e).__name__}")
                 return None
 
             status = response.status_code
+            self._contar(key_entry['id'], status)
 
             if status == 200:
                 try:
@@ -292,11 +320,14 @@ class TrafficCollector:
             raise
 
         finally:
-            if historico_batch:
-                logging.info(f"Salvando lote de {len(historico_batch)} registros capturados no banco...")
-                db_manager.insert_historico_batch(historico_batch)
-            else:
-                logging.warning("Nenhum dado válido extraído neste ciclo para ser salvo.")
+            try:
+                if historico_batch:
+                    logging.info(f"Salvando lote de {len(historico_batch)} registros capturados no banco...")
+                    db_manager.insert_historico_batch(historico_batch)
+                else:
+                    logging.warning("Nenhum dado válido extraído neste ciclo para ser salvo.")
+            finally:
+                self._enviar_uso()
 
 
 _collector_instance: Optional[TrafficCollector] = None

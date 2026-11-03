@@ -2,6 +2,7 @@
 Routify API — FastAPI. Documentação interativa em /docs (Swagger) e /redoc;
 textos em openapi.py.
 """
+import asyncio
 import os
 import json
 import pickle
@@ -254,6 +255,28 @@ def load_graph() -> nx.MultiDiGraph:
     return G
 
 
+async def _enviar_uso_tomtom(app: FastAPI) -> None:
+    """Contadores do pool TomTom desde o último envio → tomtom_uso_dia (/admin/operacao soma com o coletor).
+    Falhou: voltam para o próximo envio."""
+    tt, sb = getattr(app.state, 'tomtom', None), getattr(app.state, 'supabase', None)
+    if tt is None or sb is None:
+        return
+    linhas = tt.pool.descarregar_uso()
+    if not linhas:
+        return
+    try:
+        await asyncio.to_thread(lambda: sb.rpc('registrar_tomtom_uso', {'p_origem': 'api', 'p_linhas': linhas}).execute())
+    except Exception as e:
+        tt.pool.devolver_uso(linhas)
+        logging.warning(f"Uso das chaves TomTom não gravado ({type(e).__name__}); vai no próximo envio")
+
+
+async def _enviar_uso_tomtom_sempre(app: FastAPI, intervalo_s: float = 60.0) -> None:
+    while True:
+        await asyncio.sleep(intervalo_s)
+        await _enviar_uso_tomtom(app)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
@@ -385,12 +408,15 @@ async def lifespan(app: FastAPI):
         app.state.config = config_runtime.ConfigRuntime()
         await app.state.config.atualizar(sb, app.state.tomtom)
 
+        app.state.tarefa_uso = asyncio.create_task(_enviar_uso_tomtom_sempre(app))
         logging.info("=== Routify API pronta ===")
     except Exception as e:
         logging.error(f"FALHA NO STARTUP: {e}")
         logging.error(traceback.format_exc())
         raise
     yield
+    app.state.tarefa_uso.cancel()
+    await _enviar_uso_tomtom(app)  # o que sobrou desde o último envio
     await app.state.tomtom.fechar()
 
 

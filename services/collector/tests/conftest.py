@@ -28,3 +28,12 @@ except ImportError:
     falso.create_client = lambda *a, **k: None
     falso.Client = object
     sys.modules['supabase'] = falso
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _uso_tomtom_sem_banco(monkeypatch):
+    """O envio do uso das chaves não vai à rede nos testes (test_uso_tomtom.py troca por um gravador)."""
+    import db
+    monkeypatch.setattr(db, 'registrar_uso_tomtom', lambda origem, linhas: None)

@@ -89,6 +89,11 @@ def get_all_vias() -> List[Tuple[int, str, float, float]]:
         logging.error(f"Erro ao buscar vias: {e}")
         raise
 
+def registrar_uso_tomtom(origem: str, linhas: List[dict]) -> None:
+    """Uso das chaves no ciclo (só ids) → tomtom_uso_dia, somando ao do dia (RPC só para service_role)."""
+    get_client().rpc('registrar_tomtom_uso', {'p_origem': origem, 'p_linhas': linhas}).execute()
+
+
 def insert_historico_batch(historico: List[Tuple[int, float, float, float, float]]) -> None:
     """Insira o histórico de tráfego coletado na TomTom em lote."""
     registros = [{'id_ponto': idp, 'velocidade_atual': va, 'velocidade_livre': vl,

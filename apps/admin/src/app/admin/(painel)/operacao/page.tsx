@@ -4,6 +4,7 @@ import type { Auditoria, AvisoApp, LinhaConfig, Usuario } from '@/lib/tipos';
 import { Avisos } from './Avisos';
 import { Manutencao, Modos } from './Modos';
 import { PoolTomTom } from './PoolTomTom';
+import { UsoChaves } from './UsoChaves';
 
 const MANUTENCAO = ['recalcular_qualidade', 'expurgar_uso'];
 
@@ -43,6 +44,7 @@ export default async function OperacaoPage() {
         <ErroConsulta erro={erro} acoes />
         {!config.error ? <Modos config={cfg} emails={emails} /> : null}
         <PoolTomTom pausadas={pausadas} />
+        <UsoChaves />
         {!avisos.error ? <Avisos avisos={(avisos.data ?? []) as AvisoApp[]} /> : null}
         {!auditoria.error ? <Manutencao ultimas={ultimas} emails={emails} /> : null}
       </div>
