@@ -362,3 +362,20 @@ def test_nominatim_resposta_torta_vira_lista_vazia(monkeypatch):
                         cliente_com([{'display_name': 'Torre de TV, Brasília, DF', 'lat': '-15.79', 'lon': '-47.89'}]))
     (item,) = asyncio.run(search._nominatim('torre', 5))
     assert item['label'] == 'Torre de TV' and math.isclose(item['lat'], -15.79)
+
+
+def test_apelidos_de_marcos_da_bateria_de_2026_11_03():
+    """Jeito de falar → nome que a base usa; a forma original continua sendo a 1ª variante."""
+    from routers.search import normalizar, variantes
+    casos = {
+        'museu nacional da republica': 'museu nacional',
+        'igreja dom bosco': 'santuario dom bosco',
+        'hospital universitario unb': 'hospital universitario de brasilia',
+        'serejao taguatinga': 'estadio serejao',
+        'terraco shopping sudoeste': 'terraco shopping',
+        'agua claras shopping': 'aguas claras shopping',
+        'planalto brasilia': 'palacio do planalto',
+    }
+    for consulta, esperada in casos.items():
+        v = variantes(normalizar(consulta))
+        assert v[0] == normalizar(consulta) and esperada in v, (consulta, v)

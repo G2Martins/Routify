@@ -115,6 +115,12 @@ APELIDOS = {
     'televisao': 'tv',
     'juscelino kubitschek': 'jk',
     'kubitschek': 'jk',
+    # Jeito de falar → nome que a base usa (bateria de 2026-11-03: as outras formas do mesmo ponto já acertavam).
+    'igreja dom bosco': 'santuario dom bosco',
+    'universitario unb': 'universitario de brasilia',
+    'serejao taguatinga': 'estadio serejao',
+    'agua claras': 'aguas claras',
+    'planalto brasilia': 'palacio do planalto',
 }
 
 # Marcos: o que alguém quer dizer ao digitar o nome (e não a loja que o cita).
@@ -138,7 +144,8 @@ MARCOS.add('BUS_STATION')
 # Códigos nossos (localidades do OSM): só rotulam; não entram no nome do candidato.
 CATEGORIAS_LOCAIS = {'REGIAO': 'Região', 'BAIRRO': 'Bairro'}
 # Qualificador de lugar no fim da consulta ("hospital de base do df"): os nomes não o trazem.
-QUALIFICADORES = {'df', 'bsb', 'brasilia'}
+# Fim que a base não traz: "museu nacional da republica", "terraco shopping sudoeste" (bateria de 2026-11-03).
+QUALIFICADORES = {'df', 'bsb', 'brasilia', 'republica', 'sudoeste'}
 LIGACOES = {'do', 'de', 'da', 'em', 'no', 'na'}
 TIPO_ENDERECO = {'Point Address', 'Address Range'}
 PREFIXO_GENERICO = {'SHOPPING_CENTER', 'STADIUM', 'AIRPORT'}
