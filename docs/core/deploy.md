@@ -113,7 +113,8 @@ contra a rota própria, Mapbox, OSRM). Roda com usuário dinâmico do systemd qu
 `sudo AB=1 bash …/instalar-ec2.sh`): às 07:40, 08:40, 17:40 e 18:40 (seg–sex) sobe um braço B na porta 8001, o
 mesmo código da produção com UMA variável trocada, e roda `scripts/ab_rotas.py` contra a produção (A) no mesmo
 instante, viagem a viagem; no fim derruba o B. Variantes: `sensores` (`SENSORES_VIRTUAIS=1`, 10 viagens pelos
-buracos de sensor) e `lia24` (`LIA_VERSION=lia_2.4`, 16 corredores; pulada sem o `lia_2.4.pkl`). Resultado em
+buracos de sensor), `restricoes` (`RESTRICOES_CONVERSAO=1`, as 30 viagens do comparador) e `lia24`
+(`LIA_VERSION=lia_2.4`, 16 corredores; pulada sem o `lia_2.4.pkl`). A unit roda `sensores restricoes`. Resultado em
 `/var/lib/routify-ab/<variante>_<data>_<hora>.json`. Teto de 1,1 GB (o B ocupa ~0,8 GB, igual à produção; a
 máquina tem 2 GB de swap). Para sozinho depois de `AB_ATE` (2026-11-13), porque cada passada gasta Flow e Routing
 da TomTom nos dois braços. Rodar fora do horário: `sudo systemctl start routify-ab.service`.

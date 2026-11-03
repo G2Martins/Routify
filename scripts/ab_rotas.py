@@ -10,7 +10,7 @@ sensores virtuais. Rode de services/collector (usa o comparador e o pool de chav
 
 Na EC2, nos picos de dia útil, quem chama é scripts/ab_ec2.sh (A = produção, B = mesma versão com uma variável trocada).
 
-viagens.json = [[id, nome, [lat, lon], [lat, lon]], ...]; sem ele, os 16 corredores do comparador.
+viagens.json = [[id, nome, [lat, lon], [lat, lon]], ...] ou `todos` (as 30 viagens do comparador); sem ele, os 16 corredores.
 Exemplo de conjunto: scripts/viagens_buracos.json (as maiores lacunas de sensor da auditoria do grafo).
 """
 import json, os, statistics, sys, time
@@ -21,7 +21,8 @@ import comparar_provedores as cp
 APIS = dict(x.split('=', 1) for x in os.environ.get('APIS', 'A=http://127.0.0.1:8011,B=http://127.0.0.1:8012').split(','))
 s = requests.Session()
 tt_propria = cp.provedores()['tomtom']
-pares = cp.CORREDORES if len(sys.argv) < 3 else [tuple(x) for x in json.load(open(sys.argv[2], encoding='utf-8'))]
+pares = (cp.CORREDORES if len(sys.argv) < 3 else cp.TODOS if sys.argv[2] == 'todos'
+         else [tuple(x) for x in json.load(open(sys.argv[2], encoding='utf-8'))])
 out = []
 for cid, nome, o, d in pares:
     linha = {'corredor': cid}

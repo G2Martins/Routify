@@ -32,6 +32,7 @@ ml/artifacts/*
 !ml/artifacts/brasilia_graph_38km.graphml
 !ml/artifacts/brasilia_graph_38km.pkl
 !ml/artifacts/semaforos_osm_38km.json
+!ml/artifacts/restricoes_conversao_38km.json
 !ml/artifacts/semaforos_calibracao.json
 !ml/artifacts/velocidade_livre_tomtom.json
 !ml/artifacts/bairros_df.json

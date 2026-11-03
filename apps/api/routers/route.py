@@ -764,6 +764,15 @@ async def calculate_route(body: RouteInput, request: Request):
         raise HTTPException(status_code=422, detail="Sem rota disponível entre origem e destino.")
     except nx.NodeNotFound as e:
         raise HTTPException(status_code=422, detail=f"Nó não encontrado no grafo: {e}")
+    # Conversões proibidas do OSM (RESTRICOES_CONVERSAO=1): o A* restrito só roda quando o caminho
+    # livre fez uma (~22% das rotas na medição de ml/restricoes_conversao.py).
+    proibidas = G.graph.get('conversoes_proibidas')
+    if proibidas and trajeto.viola_conversao(path_nodes, proibidas):
+        legal = trajeto.astar_com_restricoes(G, orig_node, dest_node, heuristic, peso, proibidas)
+        if legal:
+            path_nodes = legal
+        else:
+            logger.warning("Nenhum caminho respeita as conversões proibidas: segue o caminho livre")
 
     polyline = montar_polyline(G, path_nodes)
     niveis = niveis_lia(G, path_nodes)  # antes do await da fusão (pesos no grafo compartilhado)
@@ -779,11 +788,10 @@ async def calculate_route(body: RouteInput, request: Request):
     tempo_curta = dist_curta = None
     rotas_diferentes = None
     try:
-        path_curta = nx.astar_path(
-            G, orig_node, dest_node,
-            heuristic=lambda u, v: haversine_m(G.nodes[u]['y'], G.nodes[u]['x'], G.nodes[v]['y'], G.nodes[v]['x']),
-            weight='length',
-        )
+        h_dist = lambda u, v: haversine_m(G.nodes[u]['y'], G.nodes[u]['x'], G.nodes[v]['y'], G.nodes[v]['x'])
+        path_curta = nx.astar_path(G, orig_node, dest_node, heuristic=h_dist, weight='length')
+        if proibidas and trajeto.viola_conversao(path_curta, proibidas):  # baseline sob a mesma regra
+            path_curta = trajeto.astar_com_restricoes(G, orig_node, dest_node, h_dist, 'length', proibidas) or path_curta
         tempo_curta, dist_curta, _ = _resumir_caminho(G, path_curta)
         tempo_curta += (atraso_sem * trajeto.contar_semaforos(G, path_curta)
                         + atraso_cruz * trajeto.contar_cruzamentos(G, path_curta)

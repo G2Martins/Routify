@@ -9,6 +9,8 @@ Fusão (1 chamada de Routing por rota): a TomTom reconstrói a rota da LIA
 alternativa só se achar rota melhor. O tempo exibido mistura as duas visões
 pela cobertura da LIA; a rota da TomTom só vence com ganho claro.
 """
+import heapq
+import itertools
 import json
 import logging
 import math
@@ -322,3 +324,63 @@ if __name__ == '__main__':
     apoio = pontos_apoio(linha)
     assert len(apoio) <= MAX_PONTOS_APOIO and apoio[0] == linha[0] and apoio[-1] == linha[-1]
     print('trajeto ok')
+
+
+# ---------------------------------------------------------------------------
+# Restrições de conversão do OSM (no_left_turn, only_straight_on, no_u_turn…). O OSMnx não as guarda e o
+# pickle enxuto não tem osmid: o mapeamento para triplas (u, via, w) do grafo é offline
+# (ml/restricoes_conversao.py → ml/artifacts/restricoes_conversao_38km.json; refazer junto com o GraphML).
+# ---------------------------------------------------------------------------
+
+def carregar_conversoes_proibidas(caminho: str) -> dict:
+    """{(u, via): {w, …}} das transições proibidas u → via → w (only_* já vem expandido)."""
+    with open(caminho, encoding='utf-8') as f:
+        dados = json.load(f)
+    proibidas = {}
+    for r in dados['restricoes']:
+        for u, w in r['pares']:
+            proibidas.setdefault((int(u), int(r['via'])), set()).add(int(w))
+    return proibidas
+
+
+def viola_conversao(nos: List[int], proibidas: dict) -> bool:
+    return any(c in proibidas.get((a, b), ()) for a, b, c in zip(nos, nos[1:], nos[2:]))
+
+
+def astar_com_restricoes(G: nx.MultiDiGraph, origem: int, destino: int, heuristica, peso,
+                         proibidas: dict) -> Optional[List[int]]:
+    """A* exato que honra as conversões proibidas: o estado é (nó, anterior) só nos nós-via (~1% do grafo)
+    e o nó sozinho no resto. Mesmo `peso` do nx.astar_path (nome do atributo ou função u, v, paralelas).
+    None se não houver caminho legal."""
+    pesar = peso if callable(peso) else (lambda u, v, paralelas: min(d.get(peso, 1) for d in paralelas.values()))
+    vias = {via for _u, via in proibidas}
+    inicio = (origem, None)
+    custo, pai = {inicio: 0.0}, {inicio: None}
+    contador = itertools.count()
+    fila = [(heuristica(origem, destino), next(contador), inicio)]
+    fechados = set()
+    while fila:
+        _, _, estado = heapq.heappop(fila)
+        if estado in fechados:
+            continue
+        no, anterior = estado
+        if no == destino:
+            caminho = []
+            while estado is not None:
+                caminho.append(estado[0])
+                estado = pai[estado]
+            return caminho[::-1]
+        fechados.add(estado)
+        vetados = proibidas.get((anterior, no), ()) if anterior is not None else ()
+        for viz, paralelas in G[no].items():
+            if viz in vetados:
+                continue
+            c = pesar(no, viz, paralelas)
+            if c is None:
+                continue
+            prox = (viz, no if viz in vias else None)
+            novo = custo[estado] + c
+            if novo < custo.get(prox, math.inf):
+                custo[prox], pai[prox] = novo, estado
+                heapq.heappush(fila, (novo + heuristica(viz, destino), next(contador), prox))
+    return None

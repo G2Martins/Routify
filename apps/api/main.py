@@ -329,6 +329,13 @@ async def lifespan(app: FastAPI):
         G.graph['prior_congestionamento'] = os.getenv('PRIOR_CONGESTIONAMENTO', 'corredor')
         # Sensores virtuais nos buracos de dados: desligados por padrão (sem ganho no A/B de 2026-11-02,
         # ml/artifacts/ab_sensores_virtuais_2026-11-02.json). SENSORES_VIRTUAIS=1 liga.
+        # Conversões proibidas do OSM (o OSMnx ignora): desligadas por padrão até o A/B de dia útil
+        # (scripts/ab_ec2.sh restricoes). RESTRICOES_CONVERSAO=1 liga. Ver ml/restricoes_conversao.py.
+        if os.getenv('RESTRICOES_CONVERSAO', '0') == '1':
+            G.graph['conversoes_proibidas'] = trajeto.carregar_conversoes_proibidas(
+                os.path.join(MODELS_DIR, f'restricoes_conversao_{BRASILIA_RADIUS_M // 1000}km.json'))
+            logging.info(f"Conversões proibidas: {sum(map(len, G.graph['conversoes_proibidas'].values())):,} "
+                         f"em {len({v for _u, v in G.graph['conversoes_proibidas']}):,} cruzamentos")
         if os.getenv('SENSORES_VIRTUAIS', '0') == '1':
             G.graph['pontos_virtuais'] = graph_enrichment.pontos_virtuais(G, G.graph.get('vias_monitoradas') or {})
             logging.info(f"{len(G.graph['pontos_virtuais']):,} pontos virtuais (células de 1 km sem sensor a 500 m)")
