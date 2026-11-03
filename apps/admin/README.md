@@ -1,6 +1,6 @@
 # Routify — Painel ADM
 
-**Última revisão:** 2026-11-02
+**Última revisão:** 2026-11-03
 
 Painel de observabilidade da plataforma e de acompanhamento da LIA. Next.js 16 (App Router) + Supabase (`@supabase/ssr`) + Recharts + React Flow, no design Valerium (papel claro, tokens HSL, Instrument Serif / IBM Plex).
 
@@ -16,7 +16,7 @@ npm run dev                  # http://localhost:3000
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | URL do projeto Supabase |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | chave publishable (nunca a service_role) |
-| `NEXT_PUBLIC_API_URL` | API FastAPI: status ao vivo (`/health`) e pool TomTom (`/admin/tomtom`, com o JWT da sessão) |
+| `NEXT_PUBLIC_API_URL` | API FastAPI: status ao vivo (`/health`, `/admin/sistema`) e pool TomTom (`/admin/tomtom`), estes dois com o JWT da sessão |
 
 Passo a passo completo com API e app: [docs/core/rodar-local.md](../../docs/core/rodar-local.md).
 
@@ -31,12 +31,13 @@ Passo a passo completo com API e app: [docs/core/rodar-local.md](../../docs/core
 | `/uso` | funil, mistura de fontes da busca, LIA × menor distância, hora × dia, mapa de calor k-anônimo (janela 7/30/90 dias) + últimas rotas, eventos e requisições | RPC `admin_analytics_uso`, `rotas_calculadas`, `eventos_app`, `api_requisicoes` |
 | `/qualidade` | qualidade do dataset: nulos, outliers, duplicatas, cobertura hora × dia | RPC `admin_qualidade_dados` (views materializadas, pg_cron diário) |
 | `/usuarios` | contas, papel, situação + menu de ações: promover/rebaixar, bloquear, encerrar sessões, exportar dados (JSON) e apagar dados (LGPD) | RPC `admin_usuarios` + RPCs `admin_*` |
-| `/operacao` | modos da API (kill switch TomTom, só LIA, rota TomTom na fusão, orçamento/min), pool de chaves (estado a cada 15 s, pausar, testar, zerar cooldowns), avisos do app, recalcular qualidade e expurgo | `config_runtime`, `avisos_app`, API `/admin/tomtom`, RPCs `admin_*` |
+| `/status` | status ao vivo a cada 30 s: API da LIA na EC2 (tempo de resposta, modelo, recência, chaves), banco (tamanho × 500 MB do plano grátis, conexões), coleta (último lote, linhas/h), comparador, site na Hostinger, máquina da API (CPU ocupada e roubada, memória, swap, disco, serviços), uso da API em 24 h, jobs do pg_cron e as páginas de status oficiais de Supabase, Hostinger, GitHub e AWS us-east-1 | RPC `admin_status_dados`, API `/health` e `/admin/sistema`, `./status/externo` (servidor do painel, URLs fixas) |
+| `/operacao` | modos da API (kill switch TomTom, só LIA, rota TomTom na fusão, orçamento/min), pool de chaves (estado a cada 15 s, pausar, testar, zerar cooldowns), **uso real das chaves no mês** (coletor + API por serviço, projeção contra a cota, por chave), avisos do app, recalcular qualidade e expurgo | `config_runtime`, `avisos_app`, API `/admin/tomtom`, RPCs `admin_*` e `admin_tomtom_uso` |
 | `/auditoria` | trilha de ações do ADM, 50 por página, filtro por ação e por quem fez | `admin_auditoria` |
 
 ### Notas da página `/provedores`
 
-- **Séries pelos dados.** Os provedores dos gráficos e das tabelas saem do que a RPC devolve (`por_hora`, `vs_tomtom`, `provedores`): OpenRouteService e Mapbox só aparecem se o coletor tiver a chave. Nomes de exibição, ordem e cores ficam em `src/lib/provedores.ts`; tracejado = provedor sem trânsito (`com_transito = false` no dado).
+- **Séries pelos dados.** Os provedores dos gráficos e das tabelas saem do que a RPC devolve (`por_hora`, `vs_tomtom`, `provedores`): o Mapbox só aparece se o comparador tiver o token. Nomes de exibição, ordem e cores ficam em `src/lib/provedores.ts`; tracejado = provedor sem trânsito (`com_transito = false` no dado).
 - **Tokens de gráfico.** `--chart-4` (violeta) e `--chart-5` (rosa) foram criados em `globals.css`, nos 3 blocos de tema.
 - **Estado vazio honesto.** Cada seção diz o que falta (comparador sem rodadas, rotas reais sem referência, ablação ou fora do tempo não publicados). A ablação `--smoke` vem com aviso de que não é número de tese.
 - **Nomes dos corredores.** A tabela guarda só o slug; `src/lib/provedores.ts` espelha `CORREDORES` de `services/collector/comparar_provedores.py`, e slug novo aparece como texto legível até o espelho ser atualizado.

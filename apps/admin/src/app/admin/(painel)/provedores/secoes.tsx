@@ -254,7 +254,6 @@ const COMPARA: Record<string, string> = {
   routify: 'rota exibida ao usuário (fusão) × melhor rota da TomTom',
   tomtom_mesmo_trajeto: 'TomTom no caminho da LIA × melhor rota da TomTom (positivo = caminho da LIA mais lento)',
   osrm: 'tempo de mapa × TomTom ao vivo',
-  openrouteservice: 'perfil driving-car × TomTom ao vivo',
   mapbox: 'driving-traffic × TomTom ao vivo',
 };
 
@@ -875,7 +874,7 @@ export function Fase3({ f }: { f: Fase3Comparacao | undefined }) {
 /* ---------- 9. Metodologia e limitações ---------- */
 
 export function Metodologia({ d, cobertura }: { d: ComparacaoProvedores | null; cobertura: CoberturaDataset | undefined }) {
-  // O OSRM é o provedor sem trânsito do núcleo; se o dono ligar outro (OpenRouteService), a frase acompanha o dado.
+  // O OSRM é o provedor sem trânsito do núcleo; se entrar outro, a frase acompanha o dado.
   const outrosSemTransito = (d?.provedores ?? []).filter((p) => !p.com_transito && p.provedor !== 'osrm').map((p) => nomeProvedor(p.provedor));
   return (
     <Cartao titulo="Metodologia e limitações" atraso={640}>

@@ -10,7 +10,6 @@ const PROVEDORES: Record<string, { nome: string; cor: string }> = {
   tomtom_mesmo_trajeto: { nome: 'TomTom no trajeto da LIA', cor: 'var(--chart-eixo)' },
   tomtom: { nome: 'TomTom (referência)', cor: 'hsl(var(--foreground))' },
   osrm: { nome: 'OSRM (sem trânsito)', cor: 'var(--chart-3)' },
-  openrouteservice: { nome: 'OpenRouteService', cor: 'var(--chart-4)' },
   mapbox: { nome: 'Mapbox (trânsito)', cor: 'var(--chart-5)' },
 };
 const ORDEM = Object.keys(PROVEDORES);

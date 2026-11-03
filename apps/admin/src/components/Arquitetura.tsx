@@ -11,27 +11,29 @@ type Tom = 'ok' | 'alerta' | 'erro' | 'neutro';
 type DadosNo = { titulo: string; sub: string; tom: Tom; estado: string; ativo: boolean; selecionado: boolean };
 type NoRoutify = Node<DadosNo, 'routify'>;
 
-type Fluxo = 'rota' | 'busca' | 'treino' | 'dados' | 'tudo';
+type Fluxo = 'rota' | 'busca' | 'treino' | 'validacao' | 'dados' | 'tudo';
 
 const NOS: { id: string; titulo: string; sub: string; x: number; y: number; sobre: string }[] = [
   { id: 'app', titulo: 'App mobile', sub: 'Expo · iOS / Android / Web', x: 0, y: 60, sobre: 'Visão do usuário. Pede rotas e buscas à API com o JWT da sessão e grava o histórico pessoal direto no Supabase (RLS por dono).' },
-  { id: 'admin', titulo: 'Painel ADM', sub: 'Next.js · este painel', x: 0, y: 320, sobre: 'Lê só por RPC/políticas admin (app_metadata.role). Consulta o /health da API para o status ao vivo.' },
-  { id: 'api', titulo: 'API FastAPI', sub: '/route · /search · /eventos', x: 300, y: 190, sobre: 'Orquestra a rota: recência, TomTom sob demanda, pesos da LIA em todas as arestas e A*. Grava o uso com service_role.' },
+  { id: 'admin', titulo: 'Painel ADM', sub: 'Next.js · este painel', x: 0, y: 320, sobre: 'Lê só por RPC/políticas admin (app_metadata.role + sessão aal2 de quem tem 2º fator). Da API usa /health, /admin/sistema e /admin/tomtom; o status ao vivo fica em /admin/status.' },
+  { id: 'api', titulo: 'API FastAPI', sub: '/route · /search · /eventos · /mfa', x: 300, y: 190, sobre: 'Orquestra a rota: recência, TomTom sob demanda, pesos da LIA (vetorizados) e A*, com tempo por fase no Server-Timing. Grava o uso com service_role e o consumo de cada chave TomTom a cada minuto.' },
   { id: 'cache', titulo: 'Cache de recência', sub: 'última razão por via · TTL 5 min', x: 640, y: 0, sobre: 'Última observação real por via (feature razao_lag1/delta_min_lag1 da LIA 2.1). Faz merge: a leitura ao vivo da TomTom vence o banco.' },
-  { id: 'lia', titulo: 'Modelo LIA 2.1', sub: 'XGBoost · razão de congestionamento', x: 640, y: 120, sobre: 'Prevê a razão velocidade atual / livre por via; o tempo em segundos sai do comprimento real de cada aresta.' },
+  { id: 'lia', titulo: 'Modelo LIA', sub: 'XGBoost · razão de congestionamento', x: 640, y: 120, sobre: 'Prevê a razão velocidade atual / livre por via; o tempo em segundos sai do comprimento real de cada aresta. A versão ativa vem do /health.' },
   { id: 'grafo', titulo: 'Grafo OSM', sub: 'OSMnx · transfer ≤ 500 m', x: 640, y: 240, sobre: 'Malha viária enriquecida na subida: velocidade livre por aresta e vínculo com a via monitorada mais próxima (confiança isotônica).' },
   { id: 'pool', titulo: 'Pool de chaves TomTom', sub: 'cooldown por chave e serviço', x: 640, y: 360, sobre: 'Rotação defensiva: 429 em sequência vira cooldown de cota (24 h), 403 tira a chave por 10 min, teto global por minuto. Todas esgotadas = modo degradado (só LIA).' },
   { id: 'tomtom', titulo: 'TomTom', sub: 'Flow v4 · Incidents v5 · Routing · Search', x: 960, y: 360, sobre: 'Complementa a LIA na hora da rota: velocidade ao vivo nas vias velhas do corredor, interdições (saem do A*), ETA de referência e busca.' },
   { id: 'nominatim', titulo: 'Nominatim', sub: 'OSM · último recurso', x: 960, y: 480, sobre: 'Só entra se a base local e a TomTom trouxeram menos de 3 resultados; com cache e 1 req/s (política da OSMF proíbe autocomplete).' },
-  { id: 'supabase', titulo: 'Supabase', sub: 'Postgres · Auth · RLS', x: 300, y: 470, sobre: 'Dataset do TCC (1,5 mi leituras), histórico dos usuários, captura de uso e métricas da LIA. RLS em tudo; dataset só via service_role.' },
+  { id: 'supabase', titulo: 'Supabase', sub: 'Postgres · Auth · RLS', x: 300, y: 470, sobre: 'Dataset do TCC (1,5 mi leituras + a coleta de novembro), histórico dos usuários, captura de uso, comparações com outros provedores, uso das chaves TomTom e métricas da LIA. RLS em tudo; dataset só via service_role.' },
   { id: 'treino', titulo: 'Pipeline de treino', sub: 'silver → features → train', x: 640, y: 560, sobre: 'Offline: puxa historico_trafego, gera perfis e recência, valida com TimeSeriesSplit e publica os artefatos e as métricas deste painel.' },
-  { id: 'coletor', titulo: 'Coletor TomTom', sub: 'pausado na fase final', x: 0, y: 560, sobre: 'Coletou Flow Segment Data de 630 pontos a cada 8 min (mar–jul/2026). Substituído pela consulta sob demanda.' },
+  { id: 'coletor', titulo: 'Coletor TomTom', sub: 'EC2 · 1 ciclo a cada ~43 min', x: 0, y: 560, sobre: 'Desde 02/11/2026 na mesma EC2 da API: Flow v4 nos 630 pontos a cada ciclo, cadência pela cota mensal (15% ficam para a API). Coletou de mar a jul/2026 a cada 8 min; o dataset da tese é essa primeira fase.' },
+  { id: 'comparador', titulo: 'Comparador + rotina', sub: 'EC2 · 8 rodadas/dia + A/B nos picos', x: 0, y: 700, sobre: 'Pede as mesmas 30 viagens à LIA de produção (loopback, fora da captura de uso), à TomTom e ao OSRM/Mapbox e grava em comparacao_provedores. Cada rodada dispara a rotina de validação (checagens da API); nos picos de dia útil um braço B temporário mede variantes (A/B).' },
+  { id: 'provedores', titulo: 'OSRM · Mapbox', sub: 'comparação: sem e com trânsito', x: 960, y: 620, sobre: 'Só o comparador chama: OSRM público (sem trânsito, ≤ 1 req/s) e Mapbox driving-traffic (token grátis). Valhalla, HERE, Google e Azure ficam de fora pelos termos de uso.' },
 ];
 
 const ARESTAS: { id: string; de: string; para: string; rotulo: string }[] = [
   { id: 'app-api', de: 'app', para: 'api', rotulo: 'rota · busca · eventos' },
   { id: 'app-sb', de: 'app', para: 'supabase', rotulo: 'Auth + histórico' },
-  { id: 'admin-api', de: 'admin', para: 'api', rotulo: '/health' },
+  { id: 'admin-api', de: 'admin', para: 'api', rotulo: '/health · /admin/*' },
   { id: 'admin-sb', de: 'admin', para: 'supabase', rotulo: 'RPC admin' },
   { id: 'api-cache', de: 'api', para: 'cache', rotulo: 'recência' },
   { id: 'api-lia', de: 'api', para: 'lia', rotulo: 'razão por via' },
@@ -45,6 +47,10 @@ const ARESTAS: { id: string; de: string; para: string; rotulo: string }[] = [
   { id: 'treino-lia', de: 'treino', para: 'lia', rotulo: 'artefatos' },
   { id: 'coletor-sb', de: 'coletor', para: 'supabase', rotulo: 'leituras' },
   { id: 'coletor-tomtom', de: 'coletor', para: 'tomtom', rotulo: 'Flow' },
+  { id: 'comparador-api', de: 'comparador', para: 'api', rotulo: 'rota interna' },
+  { id: 'comparador-tomtom', de: 'comparador', para: 'tomtom', rotulo: 'Routing' },
+  { id: 'comparador-provedores', de: 'comparador', para: 'provedores', rotulo: 'mesma viagem' },
+  { id: 'comparador-sb', de: 'comparador', para: 'supabase', rotulo: 'comparações' },
 ];
 
 const FLUXOS: Record<Fluxo, { rotulo: string; nos: string[]; arestas: string[] }> = {
@@ -62,6 +68,11 @@ const FLUXOS: Record<Fluxo, { rotulo: string; nos: string[]; arestas: string[] }
     rotulo: 'Treino da LIA',
     nos: ['coletor', 'tomtom', 'supabase', 'treino', 'lia', 'api'],
     arestas: ['coletor-tomtom', 'coletor-sb', 'sb-treino', 'treino-lia', 'api-lia'],
+  },
+  validacao: {
+    rotulo: 'Validação contínua',
+    nos: ['comparador', 'api', 'lia', 'grafo', 'tomtom', 'provedores', 'supabase', 'admin'],
+    arestas: ['comparador-api', 'comparador-tomtom', 'comparador-provedores', 'comparador-sb', 'api-lia', 'api-grafo', 'admin-sb'],
   },
   dados: {
     rotulo: 'Dados & Auth',
@@ -145,8 +156,20 @@ function statusDe(id: string, saude: Saude | null, offline: boolean, supabaseOk:
       return supabaseOk
         ? { tom: 'ok', estado: 'alcançável · RLS ativo', linhas: ['RPC admin respondeu nesta página.'] }
         : { tom: 'erro', estado: 'sem resposta', linhas: ['A RPC admin falhou: banco pausado, migration pendente ou sessão sem papel admin.'] };
-    case 'coletor':
-      return { tom: 'neutro', estado: 'pausado', linhas: [] };
+    case 'coletor': {
+      if (!saude) return offline ? semApi : { tom: 'neutro', estado: '…', linhas: [] };
+      const ultima = saude.recencia.mais_recente;
+      const min = ultima ? (Date.now() - new Date(ultima).getTime()) / 60000 : null;
+      return {
+        tom: min === null ? 'neutro' : min <= 60 ? 'ok' : min <= 120 ? 'alerta' : 'erro',
+        estado: min === null ? 'sem leitura' : `coletando · leitura há ${idade(ultima)}`,
+        linhas: ['Ciclo a cada ~43 min; a leitura mais nova pode ser da API (TomTom sob demanda).'],
+      };
+    }
+    case 'comparador':
+      return { tom: 'neutro', estado: 'EC2 · por agenda', linhas: ['Frescor das rodadas em /admin/status.'] };
+    case 'provedores':
+      return { tom: 'neutro', estado: 'só no comparador', linhas: [] };
     case 'treino':
       return { tom: 'neutro', estado: 'offline · roda local', linhas: ['Publica métricas com ml/publish_metrics.py.'] };
     default:
