@@ -241,3 +241,17 @@ def test_segunda_chamada_reseta_o_que_a_requisicao_anterior_marcou(tmp_path):
         d['lia_source'], d['travel_time_lia'] = 'virtual', 1.0
     route.assign_lia_weights(modelo, enc, perfis, G, 8, 0, None, None, ctx)
     assert [(d['travel_time_lia'], d['lia_source']) for _, _, _, d in G.edges(keys=True, data=True)] == antes
+
+
+def test_perfis_de_outro_modelo_na_mesma_hora_nao_reaproveitam_o_cache(tmp_path):
+    """Os perfis por (hora, dia) ficam guardados junto da referência: outro conjunto de perfis recalcula."""
+    modelo, enc = _ModeloPorLinha(), _Encoder()
+    ctx = _contexto(tmp_path).para_requisicao(datetime(2026, 11, 2, 8, tzinfo=lia_inf.BRASILIA_TZ), None)
+    outros = {**_perfis(), 'via': {1: 0.3, 2: 0.4}, 'via_hora': {(1, 8): 0.35, (2, 8): 0.45}}
+    G = _grafo(5)
+    route.assign_lia_weights(modelo, enc, _perfis(), G, 8, 0, None, None, ctx)
+    route.assign_lia_weights(modelo, enc, outros, G, 8, 0, None, None, ctx)
+    G_ref = _grafo(5)
+    _referencia(modelo, enc, outros, G_ref, 8, 0, None, None, ctx)
+    tempos = lambda g: [d.get('travel_time_lia') for _, _, _, d in g.edges(keys=True, data=True)]  # noqa: E731
+    assert tempos(G) == tempos(G_ref)

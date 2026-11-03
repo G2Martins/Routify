@@ -330,12 +330,21 @@ def assign_lia_weights(model, encoder, profiles, G: nx.MultiDiGraph,
     prior = razao_global
     razoes = np.empty(0)
     if vinc.any():
+        # A cascata de perfis só muda com (hora, dia): 630 lookups custavam ~77 ms por rota. Guarda a referência dos
+        # perfis junto, para outro modelo carregado não reaproveitar a lista (rollback de LIA_VERSION, testes).
+        perfis_hora = fixo.setdefault('perfis_hora', {})
+        guardado = perfis_hora.get((hora, dia_semana))
+        if guardado is None or guardado[0] is not profiles:
+            if len(perfis_hora) >= 32:  # /route/horarios pede várias horas; o resto vira a cada hora
+                perfis_hora.clear()
+            guardado = perfis_hora[(hora, dia_semana)] = (
+                profiles, [lia_inf.lookup_perfis(profiles, via, hora, dia_semana) for via in fixo['vias']])
         templates = np.vstack([
             np.asarray(lia_inf.montar_features(
-                int(enc), hora, dia_semana, 0.0, lia_inf.lookup_perfis(profiles, via, hora, dia_semana),
+                int(enc), hora, dia_semana, 0.0, perfis,
                 recencia_cache.get(via) if recencia_cache is not None else None,
                 contexto(via) if contexto else None, ordem), dtype=float)
-            for via, enc in zip(fixo['vias'], fixo['vias_cod'])
+            for via, enc, perfis in zip(fixo['vias'], fixo['vias_cod'], guardado[1])
         ])
         via_idx, vel_v = fixo['via_idx'][vinc], fixo['vel'][vinc]
         chaves, volta = np.unique(np.column_stack([via_idx, vel_v]), axis=0, return_inverse=True)
