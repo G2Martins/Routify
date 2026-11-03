@@ -11,7 +11,7 @@ import { StyleSheet, View } from 'react-native';
 import type { ExpressionSpecification, GeoJSONSource, Map as MLMap, Marker as MLMarker, StyleSpecification } from 'maplibre-gl';
 import { mapPalettes, trafficColors } from '../../constants/Theme';
 import { useTheme } from '../../context/ThemeContext';
-import { carregarBase, montarEstilo } from './estiloMapa';
+import { ATRIBUICAO, carregarBase, montarEstilo } from './estiloMapa';
 import { acompanhar, localizarUsuario } from './geolocalizacao';
 import { gruposTransito } from './transito';
 
@@ -397,7 +397,7 @@ const MapaVetorial = forwardRef(({ onFalha }: { onFalha?: () => void }, ref) => 
           attributionControl: false,
           fadeDuration: 180,
         });
-        map.addControl(new ml.AttributionControl({ compact: true, customAttribution: 'Trânsito © TomTom · Tempo: Open-Meteo' }), 'bottom-right');
+        map.addControl(new ml.AttributionControl({ compact: true, customAttribution: [ATRIBUICAO, 'Trânsito © TomTom · Tempo: Open-Meteo'] }), 'bottom-right');
         mapRef.current = map;
         const revelar = () => containerRef.current?.classList.add('rt-mapa-entra');
         setTimeout(revelar, 4000); // tile lento ou fora do ar: o mapa aparece assim mesmo

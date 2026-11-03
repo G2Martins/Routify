@@ -51,7 +51,8 @@ export default function EditProfileScreen({ navigation }: any) {
 
     setSaving(false);
     if (error) {
-      setFeedback({ type: 'error', msg: error.message });
+      console.warn('[Routify] Falha ao salvar o perfil:', error.message);
+      setFeedback({ type: 'error', msg: 'Não foi possível salvar o perfil. Tente de novo.' });
       return;
     }
     await refreshProfile();

@@ -101,7 +101,7 @@ export function acompanhar(
   }
   const id = navigator.geolocation.watchPosition(
     (pos) => aoMover(pos.coords.latitude, pos.coords.longitude, Number.isFinite(pos.coords.heading as number) ? (pos.coords.heading as number) : null),
-    (err) => onError?.(err.message || 'Erro de localização.'),
+    (err) => onError?.(err.code === err.PERMISSION_DENIED ? 'Permissão negada. Cadeado da URL → permitir localização.' : 'Localização indisponível no momento.'),
     { enableHighAccuracy: true, maximumAge: 2_000, timeout: 10_000 }
   );
   return () => navigator.geolocation.clearWatch(id);

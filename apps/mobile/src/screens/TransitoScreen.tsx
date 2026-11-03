@@ -44,7 +44,8 @@ export default function TransitoScreen() {
       setErro(null);
       mapaRef.current?.showTrafficPoints?.(j.pontos);
     } catch (e) {
-      setErro(e instanceof Error && e.message ? e.message : 'Sem conexão com o servidor.');
+      // Só as mensagens lançadas acima; rede/timeout do navegador viriam em inglês ("Failed to fetch").
+      setErro(e instanceof Error && e.name === 'Error' ? e.message : 'Sem conexão com o servidor.');
     } finally {
       setCarregando(false);
     }

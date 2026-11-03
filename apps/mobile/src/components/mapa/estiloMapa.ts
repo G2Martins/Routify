@@ -16,6 +16,14 @@ const FORA = /^(highway-shield-us|road_shield_us|landcover_ice|landcover_glacier
 // Nome em português ("Aeroporto Internacional de Brasília"), não o name_en que o positron prefere.
 const NOME_PT = ['coalesce', ['get', 'name:pt'], ['get', 'name'], ['get', 'name:latin']];
 
+// Atribuição só com texto nosso (auditoria de 2026-11-03, M4). O MapLibre 5 põe a atribuição das fontes no
+// innerHTML depois de um DOM.sanitize que tem bypass de XSS (GHSA-jrc7-96c5-q579, corrigido só na 6.4.1), e a do
+// TileJSON da OpenFreeMap é HTML de terceiro. A fonte do estilo vence a do TileJSON: montarEstilo zera a de cada
+// fonte da base e o texto vem daqui (mesmo conteúdo que a OpenFreeMap manda).
+export const ATRIBUICAO =
+  '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> <a href="https://www.openmaptiles.org/" target="_blank">© OpenMapTiles</a> ' +
+  'Dados <a href="https://www.openstreetmap.org/copyright" target="_blank">© OpenStreetMap</a>';
+
 let base: Promise<StyleSpecification> | null = null;
 
 /** Baixa o estilo base uma vez por sessão. Falha não fica em cache: a próxima tentativa refaz. */
@@ -117,7 +125,9 @@ export function montarEstilo(estiloBase: StyleSpecification, modo: MapStyle): St
     camadas.push(camada);
     if (!satelite && camada.id === 'building') camadas.push(predios3d(p.predio3d));
   }
-  const fontes = { ...estiloBase.sources } as StyleSpecification['sources'];
+  const fontes = Object.fromEntries(
+    Object.entries(estiloBase.sources).map(([id, f]) => [id, { ...f, attribution: '' }]),
+  ) as StyleSpecification['sources'];
   if (satelite) {
     fontes.satelite = {
       type: 'raster',
