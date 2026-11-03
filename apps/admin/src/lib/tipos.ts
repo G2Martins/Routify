@@ -324,3 +324,34 @@ export type EstresseLia22 = {
   pct_linhas_com_chuva: number;
   cenarios: Record<string, Record<string, ErroSeg>>;
 };
+
+/** Status ao vivo (/admin/status). */
+export type ProvedorExterno = {
+  nome: string;
+  url: string;
+  indicador: 'ok' | 'menor' | 'maior' | 'critico' | 'desconhecido';
+  descricao: string;
+  incidentes: string[];
+};
+
+export type StatusDados = {
+  agora: string;
+  banco_bytes: number;
+  conexoes: number;
+  coleta: { ultima: string | null; linhas_1h: number; linhas_24h: number; pontos_24h: number };
+  comparador: { ultima_rodada: string | null; rodadas_24h: number };
+  api: { requisicoes: number; erros_5xx: number; limitadas_429: number; rota_p50_ms: number | null; rota_p95_ms: number | null; ultima: string | null };
+  cron: { job: string; agenda: string; status: string | null; inicio: string | null; mensagem: string | null }[];
+};
+
+export type SistemaApi = {
+  cpu: { ocupada_pct: number; roubada_pct: number } | null;
+  carga_1_5_15: number[] | null;
+  memoria_mb: { total: number | null; disponivel: number | null; swap_total: number | null; swap_usado: number | null; api_rss: number | null };
+  swappiness: number | null;
+  disco_gb: { total: number; livre: number };
+  maquina_no_ar_h: number | null;
+  api_no_ar_min: number;
+  servicos: Record<string, boolean> | null;
+  commit: string | null;
+};

@@ -21,3 +21,14 @@ export async function exigirAdmin() {
   if (user.app_metadata?.role !== 'admin') redirect('/admin/sem-acesso');
   return { sb, user };
 }
+
+/** Mesma regra do exigirAdmin, sem redirecionar: para rotas de API do painel (respondem 403 em vez de mudar de página). */
+export async function souAdmin(): Promise<boolean> {
+  const sb = await clienteServidor();
+  const {
+    data: { user },
+  } = await sb.auth.getUser();
+  if (!user || user.app_metadata?.role !== 'admin') return false;
+  const { data: aal } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
+  return !(aal?.nextLevel === 'aal2' && aal.currentLevel !== 'aal2');
+}

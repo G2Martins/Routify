@@ -9,6 +9,7 @@ import re
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, Security
 
+import sistema
 import usage
 from openapi import erro
 from seguranca import Limitador, auditar, exigir_admin, limitar
@@ -69,3 +70,15 @@ async def testar_chave(
     auditar(getattr(request.app.state, 'supabase', None), admin_id, 'tomtom_testar_chave', chave_id,
             {'ok': resultado['ok'], 'status': resultado['status']})
     return resultado
+
+
+@router.get(
+    "/sistema",
+    summary="Estado da máquina da API",
+    description="Memória, swap, CPU ocupada e roubada pelo hipervisor (crédito de CPU da t3), carga, disco, tempo no ar "
+                "e serviços do Routify rodando agora. Alimenta a tela de status ao vivo do painel.",
+    responses=ERROS,
+)
+async def estado_sistema(request: Request, admin_id: str = Depends(exigir_admin)):
+    limitar(_limite_leitura, admin_id)
+    return await sistema.coletar()
