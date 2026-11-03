@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { API } from '@/components/useSaude';
+import { chamarApi } from '@/components/acoes';
 import { Cartao, Mini, Selo, Tabela } from '@/components/ui';
 import { fmtInt } from '@/lib/formato';
 import { clienteNavegador } from '@/lib/supabase-navegador';
@@ -50,10 +50,9 @@ export function UsoChaves() {
   }, []);
 
   useEffect(() => {
-    fetch(`${API}/health`, { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => setNChaves(typeof j?.tomtom?.chaves === 'number' ? j.tomtom.chaves : null))
-      .catch(() => setNChaves(null));
+    chamarApi<{ tomtom?: { chaves?: number } }>('/admin/saude').then(({ data }) =>
+      setNChaves(typeof data?.tomtom?.chaves === 'number' ? data.tomtom.chaves : null),
+    );
     const tick = () => {
       if (document.visibilityState === 'visible') carregar();
     };

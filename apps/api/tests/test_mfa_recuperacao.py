@@ -202,3 +202,33 @@ def test_falha_no_auth_devolve_o_codigo_para_tentar_de_novo(sb, auditoria):
     assert all(l['usado_em'] is None for l in sb.codigos())
     sb.auth_fora = False
     assert recuperar(cli, codigo).status_code == 200
+
+
+def test_geracoes_simultaneas_deixam_um_lote_so(sb, auditoria, monkeypatch):
+    """Clique duplo ou duas abas: apagar e inserir são duas chamadas; sem a trava ficavam 20 códigos (auditoria B6)."""
+    import asyncio
+    import time
+
+    import httpx
+
+    executar = Consulta.execute
+
+    def com_janela(self):
+        r = executar(self)
+        if self.op == 'delete':
+            time.sleep(0.05)  # a outra geração entra entre o apagar e o inserir
+        return r
+
+    monkeypatch.setattr(Consulta, 'execute', com_janela)
+    monkeypatch.setattr(mfa, '_gerando', __import__('collections').defaultdict(asyncio.Lock), raising=False)
+    app = FastAPI()
+    app.include_router(mfa.router)
+    app.state.supabase = sb
+
+    async def duas():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://t') as c:
+            return await asyncio.gather(*(c.post('/mfa/codigos-recuperacao', headers={'Authorization': jwt('aal2')})
+                                          for _ in range(2)))
+
+    assert [r.status_code for r in asyncio.run(duas())] == [200, 200]
+    assert len(sb.codigos()) == 10

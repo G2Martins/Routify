@@ -24,6 +24,9 @@ function injectLeafletCSS() {
   link.id = 'leaflet-css';
   link.rel = 'stylesheet';
   link.href = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
+  // SRI (auditoria de 2026-11-03, B11): o CDN não troca o CSS sem o navegador recusar. Mesmo hash do node_modules.
+  link.integrity = 'sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H';
+  link.crossOrigin = 'anonymous';
   document.head.appendChild(link);
 }
 

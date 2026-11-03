@@ -654,7 +654,10 @@ async def calculate_route(body: RouteInput, request: Request, response: Response
         ultima[0] = agora
 
     def server_timing() -> None:
-        response.headers['Server-Timing'] = ', '.join(f'{k};dur={v:.0f}' for k, v in etapas.items())
+        # Só na chamada interna (A/B, comparador): de fora, o tempo de cada fase ajudava a calibrar um DoS (auditoria
+        # de 2026-11-03, B8). O log segue com os números.
+        if usage.requisicao_interna(request):
+            response.headers['Server-Timing'] = ', '.join(f'{k};dur={v:.0f}' for k, v in etapas.items())
     # Usuário é opcional (rota anônima segue funcionando); com token válido, o
     # uso fica associado à conta para o painel ADM.
     sb = getattr(request.app.state, 'supabase', None)
@@ -824,6 +827,9 @@ async def calculate_route(body: RouteInput, request: Request, response: Response
     cruzamentos_via = trajeto.contar_cruzamentos(G, path_nodes, 'cruzamento_via')
     atrasos = atraso_sem * semaforos + atraso_cruz * cruzamentos + atraso_cruz_via * cruzamentos_via
     tempo_livre = trajeto.tempo_livre_s(G, path_nodes) + atrasos
+    # Também antes do await: entre arestas paralelas escolhe pelo travel_time_lia do grafo compartilhado, que outra
+    # requisição reescreve durante a fusão (auditoria de 2026-11-03, B7; o campo alimenta calibrate_signals.py).
+    livre_por_grupo = trajeto.tempo_livre_por_grupo(G, path_nodes)
     tempo_lia += atrasos  # mesmo critério na baseline abaixo
 
     # --- Baseline da tese: rota de menor distância, sob as mesmas condições ---
@@ -915,7 +921,7 @@ async def calculate_route(body: RouteInput, request: Request, response: Response
         semaforos_na_rota=semaforos,
         cruzamentos_na_rota=cruzamentos,
         cruzamentos_via_na_rota=cruzamentos_via,
-        tempo_livre_por_grupo_s=trajeto.tempo_livre_por_grupo(G, path_nodes),
+        tempo_livre_por_grupo_s=livre_por_grupo,
         tempo_livre_lia_seg=int(tempo_livre),
         alternativa=alternativa,
         clima=clima,

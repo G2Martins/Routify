@@ -8,6 +8,7 @@ test.describe('6. API', () => {
     const j = await r.json();
     nota('health', `modelo_ativo=${j.modelo_ativo} cv_rmse_seg=${j.cv_rmse_seg} vias_monitoradas=${j.vias_monitoradas}`);
     expect(j.status).toBe('ok');
+    expect(j.tomtom?.chaves, 'tamanho do pool só no /admin/saude (auditoria B2)').toBeUndefined();
   });
 
   // Um único POST /route por execução: o limite é 20/min por IP e cada rota gasta cota da TomTom.
@@ -30,5 +31,6 @@ test.describe('6. API', () => {
     expect(j.tempo_total_seg).toBeGreaterThan(0);
     expect(Array.isArray(j.polyline) && j.polyline.length > 1, 'polyline com pontos').toBe(true);
     expect(ms, 'tempo de resposta').toBeLessThan(10_000);
+    expect(r.headers()['server-timing'], 'tempo por fase só em chamada interna (auditoria B8)').toBeUndefined();
   });
 });

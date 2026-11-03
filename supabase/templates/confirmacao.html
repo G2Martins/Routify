@@ -1,6 +1,7 @@
 <!-- Routify · Supabase → Authentication → Emails → Templates → "Confirm signup"
      Assunto: Confirme seu e-mail · Routify
-     Variáveis: .ConfirmationURL .SiteURL .Email .Data.nome (html/template escapa tudo) -->
+     Variáveis: .ConfirmationURL .SiteURL .Email. Sem .Data.nome: o nome do cadastro é livre e iria, com o
+     e-mail de outra pessoa, num e-mail do remetente oficial (auditoria de 2026-11-03, B9). -->
 <!doctype html>
 <html lang="pt-BR">
 <head>
@@ -34,7 +35,7 @@
               <tr>
                 <td style="padding:32px 32px 28px;font-family:Geist,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0F1F44;">
                   <p style="margin:0 0 8px;font-size:12px;line-height:16px;letter-spacing:1.6px;text-transform:uppercase;font-weight:600;color:#059BC2;">Confirmação de cadastro</p>
-                  <h1 style="margin:0 0 16px;font-size:26px;line-height:32px;font-weight:700;letter-spacing:-0.4px;">{{ if .Data.nome }}Olá, {{ .Data.nome }}!{{ else }}Olá!{{ end }}</h1>
+                  <h1 style="margin:0 0 16px;font-size:26px;line-height:32px;font-weight:700;letter-spacing:-0.4px;">Olá!</h1>
                   <p style="margin:0 0 24px;font-size:15px;line-height:24px;color:#33415C;">Falta um passo para você usar o Routify: confirme que <strong style="color:#0F1F44;">{{ .Email }}</strong> é seu. Depois disso, a LIA, nossa inteligência de trânsito, calcula suas rotas por Brasília considerando o trânsito ao vivo, a chuva e até os feriados.</p>
                   <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                     <tr>

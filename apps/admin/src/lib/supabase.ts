@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { OPCOES_COOKIE } from './cookie';
 
 /** Cliente do servidor (Server Components): sessão vem dos cookies. */
 export async function clienteServidor() {
@@ -8,6 +9,7 @@ export async function clienteServidor() {
     process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '',
     {
+      cookieOptions: OPCOES_COOKIE,
       cookies: {
         getAll: () => loja.getAll(),
         setAll(lista) {

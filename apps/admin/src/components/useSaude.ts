@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import type { Saude } from '@/lib/tipos';
+import { chamarApi } from './acoes';
 
-export const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+export { API } from './acoes';
 
-/** Consulta o /health da API (público) a cada `intervaloMs`. */
+/** Saúde da API a cada `intervaloMs`: o /health com o pool TomTom, que só sai para admin (/admin/saude). */
 export function useSaude(intervaloMs = 15000) {
   const [saude, setSaude] = useState<Saude | null>(null);
   const [offline, setOffline] = useState(false);
@@ -15,9 +16,8 @@ export function useSaude(intervaloMs = 15000) {
     let vivo = true;
     const consultar = async () => {
       try {
-        const r = await fetch(`${API}/health`, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
-        if (!r.ok) throw new Error(String(r.status));
-        const dados = (await r.json()) as Saude;
+        const { data: dados, error } = await chamarApi<Saude>('/admin/saude');
+        if (error || !dados) throw new Error(String(error?.status));
         if (vivo) {
           setSaude(dados);
           setOffline(false);

@@ -27,9 +27,17 @@ test.describe('4. Exposição do painel ADM', () => {
     await expect(page.getByText(PAINEL)).toHaveCount(0);
   });
 
-  test('API: GET /admin/tomtom sem token é recusado (401/403)', async ({ request }) => {
-    const r = await request.get(`${API_URL}/admin/tomtom`);
-    nota('api-admin', `${r.status()}`);
-    expect([401, 403]).toContain(r.status());
+  for (const caminho of ['/admin/tomtom', '/admin/saude', '/admin/sistema']) {
+    test(`API: GET ${caminho} sem token é recusado (401/403)`, async ({ request }) => {
+      const r = await request.get(`${API_URL}${caminho}`);
+      nota('api-admin', `${caminho} ${r.status()}`);
+      expect([401, 403]).toContain(r.status());
+    });
+  }
+
+  test('API: /admin e /mfa fora do OpenAPI público (auditoria B3)', async ({ request }) => {
+    const r = await request.get(`${API_URL}/openapi.json`);
+    const caminhos = r.ok() ? Object.keys((await r.json()).paths ?? {}) : [];
+    expect(caminhos.filter((c) => c.startsWith('/admin') || c.startsWith('/mfa'))).toEqual([]);
   });
 });

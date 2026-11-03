@@ -15,7 +15,7 @@ type Fluxo = 'rota' | 'busca' | 'treino' | 'validacao' | 'dados' | 'tudo';
 
 const NOS: { id: string; titulo: string; sub: string; x: number; y: number; sobre: string }[] = [
   { id: 'app', titulo: 'App mobile', sub: 'Expo · iOS / Android / Web', x: 0, y: 60, sobre: 'Visão do usuário. Pede rotas e buscas à API com o JWT da sessão e grava o histórico pessoal direto no Supabase (RLS por dono).' },
-  { id: 'admin', titulo: 'Painel ADM', sub: 'Next.js · este painel', x: 0, y: 320, sobre: 'Lê só por RPC/políticas admin (app_metadata.role + sessão aal2 de quem tem 2º fator). Da API usa /health, /admin/sistema e /admin/tomtom; o status ao vivo fica em /admin/status.' },
+  { id: 'admin', titulo: 'Painel ADM', sub: 'Next.js · este painel', x: 0, y: 320, sobre: 'Lê só por RPC/políticas admin (app_metadata.role + sessão aal2 de quem tem 2º fator). Da API usa /health, /admin/saude, /admin/sistema e /admin/tomtom; o status ao vivo fica em /admin/status.' },
   { id: 'api', titulo: 'API FastAPI', sub: '/route · /search · /eventos · /mfa', x: 300, y: 190, sobre: 'Orquestra a rota: recência, TomTom sob demanda, pesos da LIA (vetorizados) e A*, com tempo por fase no Server-Timing. Grava o uso com service_role e o consumo de cada chave TomTom a cada minuto.' },
   { id: 'cache', titulo: 'Cache de recência', sub: 'última razão por via · TTL 5 min', x: 640, y: 0, sobre: 'Última observação real por via (feature razao_lag1/delta_min_lag1 da LIA 2.1). Faz merge: a leitura ao vivo da TomTom vence o banco.' },
   { id: 'lia', titulo: 'Modelo LIA', sub: 'XGBoost · razão de congestionamento', x: 640, y: 120, sobre: 'Prevê a razão velocidade atual / livre por via; o tempo em segundos sai do comprimento real de cada aresta. A versão ativa vem do /health.' },
@@ -116,10 +116,10 @@ function idade(iso: string | null) {
 }
 
 function statusDe(id: string, saude: Saude | null, offline: boolean, supabaseOk: boolean): { tom: Tom; estado: string; linhas: string[] } {
-  const semApi = { tom: 'erro' as Tom, estado: 'sem dados (API offline)', linhas: ['A API não respondeu ao /health.'] };
+  const semApi = { tom: 'erro' as Tom, estado: 'sem dados (API offline)', linhas: ['A API não respondeu ao /admin/saude.'] };
   switch (id) {
     case 'api':
-      if (offline) return { tom: 'erro', estado: 'offline', linhas: ['/health não respondeu em 5 s.'] };
+      if (offline) return { tom: 'erro', estado: 'offline', linhas: ['/admin/saude não respondeu.'] };
       return saude ? { tom: 'ok', estado: 'no ar', linhas: [`Modelo ativo: ${saude.modelo_ativo}`] } : { tom: 'neutro', estado: 'verificando…', linhas: [] };
     case 'cache': {
       if (!saude) return offline ? semApi : { tom: 'neutro', estado: '…', linhas: [] };

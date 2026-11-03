@@ -187,7 +187,8 @@ O pickle é refeito sozinho se o GraphML for mais novo ou se `ATRIBUTOS_ARESTA` 
 
 ### `GET /health`
 Status básico da API e do modelo carregado, mais:
-- `tomtom` — chaves configuradas e disponíveis por serviço (só contagens);
+- `tomtom` — só `ativo` (TomTom ligada ou não). O tamanho do pool e as chaves livres por serviço ficam em
+  `GET /admin/saude` (mesmo corpo, só admin; auditoria de 2026-11-03, B2), que o painel consulta;
 - `vias_monitoradas` — 0 significa Supabase indisponível na subida, rota em heurística;
 - `supabase_configurado`;
 - `recencia` — vias em cache e idade da última busca;
@@ -504,7 +505,7 @@ O `Dockerfile` copia só os artefatos da lista de permissão do `.dockerignore` 
 
 **Swagger UI:** <http://localhost:8000/docs> · **ReDoc:** <http://localhost:8000/redoc>
 
-Textos, grupos e parâmetros do Swagger ficam em `openapi.py`; exemplos e descrições dos campos ficam nos modelos Pydantic de cada router. Para testar rotas com login, cole o `access_token` da sessão Supabase em **Authorize**.
+Textos, grupos e parâmetros do Swagger ficam em `openapi.py`; exemplos e descrições dos campos ficam nos modelos Pydantic de cada router. Para testar rotas com login, cole o `access_token` da sessão Supabase em **Authorize** (não fica salvo: `persistAuthorization` desligado). `/admin/*` e `/mfa/*` ficam fora do Swagger público (auditoria de 2026-11-03, B3) e estão descritos neste README. O cabeçalho `Server-Timing` do `/route` (tempo por fase) só sai em chamada interna (`X-Routify-Interno` do 127.0.0.1); de fora, os números ficam no log.
 
 ---
 

@@ -49,3 +49,18 @@ def test_busca_tomtom_tem_teto_por_ip_e_dia(monkeypatch):
     monkeypatch.setattr(search, '_tomtom_por_ip', {})
     assert [search.tomtom_liberado('1.2.3.4') for _ in range(4)] == [True, True, True, False]
     assert search.tomtom_liberado('5.6.7.8') is True
+
+
+def test_health_publico_nao_mostra_o_pool_tomtom(monkeypatch):
+    """Tamanho do pool e livres por serviço só no /admin/saude, que exige admin (auditoria B2)."""
+    import main
+    import seguranca
+    estado = types.SimpleNamespace(
+        metadata={}, model_version='lia_2.3', graph_stats={}, supabase=None, contexto=None,
+        tomtom=types.SimpleNamespace(ativo=True, resumo=lambda: {'ativo': True, 'chaves': 39}),
+        recencia_cache=types.SimpleNamespace(resumo=lambda: {}), graph=types.SimpleNamespace(graph={}))
+    monkeypatch.setattr(main.app, 'state', estado)
+    assert asyncio.run(main.health())['tomtom'] == {'ativo': True}
+    assert asyncio.run(main.saude_admin('admin-id'))['tomtom']['chaves'] == 39
+    rota = next(r for r in main.app.routes if getattr(r, 'path', '') == '/admin/saude')
+    assert any(d.call is seguranca.exigir_admin for d in rota.dependant.dependencies)

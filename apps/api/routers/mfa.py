@@ -14,6 +14,7 @@ verificado encerra as sessões da conta (Supabase): o app pede para entrar de no
 import asyncio
 import hashlib
 import secrets
+from collections import defaultdict
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Request, Security
@@ -32,6 +33,9 @@ ALFABETO = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'  # 32 símbolos, sem 0/O/1/I: fác
 _limite_gerar = Limitador(5, janela_s=3600)
 _limite_conta = Limitador(5, janela_s=900)   # tentativas de código por conta
 _limite_ip = Limitador(20, janela_s=900)     # e por IP (várias contas do mesmo lugar)
+# Apagar e inserir são duas chamadas: duas gerações juntas deixavam 20 códigos valendo, um lote nunca mostrado
+# (auditoria de 2026-11-03, B6). ponytail: trava por processo, vale com 1 réplica (como os limitadores).
+_gerando: defaultdict = defaultdict(asyncio.Lock)
 
 
 class RecuperarInput(BaseModel):
@@ -82,7 +86,8 @@ async def gerar_codigos(request: Request):
         sb.table(TABELA).insert([{'user_id': uid, 'hash': hash_codigo(uid, c)} for c in codigos]).execute()
 
     try:
-        await asyncio.to_thread(gravar)
+        async with _gerando[uid]:
+            await asyncio.to_thread(gravar)
     except Exception:
         raise HTTPException(status_code=503, detail='Não foi possível gerar os códigos agora. Tente de novo.')
     auditar(sb, uid, 'mfa_codigos_gerados', alvo=uid, detalhes={'quantidade': QUANTOS})

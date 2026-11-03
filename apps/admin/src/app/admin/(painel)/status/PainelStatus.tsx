@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { chamarApi } from '@/components/acoes';
-import { API } from '@/components/useSaude';
+import { API, useSaude } from '@/components/useSaude';
 import { Cartao, Mini, Selo, Tabela } from '@/components/ui';
 import { fmtBytes, fmtInt } from '@/lib/formato';
 import { clienteNavegador } from '@/lib/supabase-navegador';
@@ -39,10 +39,12 @@ const ms = (v: number | null | undefined) => (v === null || v === undefined ? '�
 const ROTULO: Record<Tom, string> = { ok: 'No ar', alerta: 'Atenção', erro: 'Fora do ar', neutro: 'Sem dado' };
 const TOM_EXTERNO: Record<ProvedorExterno['indicador'], Tom> = { ok: 'ok', menor: 'alerta', maior: 'erro', critico: 'erro', desconhecido: 'neutro' };
 
-type Health = { status?: string; modelo_ativo?: string; recencia?: { mais_recente?: string | null }; tomtom?: { ativo?: boolean; chaves?: number; disponiveis?: Record<string, number> } };
+type Health = { status?: string; modelo_ativo?: string; recencia?: { mais_recente?: string | null }; tomtom?: { ativo?: boolean } };
 
 export function PainelStatus() {
   const [api, setApi] = useState<Sonda<Health>>(vazio);
+  // O /health público só diz se a TomTom está ligada; o pool vem do /admin/saude.
+  const { saude } = useSaude(30000);
   const [front, setFront] = useState<Sonda<number>>(vazio);
   const [banco, setBanco] = useState<Sonda<StatusDados>>(vazio);
   const [sistema, setSistema] = useState<Sonda<SistemaApi>>(vazio);
@@ -116,7 +118,7 @@ export function PainelStatus() {
           : 'ok';
   const pecas: Tom[] = [tomApi, tomBanco, tomColeta, tomComp, tomFront, tomMaquina];
   const geral: Tom = pecas.includes('erro') ? 'erro' : pecas.includes('alerta') ? 'alerta' : pecas.every((t) => t === 'neutro') ? 'neutro' : 'ok';
-  const disponiveis = api.dados?.tomtom?.disponiveis ?? {};
+  const disponiveis = saude?.tomtom?.disponiveis ?? {};
   const minRecencia = minutosDesde(api.dados?.recencia?.mais_recente);
 
   return (
@@ -138,7 +140,7 @@ export function PainelStatus() {
             <Mini rotulo="Resposta" valor={ms(api.ms)} />
             <Mini rotulo="Modelo" valor={api.dados?.modelo_ativo?.replace('lia_', 'LIA ') ?? '—'} />
             <Mini rotulo="Última leitura" valor={idade(minRecencia)} detalhe="recência que a LIA usa" />
-            <Mini rotulo="Chaves TomTom" valor={api.dados?.tomtom?.ativo ? fmtInt(api.dados.tomtom.chaves) : 'desligado'}
+            <Mini rotulo="Chaves TomTom" valor={!saude ? '—' : saude.tomtom.ativo ? fmtInt(saude.tomtom.chaves) : 'desligado'}
                   detalhe={Object.entries(disponiveis).map(([k, v]) => `${k} ${v}`).join(' · ') || undefined} />
           </div>
         </Cartao>

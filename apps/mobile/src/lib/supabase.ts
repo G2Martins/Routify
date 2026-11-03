@@ -16,9 +16,12 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 
 // Web: sessão em cookie (formato do @supabase/ssr), o mesmo que o painel ADM (Next)
 // lê no servidor — login único para app e painel no mesmo domínio. Nativo: AsyncStorage.
+// Cookie Secure em https e 30 dias sem uso, igual a apps/admin/src/lib/cookie.ts (auditoria de 2026-11-03, B4).
 export const supabase: SupabaseClient =
   Platform.OS === 'web'
-    ? createBrowserClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    ? createBrowserClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        cookieOptions: { secure: typeof location !== 'undefined' && location.protocol === 'https:', maxAge: 60 * 60 * 24 * 30 },
+      })
     : createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         auth: {
           storage: AsyncStorage,

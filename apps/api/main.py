@@ -17,7 +17,7 @@ import traceback
 import joblib
 import osmnx as ox
 import networkx as nx
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -488,8 +488,9 @@ app.include_router(route.router)
 app.include_router(planejar.router)
 app.include_router(search.router)
 app.include_router(eventos.router)
-app.include_router(admin.router)
-app.include_router(mfa.router)
+# Fora do Swagger público (auditoria de 2026-11-03, B3): exigem admin ou a própria conta; o README documenta.
+app.include_router(admin.router, include_in_schema=False)
+app.include_router(mfa.router, include_in_schema=False)
 app.include_router(trafego.router)
 
 
@@ -503,16 +504,14 @@ def _cv_metric(meta: dict, nome: str):
     tags=["Sistema"],
     summary="Saúde da API",
     description=(
-        "Modelo carregado, estado do pool TomTom (**só contagens**: nunca ids nem chaves), "
-        "vias monitoradas vinculadas ao grafo e cache de recência. "
+        "Modelo carregado, TomTom ligada ou não, vias monitoradas vinculadas ao grafo e cache de recência. "
         "`vias_monitoradas = 0` significa Supabase indisponível na subida (rota em heurística). "
-        "O painel ADM consulta este endpoint para o status ao vivo."
+        "O pool de chaves (quantas e quantas livres por serviço) fica só para admin."
     ),
     responses={200: {"content": {"application/json": {"example": {
         "status": "ok", "modelo_ativo": "lia_2.2", "cv_rmse_seg": 40.2734,
         "dados_treino": None, "total_amostras_treino": 1513194,
-        "tomtom": {"ativo": True, "chaves": 39,
-                   "disponiveis": {"fluxo": 39, "incidentes": 39, "busca": 39, "rota": 39}},
+        "tomtom": {"ativo": True},
         "vias_monitoradas": 630, "supabase_configurado": True,
         "recencia": {"vias": 630, "mais_recente": "2026-07-20T02:56:00+00:00"},
     }}}}},
@@ -525,8 +524,9 @@ async def health():
         "cv_rmse_seg": _cv_metric(meta, "modelo_rmse_seg"),
         "dados_treino": meta.get("dados_treino"),
         "total_amostras_treino": meta.get("total_amostras"),
-        # Só contagens — nunca ids nem valores de chave num endpoint público.
-        "tomtom": app.state.tomtom.resumo(),
+        # Sem o tamanho do pool nem as livres por serviço: de fora, isso mostrava a quem gasta a cota quanto falta
+        # (auditoria de 2026-11-03, B2). O painel lê o resumo em /admin/saude.
+        "tomtom": {"ativo": app.state.tomtom.ativo},
         "vias_monitoradas": app.state.graph_stats.get("vias_monitoradas"),
         "supabase_configurado": app.state.supabase is not None,
         "recencia": app.state.recencia_cache.resumo(),
@@ -538,6 +538,12 @@ async def health():
         "velocidade_livre": "calibrada" if app.state.graph.graph.get('vel_livre_calibrada') else "osm",
         "contexto": app.state.contexto.resumo() if app.state.contexto else None,
     }
+
+
+@app.get("/admin/saude", include_in_schema=False)
+async def saude_admin(_admin: str = Depends(seguranca.exigir_admin)):
+    """O /health com o resumo do pool TomTom (chaves e livres por serviço), só para admin."""
+    return {**await health(), "tomtom": app.state.tomtom.resumo()}
 
 
 @app.get(

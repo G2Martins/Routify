@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { podeVerPainel } from './lib/acesso';
+import { OPCOES_COOKIE } from './lib/cookie';
 
 /**
  * Renova a sessão Supabase (cookie compartilhado com o app) a cada requisição do painel. Quem não pode ver o
@@ -14,6 +15,7 @@ export async function proxy(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '',
     {
+      cookieOptions: OPCOES_COOKIE,
       cookies: {
         getAll: () => request.cookies.getAll(),
         setAll(lista, headers) {

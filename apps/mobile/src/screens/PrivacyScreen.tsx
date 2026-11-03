@@ -68,7 +68,7 @@ const COLETA: Item[] = [
     icone: 'ion:locate',
     titulo: 'Localização do aparelho',
     texto:
-      'Usada para centralizar o mapa e sugerir a origem. A coordenada só sai do aparelho quando você pede uma rota.',
+      'Usada para centralizar o mapa e sugerir a origem. A coordenada só sai do aparelho quando você pede uma rota: ela vai à API do Routify, que pergunta o trânsito do trajeto à TomTom. Sem GPS no navegador, o mapa centraliza na cidade do seu IP (serviço ipapi.co). Os provedores do mapa (na web, OpenFreeMap e Esri) recebem o IP e a área vista, como em qualquer site de mapas.',
   },
 ];
 
@@ -96,7 +96,7 @@ const GUARDA: Item[] = [
     icone: 'ion:layers-outline',
     titulo: 'Equipe vê só agregados',
     texto:
-      'O painel da equipe mostra números agregados e coordenadas arredondadas, nunca a trilha de uma pessoa. Nada é vendido nem compartilhado com terceiros.',
+      'O painel da equipe mostra números agregados e coordenadas arredondadas, nunca a trilha de uma pessoa. Nada é vendido nem cedido para outros fins.',
   },
   {
     icone: 'ion:flash-outline',
@@ -176,8 +176,8 @@ export default function PrivacyScreen({ navigation }: any) {
               <View style={{ flex: 1, minWidth: 240 }}>
                 <Text style={[theme.typography.h3, { color: c.text }]}>Seus dados ficam com você</Text>
                 <Text style={[theme.typography.body, styles.texto, { color: c.textMuted }]}>
-                  O Routify é um trabalho acadêmico (TCC). Não vendemos, não compartilhamos e não usamos suas rotas para
-                  treinar o modelo. Abaixo está tudo o que guardamos, por quanto tempo e quem vê.
+                  O Routify é um trabalho acadêmico (TCC). Não vendemos seus dados e não usamos suas rotas para treinar
+                  o modelo. Abaixo está tudo o que guardamos, por quanto tempo e quem vê.
                 </Text>
                 <View style={styles.selos}>
                   <Selo tom="marca">Retenção de 90 dias</Selo>
@@ -200,7 +200,7 @@ export default function PrivacyScreen({ navigation }: any) {
         {grade(DIREITOS, 2 + COLETA.length + GUARDA.length)}
 
         <Text style={[theme.typography.caption, styles.rodape, { color: c.textSubtle }]}>
-          Última revisão: 23 de setembro de 2026 · Routify · TCC
+          Última revisão: 3 de novembro de 2026 · Routify · TCC
         </Text>
       </Container>
     </ScrollView>

@@ -61,7 +61,8 @@ SWAGGER_UI = {
     "defaultModelsExpandDepth": 0,
     "displayRequestDuration": True,
     "filter": True,
-    "persistAuthorization": True,
+    # Token colado no "Authorize" não fica no localStorage da origem da API (auditoria de 2026-11-03, B3).
+    "persistAuthorization": False,
     "tryItOutEnabled": True,
 }
 

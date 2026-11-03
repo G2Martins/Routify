@@ -4,7 +4,8 @@ import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 
 import { faltaMigracao, mensagemErro, MIGRACAO_ACOES, type ErroBruto } from '@/lib/erros';
 import { clienteNavegador } from '@/lib/supabase-navegador';
 import { Aviso, BTN_PERIGO, BTN_PRIMARIO, BTN_SECUNDARIO } from './ui';
-import { API } from './useSaude';
+
+export const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 type Resposta<T> = { data: T | null; error: ErroBruto | null };
 export type Retorno = { tom: 'ok' | 'erro'; texto: string; migracao?: boolean };
