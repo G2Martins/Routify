@@ -1,24 +1,16 @@
 /**
- * Icon — wrapper cross-platform.
- * Web: @iconify/react/offline com os SVGs de constants/icones.json (scripts/icones.mjs); nada é buscado na rede.
- * Native: usa @expo/vector-icons (Ionicons como fallback default)
+ * Icon no celular: @expo/vector-icons (Ionicons como fallback default). Na web vale o Icon.web.tsx (Iconify offline),
+ * para os mapas de glifos daqui não irem para o bundle web.
  *
  * Exemplo:
  *   <Icon name="material-symbols:directions-car-rounded" size={28} />
  *   <Icon name="ion:location-outline" size={20} color="#fff" />
  */
 import React from 'react';
-import { Platform, View } from 'react-native';
 import {
   Ionicons,
   MaterialCommunityIcons,
 } from '@expo/vector-icons';
-
-// Só web. O SVG entra por innerHTML, então só vale o que está no repositório (auditoria de 2026-11-03, M4).
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const IconifyReact: any = Platform.OS === 'web' ? require('@iconify/react/dist/offline') : null;
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-if (IconifyReact) for (const colecao of require('../constants/icones.json')) IconifyReact.addCollection(colecao);
 
 export interface IconProps {
   name: string;        // ex: "ion:car-outline" | "material-symbols:home"
@@ -72,14 +64,6 @@ const NATIVE_FALLBACK: Record<string, { lib: any; name: string }> = {
 };
 
 export default function Icon({ name, size = 24, color = '#000', style }: IconProps) {
-  if (Platform.OS === 'web' && IconifyReact) {
-    return (
-      <View style={[{ width: size, height: size }, style]}>
-        <IconifyReact.Icon icon={name} width={size} height={size} color={color} />
-      </View>
-    );
-  }
-
   // Native fallback
   const fallback = NATIVE_FALLBACK[name];
   if (fallback) {
