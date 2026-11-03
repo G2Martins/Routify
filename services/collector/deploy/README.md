@@ -12,6 +12,8 @@ contexto da cota e da memória, está em [docs/core/deploy.md §1.1](../../../do
 | `routify-collector.service` | unidade systemd: usuário `routify`, `MemoryMax=300M`, hardening, `COLETOR_FASE3=0` |
 | `requirements-ec2.txt` | só `requests`, `python-dotenv`, `schedule`, `supabase` |
 | `routify-comparador.service` + `.timer` | comparador LIA × provedores: uma rodada às 03:00, 07:30, 08:30, 12:30, 15:00, 17:30, 18:30 e 22:00 (Brasília) |
+| `routify-rotina.service` | rotina de validação (`scripts/rotina_validacao.py`): dispara ao fim de cada rodada do comparador, usuário dinâmico só com leitura do journal, saída em `/var/lib/routify-rotina` |
+| `routify-ab.service` + `.timer` | A/B no mesmo instante nos picos de dia útil (`scripts/ab_ec2.sh`): braço B temporário na porta 8001, teto de 1,1 GB, para sozinho em `AB_ATE` |
 | `requirements-vm.txt` | pilha completa (coletor + Fase 3 + API) para uma VM própria com ≥ 4 GB |
 
 ## Na EC2
@@ -24,7 +26,9 @@ journalctl -u routify-collector -f
 
 Comparador: depois que a migration `20261102000000_lia_vs_provedores.sql` criar a tabela,
 `sudo COMPARADOR=1 bash /opt/routify/services/collector/deploy/instalar-ec2.sh` liga o timer
-(`systemctl list-timers routify-comparador.timer`; log em `journalctl -u routify-comparador`).
+(`systemctl list-timers routify-comparador.timer`; log em `journalctl -u routify-comparador`). A rotina de
+validação vem junto (sem timer próprio): `sudo cat /var/lib/routify-rotina/relatorio.md`. O A/B dos picos liga com
+`AB=1` (`sudo AB=1 bash …/instalar-ec2.sh`); resultados em `/var/lib/routify-ab/`.
 
 Esperado no log: `Cadência: 1 ciclo a cada 43 min — 39 chaves × 20000/mês, 630 pontos, reserva de 15% pra API`
 e, uns 6 min depois, `Salvando lote de 6xx registros`. Parar: `sudo systemctl disable --now routify-collector`.

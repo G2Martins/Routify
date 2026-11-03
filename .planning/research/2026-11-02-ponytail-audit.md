@@ -50,6 +50,23 @@ app, `tsc --noEmit --noUnusedLocals`. Escopo: só o que dá para cortar; bugs e 
 
 Total possível: cerca de −2.050 linhas e −9 deps; sem os itens de design e de tese, cerca de −1.300.
 
+## Decidido (2026-11-02, noite: "faça tudo que faltou")
+
+- **Aplicados:** #2, #8, #9, #12, #13, #15 (em `ead633a`); #11 (mlflow, em `ff110bf`, junto com o treino da 2.4); #19
+  virou serviço da EC2 em vez de sair (`routify-rotina.service`). Notas:
+  - #8: o NNLS por grupo reproduz o artefato atual (δ 8,06 s, MAPE 20,5 → 10,4%). O OLS de 2026-09-23, de onde vêm
+    o β e o R² citados na tese (`semaforos_calibracao_2026-09-23.json`), segue reproduzível em
+    `git show a6a4d18:ml/calibrate_signals.py`. A próxima calibração grava 11 chaves a menos, nenhuma lida pela API.
+  - #13: fica só o `ipapi.co`; a CSP do painel (`next.config.ts`) acompanha.
+  - #15: `REGISTRAR_USO` fica, porque as rodadas locais contra o banco de produção usam `REGISTRAR_USO=0`.
+- **Recusado:** #17. O `Intl` arredonda o decimal e o `toFixed` o binário: 0,85 km passaria de "0,8" para "0,9"
+  (~4% dos valores de km e de litros mudariam).
+- **Mantidos por ora:** #1 (reserva sem WebGL), #3 (refatora 2 serviços no ar: fica no backlog), #4 (rodou 1×, o JSON
+  é citado), #5 e #18 (pedem conferência visual), #6 (plano B do PostgREST), #7 (caminho Docker corrigido hoje),
+  #10 (muitos arquivos, pouco ganho), #14 (a rotina testa o 422 do override), #16 (comparador e A/B mandam o campo:
+  exigiria deploy casado).
+
 ## Bug fora do escopo, registrado
 
-- `ml/external_validation.py:109` usa `tomtom_keys[7]` fixo ("key_08"): quebra se o pool mudar de ordem.
+- `ml/external_validation.py:109` usava `tomtom_keys[7]` fixo ("key_08"): quebrava se o pool mudasse de ordem.
+  Corrigido em `ff110bf` (chave sorteada do pool).

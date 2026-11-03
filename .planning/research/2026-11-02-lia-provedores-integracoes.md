@@ -138,3 +138,33 @@ O comparador também deixou de gravar a linha `tomtom` sem o tempo sem trânsito
 **Bateria de busca em produção** (79 pontos famosos × 5 jeitos de digitar, `scripts/bateria_busca.py`): top 5 de 72,7% para 94,7%, top 1 de 58,7% para 84,8%, estações de metrô de 49,6% para 99,3%, nenhum ponto sem acerto, mediana de 515 → 504 ms. Sobram: erros de digitação em palavra curta de via da malha ("eixo rodoviraio"), lugares que nem o OSM nem a TomTom têm com esse nome (Águas Claras Shopping, "Museu Nacional da República") e artefatos do gabarito (Eixão, UnB e parques: o centro do polígono fica longe da entrada que a busca devolve).
 
 **Grafo do DF inteiro e buracos de dados (14h–14h30).** A auditoria por região administrativa (`ml/auditoria_grafo_df.py`) mostrou que o grafo é uma caixa de ±38 km, com 79% da área e 92,2% das vias do DF, e que 83,2% dos km de via não têm sensor a 500 m (20 das 35 RAs sem nenhum). Ela achou bolsões de mão única em São Sebastião, Sobradinho e no Lago Norte, onde a origem caía num nó sem saída. Correção: o snap só usa o maior componente fortemente conexo (no ar às 14:20). Para os buracos, a fusão já punha o tempo da TomTom e as seções de trânsito dela. O que faltava era a escolha do caminho enxergar lentidão ali. Entraram os **sensores virtuais**: 1 ponto por célula de ~1 km com via principal e sem sensor, até 3 lidos por rota no Flow (cache de 15 min), aplicados só no trecho e no sentido medidos. A/B no mesmo instante, em 10 viagens pelos maiores buracos (feriado, 14h30), saiu igual nos dois lados: LIA × TomTom no mesmo trajeto −6,6%/13,2% × −6,6%/13,3%, exibido × rota da TomTom −2,2%/5,4% nos dois, traçado 66,2% nos dois. As leituras chegaram (2–3 por rota, 12–165 arestas), mas com pouco trânsito a razão medida fica perto da prevista. Um 2º A/B, no pico do fim do feriado (18h12), achou os buracos quase livres (TomTom 2–9% acima do tempo sem trânsito). O Flow nos pontos virtuais leu fluxo livre e deixou a LIA até 19 s mais otimista em 5 das 10 viagens, sem mudar nenhum traçado: LIA × TomTom no mesmo trajeto −8,1%/11,5% × −8,1%/11,8%, exibido × rota da TomTom −2,1%/5,6% × −2,3%/5,7% (`ml/artifacts/ab_sensores_virtuais_2026-11-02.json`). Um ponto do Flow não enxerga os atrasos de cruzamento que a rota inteira da TomTom soma, e o prior `corredor` já punha alguma lentidão nesses trechos. Decisão: fica no código, **desligado por padrão** (`SENSORES_VIRTUAIS=1` liga), até um A/B em dia útil com trânsito nos buracos.
+
+## 7. Noite de 2026-11-02: LIA 2.4 candidata e testes contínuos na AWS
+
+**Dados novos não bastam ainda.** A coleta da EC2 tinha 17.010 linhas em 27 ciclos às 20h (630 pontos), todas do
+feriado: 1,1% do dataset e um dia atípico. Entrar com elas só mudaria os folds.
+
+**Candidata testada: pesos por período.** Hipótese: o viés de cobertura (23% das linhas às 21h, fim de semana com
+1/8 do volume) tira peso dos picos. `train.py --pesos-periodo ALFA` pesa cada linha por (média das células / linhas
+da célula)^ALFA, célula = (hora, fim de semana). O treino agora mede o erro por período (pico da manhã e da tarde de
+dia útil, dia útil, noite, madrugada, dia de fim de semana), com a leitura fresca e com a de 30 min, perto da
+produção. Ablação nos mesmos 5 folds (`ml/ablation_lia_2_4.py` → `ml/artifacts/ablation_lia_2.4.json`):
+
+| Variante | RMSE / MAE (s) | Pico da tarde, dia útil: viés / MAE (s) | Leitura de 30 min: RMSE / MAE (s) |
+|---|---|---|---|
+| 2.3 | 35,48 / 13,31 | −11,3 / 34,4 | 43,75 / 16,94 |
+| +pesos 0,5 | 35,88 / 14,00 | −11,5 / 35,7 | 44,39 / 17,73 |
+| +pesos 1 | 35,19 / 13,57 | −10,1 / 34,6 | 44,04 / 17,41 |
+
+Rejeitada: o viés do pico da tarde fica em −10 a −11 s por trecho em todas as variantes e o cenário de produção
+(leitura de 30 min) piora. O achado que fica para a tese: **a LIA subestima o pico da tarde de dia útil já no
+treino** (viés −11,3 s com leitura fresca, mesma direção da produção no feriado). Com leitura fresca a persistência
+ganha nesse período (MAE 28,9 × 34,4 s); com 30 min a LIA ganha (42,0 × 56,1 s). Pesos de amostragem não mexem nisso,
+então o viés não vem da proporção de linhas. Suspeitas (não testadas): a recência não acompanha a subida do pico e o
+perfil usa a mediana. Próximos candidatos (dezembro, com semanas de dia útil coletadas a cada 43 min): dados novos
+primeiro; depois tendência da recência (duas últimas leituras) e perfil por quantil no pico.
+
+**Testes contínuos na AWS** (no ar desde 20:50, `docs/core/deploy.md` §1.1): a rotina de validação deixou o PC e
+virou `routify-rotina.service`, disparada pelo fim de cada rodada do comparador (8 por dia, picos inclusos), sem
+gasto extra de TomTom. O A/B dos sensores virtuais roda sozinho nos picos de dia útil (07:40, 08:40, 17:40 e 18:40),
+com o braço B só de pé durante a medida, até 2026-11-13. Teste às 20:55: B subiu no sandbox, 10 viagens, JSON gravado.

@@ -22,6 +22,7 @@ Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) 
 | F16 Grafo calibrado + prior de congestionamento + provedores além do OSM | **no ar desde 2026-11-02 12:23** (commit `3740695`): velocidade livre por grupo de via (expressa 0,909, arterial 0,897, coletora 0,508, local 0,425) e δ = 8,1 s; prior `corredor`; `access=no` fora do grafo; ETA histórico da TomTom e típico do Mapbox no comparador (+ RPC `admin_provedores_historicos`, aplicada pelo MCP); 14 viagens entre pontos famosos no comparador. A/B no mesmo instante: LIA × TomTom ao vivo nos corredores −9,1%/12,7% → −2,3%/8,7% (viés/MAPE), sorteadas −14,7%/18,7% → −3,3%/9,5% (`ab_calibracao_grafo_2026-11-02.json`). 1ª rodada em produção (12:31): corredores −2,5%/9,7%. Busca com ~1.700 pontos do OSM (`pois_df.json`, no ar 12:45): bateria de 79 pontos famosos (`scripts/bateria_busca.py`) em produção de 72,7% para 94,7% no top 5 (metrô 49,6% → 99,3%), 0 pontos sem acerto, mediana 504 ms. Front com o cartão de modelos históricos no ar (12:49) |
 | F17 Mapa premium + MFA + linguagem Valerium | **no ar desde 2026-11-02 14:02** (`e5c2f2a`, `340bc81`; API 13:58, front 14:02, migration aplicada pelo MCP com o OK do dono): mapa web vetorial (MapLibre 5.24 + OpenFreeMap, estilo recolorido com a paleta, satélite híbrido, prédios 3D, rota em gradiente com trânsito por trecho e animações; Leaflet de reserva sem WebGL); API devolve `trafego` por trecho (LIA onde há sensor, seções da TomTom nos buracos); verificação em duas etapas (TOTP) com aal2 no banco (`20261102020000_mfa_aal2.sql`, aplicada; conferido: admin sem fator segue admin, 4 policies com `aal_ok()`), na API e no painel; títulos só em Geist, `Surgir auth`, `CodigoOtp`. Testes: API 188, coletor 28, tsc app/painel 0, export web ok. Produção conferida: app 200, `/admin` 307, CSP com `worker-src blob:` e OpenFreeMap, bundle com o chunk do MapLibre, `/route` com `trafego` |
 | F18 Grafo do DF inteiro + buracos de dados | **snap no maior componente no ar desde 2026-11-02 14:20** (`ccb6919`): auditoria por região administrativa (`ml/auditoria_grafo_df.py` → `auditoria_grafo_df.json`): o grafo é uma caixa de ±38 km com 79% da área e 92,2% das vias do DF; 83,2% dos km sem sensor a 500 m; 20 das 35 RAs sem sensor; bolsões de mão única em São Sebastião, Sobradinho e Lago Norte (origem/destino agora só no maior componente fortemente conexo). **Sensores virtuais no código, desligados por padrão** (`SENSORES_VIRTUAIS=1` liga): 1.627 pontos, até 3 leituras do Flow por rota. Dois A/B no feriado (14h30 e 18h12, 10 viagens pelos buracos, `ab_sensores_virtuais_2026-11-02.json`) sem ganho: com os buracos quase livres, o Flow leu fluxo livre e deixou a LIA até 19 s mais otimista, sem mudar traçado (MAPE no mesmo trajeto 11,5 → 11,8%). Ligar só com A/B em dia útil com trânsito nos buracos |
+| F19 Testes contínuos na AWS + recuperação do MFA + LIA 2.4 candidata | **rotina e A/B no ar na EC2 desde 2026-11-02 20:50** (`ff110bf`): `routify-rotina.service` dispara ao fim de cada rodada do comparador (checagens da API + resumo da rodada, sem TomTom extra; teste às 20:54 ok) e `routify-ab.timer` roda o A/B dos sensores virtuais nos picos de dia útil até 13/11 (teste às 20:55: braço B subiu, 10 viagens, JSON gravado). **Códigos de recuperação do MFA** no código e testados (`ead633a`: 10 testes HTTP; migration `20261102030000` aplicada pelo MCP, RLS sem policy conferido); **deploy da API e do front espera o OK do dono** (o modo automático bloqueou). LIA 2.4 por pesos de período **rejeitada** (`ablation_lia_2.4.json`: viés do pico da tarde −11,3 → −10,1 s no melhor caso, pior com leitura de 30 min). Cortes da auditoria ponytail aplicados (#2, #8, #9, #11, #12, #13, #15) |
 | F14 Análise de melhorias + estratégia de testes | **entregue** (4 revisões: API/segurança, ML, front, DB/CI) com backlog priorizado e evidência arquivo:linha; artefato `cobertura_dataset.json` |
 
 ## Verificado nesta sessão (2026-11-01)
@@ -49,6 +50,16 @@ Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) 
 - Chamada interna (loopback + `X-Routify-Interno` + sem `X-Forwarded-For`) fica fora da captura de uso; auditoria nunca.
 - Aurora `database-1` (criado em 2026-11-01 23:12, sem uso no Routify): exclusão pedida pelo dono e executada com snapshot final `database-1-final-2026-11-02`. Verificado: nenhuma interface de rede do RDS restou na conta (instância apagada). Não verificado: o estado final do cluster e do snapshot (a liberação temporária de RDS no `claude-ops` já tinha sido removida).
 
+## Decisões tomadas (2026-11-02, noite)
+
+- **Testes contínuos na AWS, não no PC:** a rotina de validação vai junto com as 8 rodadas diárias do comparador (que
+  já cobrem os picos), sem rodada extra. Rodar a cada 30 min, como no feriado, gastaria por estimativa ~3× a reserva de Flow da API
+  (15% do pool). O A/B dos picos tem data para parar (`AB_ATE`), pelo mesmo motivo.
+- **LIA 2.4 não sai agora:** só um dia de dados novos (feriado), e a candidata sem dados novos (pesos por período)
+  não corrigiu o viés do pico da tarde. A 2.3 segue padrão.
+- **Códigos de recuperação do MFA feitos na API** (o Supabase Auth não tem): geração só em sessão aal2; uso em
+  sessão aal1 remove o fator pela API admin; banco guarda só hash; auditoria sem IP (a trilha é append-only).
+
 ## Decisões tomadas (2026-11-01)
 
 - **Coleta volta, na mesma EC2** (custo zero), com cadência pela cota mensal: 39 chaves × 20 mil × 85% / 31 dias / 630 pontos → **1 ciclo a cada 43 min** (~21 mil chamadas/dia). 15% do pool fica pra API sob demanda. `COLETOR_INTERVALO_MIN` força outro valor.
@@ -71,7 +82,7 @@ Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) 
 
 - [x] Bootstrap AWS (`scripts/aws-bootstrap.sh`) + deploy do coletor e da API (2026-11-02).
 - [x] Profile `routify` configurado pelo dono e conferido (2026-11-02).
-- [ ] Aurora `database-1` (não é do Routify): o dono pediu para apagar em 2026-11-02. O `claude-ops` não tem RDS; precisa de política temporária, que o próprio assistente remove no fim.
+- [x] Aurora `database-1` (não é do Routify): apagado em 2026-11-02 com snapshot final, a pedido do dono (ver Decisões).
 - [ ] **Dono:** console → conta → ativar o acesso de usuários IAM ao Billing (só o root faz).
 - [ ] **Pedro:** 1º login (URL + senha temporária entregues pelo dono) → trocar senha → MFA → testar EC2 → Connect → Session Manager.
 - [x] Merge de `coleta-aws-analise` em `main` + push (2026-11-02, CI verde).
@@ -79,10 +90,11 @@ Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) 
 - [x] Deploy da API (LIA 2.3 + velocidade calibrada) e do comparador (timer ligado, token do Mapbox num drop-in do systemd), 2026-11-02 02:23; front publicado na Hostinger; `publish_metrics.py` rodado (lia_2.3 + 7 análises).
 - [x] Rotina de validação até 12h (tarefa do Windows `Routify - rotina de validacao da LIA`, de hora em hora, `scripts/rotina_validacao.py` → `services/collector/dados/rotina/`) e agente horário desta sessão revisando cada rodada; resumo em `.planning/research/2026-11-02-rotina-madrugada.md`. Estendida a cada 30 min à tarde e encerrada pelo dono às 18:56 (26 rodadas, 1 perdida às 17:05 por interrupção da tarefa); resumo do dia, por período, no mesmo arquivo.
 - [ ] **Dono:** conferir no console que o RDS ficou vazio e o snapshot `database-1-final-2026-11-02` existe (o `claude-ops` não lê mais o RDS); apagar o snapshot se não quiser guardar.
-- [ ] **Dono (opcional):** token grátis do Mapbox (`MAPBOX_TOKEN` no `.env` do coletor) para ter um 2º provedor com trânsito ao vivo.
+- [x] Token grátis do Mapbox no comparador (drop-in do systemd na EC2, 2026-11-02).
 - [ ] Dezembro: `silver.py` + `fetch_contexto.py --fim …` + `avaliar_fora_do_tempo.py` + `publish_metrics.py` → número final 2.2 × 2.3 × persistência em dados novos.
-- [ ] Depois do deploy: procurar "imatch recusado" no log da API (busca da malha cai no ILIKE se o PostgREST recusar).
-- [ ] LIA 2.4 (pós-novembro): calendário escolar SEEDF/UnB + dados de novembro; recalibrar o semáforo com a velocidade calibrada.
+- [x] "imatch recusado" no log da API: 0 nas 26 rodadas de 2026-11-02; a rotina da EC2 segue conferindo a cada rodada.
+- [ ] LIA 2.4 (dezembro): dados de novembro primeiro; depois tendência da recência e perfil por quantil no pico (a candidata por pesos de período foi rejeitada em 2026-11-02, `ablation_lia_2.4.json`); calendário escolar SEEDF/UnB. A/B na EC2 com `ab_ec2.sh lia24` antes de trocar o padrão.
+- [ ] **Dono:** OK para o deploy da API (códigos de recuperação + cortes) e do front (telas de recuperação). Pacote do front pronto; depois, testar o fluxo de recuperação ponta a ponta com uma conta de teste.
 - [ ] Testes P0 da análise: limite por IP antes do auth em `/eventos` e `/admin`; TestClient HTTP (422 com NaN/extra/fora do DF, 429 com `Retry-After`, 401/403 do admin); contrato modelo ↔ metadata; migrations + RLS no CI (pgTAP).
 - [ ] `route_history`: grant de INSERT por coluna + CHECKs (ou a API persiste).
 - [ ] Backup semanal do dataset (Action com `pg_dump` cifrado).
@@ -93,7 +105,7 @@ Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) 
 - [x] Velocidade livre por grupo de via e δ recalibrado (2026-11-02, 135 rotas, MAPE do tempo livre 20,5% → 10,4%; A/B em `ab_calibracao_grafo_2026-11-02.json`).
 - [ ] Figura 1 com a LIA 2.2 (opcional: a tese cita a 2.1).
 - [ ] Snap na aresta (em vez do nó) para eliminar o conector.
-- [ ] Sensores virtuais: A/B no pico de dia útil (`APIS="A=…8011,B=…8012" python ../../scripts/ab_rotas.py saida.json ../../scripts/viagens_buracos.json`, de `services/collector`, B com `SENSORES_VIRTUAIS=1`); ligar em produção só com ganho.
+- [ ] Sensores virtuais: o A/B de dia útil roda sozinho na EC2 (`routify-ab.timer`, 07:40/08:40/17:40/18:40 até 13/11; JSONs em `/var/lib/routify-ab/`). Juntar as passadas e decidir; ligar em produção só com ganho.
 - [ ] F9 restante (CSP, suíte de segurança, trava de login, sessão ociosa).
 
 ## Checklist do orientador (texto final)
