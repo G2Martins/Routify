@@ -1,7 +1,7 @@
 // npm test (de apps/mobile): node --experimental-strip-types --test, Node >= 22.6, sem dependências
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { combinar } from '../src/lib/sugestoes.ts';
+import { aplicarConferencia, combinar, rotuloParaSalvar } from '../src/lib/sugestoes.ts';
 
 const api = (label, sublabel, lat, lon) => ({ label, sublabel, lat, lon, source: 'tomtom' });
 const recente = (label, lat, lon) => ({ label, sublabel: 'Destino recente · há 40 dias', lat, lon, source: 'recente' });
@@ -41,4 +41,30 @@ test('sem recentes ou sem termo devolve a lista da API como veio', () => {
 test('recente que não casa com o digitado fica de fora; limite respeitado', () => {
   const r = combinar('rodo', [recente('Park Shopping', -15.9, -47.79)], [GUARA, SAO_SEB, TAG], 2);
   assert.deepEqual(r, [GUARA, SAO_SEB]);
+});
+
+test('recente com nome de marco salvo no lugar errado vira o marco e não duplica', () => {
+  const recentes = [
+    { label: 'Park Shopping', sublabel: 'Destino recente · hoje', lat: -15.9008, lon: -47.7902, source: 'recente' },
+    { label: 'Parkshopping', sublabel: 'Destino recente · há 38 dias', lat: -15.8335, lon: -47.9558, source: 'recente' },
+    { label: 'Padaria do Zé', sublabel: 'Destino recente · ontem', lat: -15.8, lon: -47.95, source: 'recente' },
+  ];
+  const conferidos = [
+    { lat: -15.8332, lon: -47.9555, area: 'Guará', corrigido: true },
+    { lat: -15.8335, lon: -47.9558, area: 'Guará', corrigido: false },
+    null,
+  ];
+  const out = aplicarConferencia(recentes, conferidos);
+  assert.equal(out.length, 2);
+  assert.deepEqual([out[0].lat, out[0].lon, out[0].sublabel], [-15.8332, -47.9555, 'Guará · Destino recente · hoje']);
+  assert.equal(out[1].label, 'Padaria do Zé');
+});
+
+test('homônimo na lista: o nome salvo leva a área; sem homônimo, fica igual', () => {
+  const guara = { label: 'Park Shopping', sublabel: 'Guará', lat: -15.8338, lon: -47.9561, source: 'tomtom' };
+  const saoSeb = { label: 'Park Shopping', sublabel: 'São Sebastião · Quadra 307', lat: -15.9008, lon: -47.7902, source: 'tomtom' };
+  const outro = { label: 'Conjunto Nacional', sublabel: 'Plano Piloto', lat: -15.791, lon: -47.883, source: 'malha' };
+  assert.equal(rotuloParaSalvar(saoSeb, [guara, saoSeb]), 'Park Shopping · São Sebastião');
+  assert.equal(rotuloParaSalvar(guara, [guara, saoSeb]), 'Park Shopping · Guará');
+  assert.equal(rotuloParaSalvar(outro, [guara, outro]), 'Conjunto Nacional');
 });

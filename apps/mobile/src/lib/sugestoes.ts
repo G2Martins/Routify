@@ -61,3 +61,40 @@ export function combinar(q: string, recentes: PlaceSuggestion[] | null, itens: P
   if (!depois.length || !resto.includes(topo)) return [...antes, ...depois, ...resto].slice(0, limite);
   return [...antes, topo, ...depois, ...resto.filter((i) => i !== topo)].slice(0, limite);
 }
+
+/** Resposta do POST /search/recentes para um recente (mesma ordem do pedido). */
+export interface RecenteConferido {
+  lat: number;
+  lon: number;
+  area: string;
+  corrigido: boolean;
+}
+
+const compacto = (s: string) => palavras(s).join('');
+
+/**
+ * Recentes depois da conferência da API: coordenada do marco quando o nome salvo era de um marco em outro lugar
+ * (o "Park Shopping" de São Sebastião vira o do Guará), a RA na frente do sublabel e o mesmo lugar uma vez só.
+ * `conferidos[i]` ausente = recente não conferido (fica como estava).
+ */
+export function aplicarConferencia(recentes: PlaceSuggestion[], conferidos: (RecenteConferido | null | undefined)[]): PlaceSuggestion[] {
+  const out: PlaceSuggestion[] = [];
+  recentes.forEach((r, i) => {
+    const c = conferidos[i];
+    const novo = c ? { ...r, lat: c.lat, lon: c.lon, sublabel: c.area ? `${c.area} · ${r.sublabel}` : r.sublabel } : r;
+    if (!out.some((o) => compacto(o.label) === compacto(novo.label) && distanciaM(o, novo) < 1000)) out.push(novo);
+  });
+  return out;
+}
+
+/**
+ * Nome que vai para o campo e para o histórico. Com homônimo a mais de 1 km na mesma lista, leva a área
+ * ("Park Shopping · Guará"): o histórico só guarda nome + coordenada, e "Park Shopping" sozinho voltava nos
+ * recentes sem dizer qual era.
+ */
+export function rotuloParaSalvar(item: PlaceSuggestion, lista: PlaceSuggestion[]): string {
+  if (item.source === 'recente') return item.label;
+  const area = item.sublabel.split(' · ')[0].trim();
+  const homonimo = lista.some((o) => o !== item && semAcento(o.label) === semAcento(item.label) && distanciaM(o, item) > 1000);
+  return homonimo && area && !semAcento(item.label).includes(semAcento(area)) ? `${item.label} · ${area}` : item.label;
+}

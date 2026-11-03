@@ -32,7 +32,7 @@ import { supabase, RouteHistoryRow } from '../lib/supabase';
 import { API_URL, apiHeaders, enviarEvento } from '../lib/api';
 import { Selo, Skeleton, useMenosMovimento } from './ui';
 import Icon from './Icon';
-import { combinar, palavras, PlaceSuggestion, semAcento } from '../lib/sugestoes';
+import { aplicarConferencia, combinar, palavras, PlaceSuggestion, RecenteConferido, rotuloParaSalvar, semAcento } from '../lib/sugestoes';
 
 export type { PlaceSuggestion } from '../lib/sugestoes';
 
@@ -275,7 +275,25 @@ export default function AddressAutocomplete({ placeholder, value, onChangeText, 
       });
       if (out.length === MAX_RECENTES) break;
     }
-    setRecentes(out);
+    // Confere na API antes de mostrar (RA de cada um; nome de marco salvo no lugar errado volta ao marco). Sem
+    // resposta em 2,5 s, segue com o salvo. Fora da caixa do DF não vai (a API recusaria o lote inteiro).
+    const noDF = (r: PlaceSuggestion) => r.lat >= -16.6 && r.lat <= -15.0 && r.lon >= -48.8 && r.lon <= -46.8;
+    const enviados = out.filter(noDF);
+    let conferidos: RecenteConferido[] = [];
+    if (enviados.length) {
+      try {
+        const r = await fetch(`${API_URL}/search/recentes`, {
+          method: 'POST',
+          headers: await apiHeaders(),
+          body: JSON.stringify({ recentes: enviados.map(({ label, lat, lon }) => ({ label: label.slice(0, 300), lat, lon })) }),
+          signal: AbortSignal.timeout(2500),
+        });
+        if (r.ok) conferidos = await r.json();
+      } catch {
+        // API fora: recentes como estão
+      }
+    }
+    setRecentes(aplicarConferencia(out, out.map((r) => conferidos[enviados.indexOf(r)])));
   };
 
   const buscar = (texto: string, imediato = false) => {
@@ -372,7 +390,7 @@ export default function AddressAutocomplete({ placeholder, value, onChangeText, 
     setSemResultado(false);
     setAberto(false);
     setAtivo(-1);
-    onSelectRef.current(item);
+    onSelectRef.current({ ...item, label: rotuloParaSalvar(item, lista) });
   };
 
   /** Enter (teclado) e "buscar" (teclado do celular). */

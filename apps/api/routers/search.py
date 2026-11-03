@@ -34,14 +34,17 @@ import time
 import logging
 import unicodedata
 from functools import lru_cache
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import httpx
 import numpy as np
 from fastapi import APIRouter, Query, Request, Security
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+from shapely.geometry import Point, shape
+from shapely.prepared import prep
 
 import usage
+from openapi import erro
 from seguranca import Limitador, ip_cliente, limitar
 from tomtom import CENTRO_BRASILIA, CacheTTL
 
@@ -77,6 +80,9 @@ _bairros_tok: List[List[str]] = []
 _B_LAT = _B_LON = np.empty(0)
 _RAS: List[Tuple[str, str]] = []  # (nome normalizado, nome) das cidades/vilas = regiões administrativas, maiores primeiro
 _POIS_JSON = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'ml', 'artifacts', 'pois_df.json')
+_RAS_JSON = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'ml', 'artifacts', 'ras_df.json')
+_ras: Optional[list] = None  # (nome, caixa, polígono preparado) das 35 RAs
+_marcos: Optional[Dict[str, dict]] = None  # nome compacto -> POI, só nomes de um POI só
 _pois: Optional[List[dict]] = None
 _pois_nomes: List[List[Tuple[str, List[str]]]] = []  # por ponto: (nome normalizado, palavras) de cada forma
 
@@ -437,6 +443,29 @@ def _bairro_proximo(lat: float, lon: float, max_km: float = 3.0) -> Optional[str
     return _bairros[i]['nome'] if d[i] <= max_km else None
 
 
+def _carregar_ras() -> list:
+    """Polígonos das 35 regiões administrativas (ml/extrair_ras_osm.py), lidos uma vez. Sem o arquivo: lista vazia."""
+    global _ras
+    if _ras is None:
+        try:
+            with open(_RAS_JSON, encoding='utf-8') as f:
+                geoms = [(r['nome'], shape(r['geometria'])) for r in json.load(f)['ras']]
+            _ras = [(nome, g.bounds, prep(g)) for nome, g in geoms]
+        except (OSError, ValueError, KeyError, TypeError):
+            _ras = []
+    return _ras
+
+
+@lru_cache(maxsize=8192)
+def area_de(lat: float, lon: float) -> str:
+    """Região administrativa que CONTÉM o ponto (polígono do OSM). O bairro mais próximo errava na divisa: o
+    ParkShopping saía "Candangolândia", o Iguatemi "Varjão". Fora das RAs, o bairro mais próximo (ou '')."""
+    for nome, (x0, y0, x1, y1), g in _carregar_ras():
+        if x0 <= lon <= x1 and y0 <= lat <= y1 and g.contains(Point(lon, lat)):
+            return nome
+    return _bairro_proximo(lat, lon) or ''
+
+
 def _regiao_de(nome_norm: str) -> str:
     """Região administrativa que o próprio nome cita ("Ceilândia Norte" -> Ceilândia); superquadra
     e comércio local -> Plano Piloto. Pelo nome, não pelo ponto mais próximo: a RA mais próxima de
@@ -493,7 +522,7 @@ def _pontos(vs: List[str], perto: Tuple[float, float], maximo: int = 25) -> List
     achados.sort(key=lambda pf: _km(ref, pf[0]))
     itens = []
     for p, fs in achados[:maximo]:
-        bairro = _bairro_proximo(round(p['lat'], 4), round(p['lon'], 4))
+        bairro = area_de(round(p['lat'], 4), round(p['lon'], 4)) or None
         itens.append({'label': p['nome'], 'sublabel': bairro or '', 'lat': p['lat'], 'lon': p['lon'],
                       'bairro': bairro, 'tipo': 'POI', 'score': 0.9, 'fonte': 'malha',
                       'categoria_codigo': p['categoria_codigo'], '_nomes_extra': [n for n, _ in fs[1:]]})
@@ -731,3 +760,71 @@ async def autocomplete(
                         source=c.get('fonte', 'tomtom'), categoria=categoria(c), id_ponto=c.get('id_ponto'))
         for c in saida
     ]
+
+
+# --- Destinos recentes ----------------------------------------------------------
+# O histórico guarda nome + coordenada. Um destino errado salvo uma vez (2026-09: "Park Shopping" de São Sebastião,
+# um POI homônimo da TomTom, com o ranking antigo) voltava para sempre nos recentes, sem bairro. Aqui cada recente
+# ganha a RA que o contém e, se o nome é de um marco do OSM com dono único e o ponto salvo está a mais de 3 km dele,
+# a coordenada vira a do marco. Rótulo já desambiguado pelo app ("Park Shopping · São Sebastião") não casa com o
+# nome do marco e fica como está; 3 km evitam "corrigir" outra entrada do mesmo campus ou parque.
+
+CORRIGE_ALEM_KM = 3.0
+
+
+class RecenteInput(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    label: str = Field(..., min_length=1, max_length=300, description="Nome salvo no histórico.")
+    lat: float = Field(..., ge=-16.6, le=-15.0)
+    lon: float = Field(..., ge=-48.8, le=-46.8)
+
+
+class RecentesInput(BaseModel):
+    model_config = ConfigDict(extra='forbid', json_schema_extra={"examples": [
+        {"recentes": [{"label": "Park Shopping", "lat": -15.9008, "lon": -47.7902}]}]})
+
+    recentes: List[RecenteInput] = Field(..., max_length=10)
+
+
+class RecenteConferido(BaseModel):
+    lat: float
+    lon: float
+    area: str = Field(..., description="Região administrativa que contém o ponto ('' fora do DF).",
+                      examples=["Guará"])
+    corrigido: bool = Field(..., description="O nome é de um marco do OSM e o ponto salvo estava a mais de "
+                                             "3 km dele: lat/lon passam a ser as do marco.")
+
+
+def _marcos_por_nome() -> Dict[str, dict]:
+    """Nome compacto ("parkshopping") -> POI do OSM, só para nomes (e apelidos) que um único POI usa."""
+    global _marcos
+    if _marcos is None:
+        donos: Dict[str, list] = {}
+        for p, formas in zip(_carregar_pois(), _pois_nomes):
+            for nome in {n.replace(' ', '') for n, _ in formas}:
+                donos.setdefault(nome, []).append(p)
+        _marcos = {nome: ps[0] for nome, ps in donos.items() if len(ps) == 1}
+    return _marcos
+
+
+def conferir_recente(label: str, lat: float, lon: float) -> dict:
+    marco = _marcos_por_nome().get(normalizar(label).replace(' ', ''))
+    corrigido = marco is not None and _km({'lat': lat, 'lon': lon}, marco) > CORRIGE_ALEM_KM
+    if corrigido:
+        lat, lon = marco['lat'], marco['lon']
+    return {'lat': lat, 'lon': lon, 'area': area_de(round(lat, 4), round(lon, 4)), 'corrigido': corrigido}
+
+
+@router.post(
+    "/recentes",
+    response_model=List[RecenteConferido],
+    summary="Conferir destinos recentes",
+    description="Para cada destino do histórico (até 10): a região administrativa que contém o ponto e, quando o "
+                "nome é de um marco conhecido (POI do OSM com nome único) e o ponto salvo está a mais de 3 km dele, "
+                "a coordenada do marco. Sem TomTom e sem gravar nada. Limite: 90/min por IP (o mesmo da busca).",
+    responses={429: erro("Limite por IP excedido.", "Muitas requisições. Tente de novo em instantes.")},
+)
+async def conferir_recentes(body: RecentesInput, request: Request):
+    limitar(_limite_ip, ip_cliente(request))
+    return [conferir_recente(r.label, r.lat, r.lon) for r in body.recentes]
