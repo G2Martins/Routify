@@ -24,11 +24,18 @@ Cliente do **Routify** rodando em **iOS, Android e Web** via Expo + React Native
   biblioteca de gráfico); cada linha traz hora e minutos, e serve de tabela para o leitor de tela. Recalculando, o
   gráfico anterior fica esmaecido no lugar; 429 e erros da API viram aviso. Textos e contrato em `src/lib/planejar.ts`
   (`tests/planejar.test.mjs`);
+- **Trânsito agora** (aba Trânsito, `TransitoScreen`): a previsão da LIA para este instante em cada ponto monitorado
+  (`GET /trafego/agora`, atualiza a cada minuto com a tela aberta), pontos coloridos no mapa vetorial, faixa
+  livre/moderado/lento/parado com texto e as vias mais lentas;
 - histórico de rotas, perfil e dashboard de métricas.
+
+**Ícones:** na web, `@iconify/react/offline` só desenha o que está em `src/constants/icones.json` (nada vai à rede;
+o modo online punha SVG de terceiro no `innerHTML`). Usou ícone novo: `node scripts/icones.mjs`; o
+`tests/icones.test.mjs` falha enquanto faltar. No celular, `@expo/vector-icons`.
 
 **Design:** paleta da logo + linguagem Valerium. Tokens em `src/constants/Theme.ts`, peças prontas em `src/components/ui.tsx`, regras em [docs/core/design-system.md](../../docs/core/design-system.md).
 
-**Sessão:** na web, a sessão Supabase fica em **cookie** (`@supabase/ssr`), a mesma que o painel ADM (`/admin`) lê. O login é único, e o item "Painel ADM" aparece só para `app_metadata.role = admin`. No celular, a sessão fica no AsyncStorage.
+**Sessão:** na web, a sessão Supabase fica em **cookie** (`@supabase/ssr`; Secure em https, 30 dias), a mesma que o painel ADM (`/admin`) lê. O login é único, e o item "Painel ADM" aparece só para `app_metadata.role = admin`. No celular, a sessão fica no AsyncStorage.
 
 **Busca:**
 - destinos recentes ao focar o campo, e os que casam com o texto vêm antes dos resultados;
