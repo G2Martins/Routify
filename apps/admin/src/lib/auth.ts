@@ -1,34 +1,25 @@
-import { redirect } from 'next/navigation';
-import { APP_URL } from './app-url';
+import { notFound } from 'next/navigation';
+import { podeVerPainel } from './acesso';
 import { clienteServidor } from './supabase';
 
 /**
- * Exige usuário logado com papel admin (app_metadata.role, que só o service_role
- * grava). É só UX: o banco recusa (RLS/RPC) quem não é admin de qualquer forma.
- * getUser() valida o token no Auth — getSession() só leria o cookie.
- * O login é único e mora no app: sem sessão, volta para ele.
+ * Exige quem pode ver o painel (lib/acesso.ts); senão, o 404 padrão, igual a um endereço que não existe. O proxy já
+ * barrou antes; isto é a segunda camada. getUser() valida o token no Auth — getSession() só leria o cookie.
  */
 export async function exigirAdmin() {
   const sb = await clienteServidor();
   const {
     data: { user },
   } = await sb.auth.getUser();
-  if (!user) redirect(APP_URL);
-  // Quem ativou a verificação em duas etapas e só passou a senha: o app mostra a etapa 2.
-  // O banco (aal_ok() no is_admin) barraria as RPCs de qualquer jeito; isto evita a tela "sem acesso".
-  const { data: aal } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (aal?.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') redirect(APP_URL);
-  if (user.app_metadata?.role !== 'admin') redirect('/admin/sem-acesso');
+  if (!user || !(await podeVerPainel(sb, user))) notFound();
   return { sb, user };
 }
 
-/** Mesma regra do exigirAdmin, sem redirecionar: para rotas de API do painel (respondem 403 em vez de mudar de página). */
+/** Mesma regra, sem trocar de página: para as rotas de API do painel (respondem 404). */
 export async function souAdmin(): Promise<boolean> {
   const sb = await clienteServidor();
   const {
     data: { user },
   } = await sb.auth.getUser();
-  if (!user || user.app_metadata?.role !== 'admin') return false;
-  const { data: aal } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
-  return !(aal?.nextLevel === 'aal2' && aal.currentLevel !== 'aal2');
+  return podeVerPainel(sb, user);
 }

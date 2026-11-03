@@ -50,7 +50,7 @@ async function aws(): Promise<ProvedorExterno> {
 }
 
 export async function GET() {
-  if (!(await souAdmin())) return NextResponse.json({ detail: 'Acesso restrito a administradores.' }, { status: 403 });
+  if (!(await souAdmin())) return new NextResponse(null, { status: 404 });  // como qualquer endereço inexistente
   const provedores = await Promise.all([...STATUSPAGE.map(statuspage), aws()]);
   return NextResponse.json({ provedores, verificado_em: new Date().toISOString() }, { headers: { 'Cache-Control': 'no-store' } });
 }

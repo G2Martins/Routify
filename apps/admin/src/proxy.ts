@@ -1,11 +1,11 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
-import { APP_URL } from './lib/app-url';
+import { podeVerPainel } from './lib/acesso';
 
 /**
- * Renova a sessão Supabase (cookie compartilhado com o app) a cada requisição do
- * painel. Sem sessão, manda para o login do app — sem parâmetro de retorno, para
- * não abrir redirecionamento arbitrário.
+ * Renova a sessão Supabase (cookie compartilhado com o app) a cada requisição do painel. Quem não pode ver o
+ * painel (sem sessão, sem papel admin, etapa 2 pendente) recebe o MESMO 404 de qualquer endereço que não existe: o
+ * painel não se anuncia (auditoria de 2026-11-03). O login é no app; o botão "Painel ADM" de quem é admin traz aqui.
  */
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -31,7 +31,9 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await sb.auth.getUser();
 
-  if (!user) return NextResponse.redirect(new URL(APP_URL, request.url));
+  if (!(await podeVerPainel(sb, user))) {
+    return NextResponse.rewrite(new URL('/_routify-nao-existe', request.url), { status: 404 });
+  }
   return response;
 }
 
