@@ -33,9 +33,11 @@ router = APIRouter(prefix="/route", tags=["Roteamento"], dependencies=[Security(
 logger = logging.getLogger(__name__)
 
 class Coordenada(BaseModel):
+    """Ponto no DF e entorno (a mesma caixa da busca). Fora dela, 422 antes de qualquer chamada à TomTom
+    (auditoria de 2026-11-03, M2: o planeta inteiro era aceito e virava rota de referência paga com a cota)."""
     model_config = ConfigDict(extra='forbid')
-    lat: float = Field(..., description="Latitude (WGS84)", ge=-90, le=90, examples=[-15.7939])
-    lon: float = Field(..., description="Longitude (WGS84)", ge=-180, le=180, examples=[-47.8828])
+    lat: float = Field(..., description="Latitude (WGS84), dentro do DF e entorno", ge=-16.6, le=-15.0, examples=[-15.7939])
+    lon: float = Field(..., description="Longitude (WGS84), dentro do DF e entorno", ge=-48.8, le=-46.8, examples=[-47.8828])
 
 
 class RouteInput(BaseModel):
@@ -567,6 +569,9 @@ async def _consultar_tomtom(tt, G, origem, destino, recencia, com_referencia: bo
 
 
 _limite_ip = Limitador(20)  # cada rota gasta Flow/Incidents/Routing da TomTom
+# Teto de todas as chamadas externas somadas: a rota gasta ~1 s de CPU no único worker; poucos IPs no limite
+# individual já travariam a API (auditoria de 2026-11-03, M1). Comparador e A/B (internos) ficam fora.
+_limite_global = Limitador(40)
 
 
 def _via_principal(G: nx.MultiDiGraph, nos: List[int]) -> str:
@@ -635,6 +640,8 @@ def _snap(request: Request, G: nx.MultiDiGraph, lat: float, lon: float) -> Tuple
 )
 async def calculate_route(body: RouteInput, request: Request, response: Response):
     limitar(_limite_ip, ip_cliente(request))
+    if not usage.requisicao_interna(request):
+        limitar(_limite_global, 'todas', 'Muitas rotas sendo calculadas agora. Tente de novo em instantes.')
     inicio_req = time.perf_counter()
     # Tempo por fase (ms) no Server-Timing e no log: a auditoria de latência de 2026-11-02 começou sem isso.
     etapas: Dict[str, float] = {}

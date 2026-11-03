@@ -442,6 +442,11 @@ app.add_middleware(
 
 # Sem log: health checks (o painel ADM consulta a cada poucos segundos) e docs.
 ROTAS_SEM_LOG = {'/health', '/docs', '/redoc', '/openapi.json'}
+# Nem 404/405: robôs de varredura eram 90% das linhas de api_requisicoes (auditoria de 2026-11-03, A1).
+STATUS_SEM_LOG = {404, 405}
+# Docs (Swagger/ReDoc) carregam de CDN; o resto da API só devolve JSON e leva CSP fechada.
+ROTAS_DOCS = {'/docs', '/redoc', '/docs/oauth2-redirect'}
+CSP_API = "default-src 'none'; frame-ancestors 'none'"
 
 
 @app.middleware("http")
@@ -458,12 +463,14 @@ async def registrar_requisicao(request: Request, call_next):
         resposta.headers.setdefault('X-Content-Type-Options', 'nosniff')
         resposta.headers.setdefault('X-Frame-Options', 'DENY')
         resposta.headers.setdefault('Referrer-Policy', 'no-referrer')
+        if request.url.path not in ROTAS_DOCS:
+            resposta.headers.setdefault('Content-Security-Policy', CSP_API)
         return resposta
     except Exception as e:
         erro = type(e).__name__
         raise
     finally:
-        if request.method != 'OPTIONS' and request.url.path not in ROTAS_SEM_LOG:
+        if request.method != 'OPTIONS' and request.url.path not in ROTAS_SEM_LOG and status not in STATUS_SEM_LOG:
             usage.registrar(getattr(request.app.state, 'supabase', None), 'api_requisicoes', {
                 'metodo': request.method,
                 'rota': request.url.path[:120],

@@ -13,7 +13,9 @@ import asyncio
 import hashlib
 import logging
 import os
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from contextvars import ContextVar
 from typing import Optional
 
@@ -103,11 +105,28 @@ def _inserir(sb, tabela: str, linha: dict) -> None:
             logger.warning(f"Uso: falha ao gravar em {tabela} ({type(e).__name__}) — seguindo sem log")
 
 
+# Gravação de uso fora do pool padrão de threads (que a validação de token e a busca usam) e com fila limitada:
+# uma enxurrada de requisições não pode atrasar o resto da API (auditoria de 2026-11-03, M1). Fila cheia = descarta.
+_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix='uso')
+_vagas = threading.BoundedSemaphore(500)
+
+
+def _inserir_e_liberar(sb, tabela: str, linha: dict) -> None:
+    try:
+        _inserir(sb, tabela, linha)
+    finally:
+        _vagas.release()
+
+
 def registrar(sb, tabela: str, linha: dict) -> None:
     """Grava em segundo plano; nunca levanta nem atrasa a resposta."""
     if sb is None or not REGISTRAR_USO or (tabela in TABELAS_DE_USO and _interna.get()):
         return
     try:
-        asyncio.get_running_loop().run_in_executor(None, _inserir, sb, tabela, linha)
+        loop = asyncio.get_running_loop()
     except RuntimeError:
         _inserir(sb, tabela, linha)  # fora de event loop (scripts/testes)
+        return
+    if not _vagas.acquire(blocking=False):
+        return  # fila cheia: uso é melhor-esforço
+    loop.run_in_executor(_executor, _inserir_e_liberar, sb, tabela, linha)
