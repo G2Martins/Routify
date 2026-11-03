@@ -37,7 +37,7 @@ import recency_cache  # noqa: E402
 import tomtom  # noqa: E402
 import trajeto  # noqa: E402
 import usage  # noqa: E402
-from routers import admin, eventos, mfa, predict, route, search  # noqa: E402
+from routers import admin, eventos, mfa, predict, route, search, trafego  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -482,6 +482,7 @@ app.include_router(search.router)
 app.include_router(eventos.router)
 app.include_router(admin.router)
 app.include_router(mfa.router)
+app.include_router(trafego.router)
 
 
 def _cv_metric(meta: dict, nome: str):

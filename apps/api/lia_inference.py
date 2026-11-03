@@ -178,6 +178,11 @@ def montar_features(id_ponto_enc: int, hora: int, dia_semana: int,
     return [float(linha[c]) for c in ordem]
 
 
+def nivel_da_razao(razao: float) -> int:
+    """Razão de congestionamento (atual/livre) -> 0 livre, 1 moderado, 2 lento, 3 parado."""
+    return 0 if razao >= 0.85 else 1 if razao >= 0.65 else 2 if razao >= 0.45 else 3
+
+
 def clamp_razao(razao: float) -> float:
     return min(max(razao, RAZAO_MIN), RAZAO_MAX)
 

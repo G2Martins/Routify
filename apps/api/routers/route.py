@@ -467,9 +467,7 @@ def montar_polyline(G: nx.MultiDiGraph, nos: List[int]) -> List[List[float]]:
     return pontos
 
 
-def nivel_da_razao(razao: float) -> int:
-    """Razão de congestionamento (atual/livre) -> 0 livre, 1 moderado, 2 lento, 3 parado."""
-    return 0 if razao >= 0.85 else 1 if razao >= 0.65 else 2 if razao >= 0.45 else 3
+nivel_da_razao = lia_inf.nivel_da_razao  # régua única: rota, mapa e /trafego/agora
 
 
 def niveis_lia(G: nx.MultiDiGraph, nos: List[int]) -> List[Optional[int]]:

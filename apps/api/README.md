@@ -125,6 +125,7 @@ Testes: `.venv/Scripts/python -m pytest -q` (o HTTP da TomTom é simulado; nenhu
 | `/route` | 20/min por IP |
 | `/search/places` | 90/min por IP |
 | `/eventos` | 60/min por usuário |
+| `/trafego/agora` | 30/min por IP |
 | `/mfa/codigos-recuperacao` | 5/h por usuário |
 | `/mfa/recuperar` | 5 a cada 15 min por usuário e 20 por IP |
 | antes de validar o token no Auth | 60/min por IP (`/admin`, `/mfa`) e 120/min por IP (`/eventos`) |
@@ -193,6 +194,13 @@ Eventos do app para a análise de uso. Exige JWT e aceita no máximo 60 por minu
 - `dados` = dicionário plano, com até 12 chaves escalares. Chaves de coordenada são recusadas.
 
 Responde `202`.
+
+### `GET /trafego/agora`
+Trânsito agora nos pontos monitorados (tela "Trânsito agora" do app): previsão da LIA para este instante em cada ponto
+(com a leitura mais recente como feature, igual à rota), nível 0 livre … 3 parado (a mesma régua do mapa,
+`lia_inference.nivel_da_razao`), há quantos minutos veio a última leitura e o nome da via (da aresta do OSM ligada ao
+ponto), do mais lento para o mais livre, com um resumo por nível. Uma chamada só do modelo para todos os pontos e 60 s
+de cache; sem TomTom e sem dado pessoal. Público, 30/min por IP.
 
 ### `POST /mfa/codigos-recuperacao` · `POST /mfa/recuperar`
 Códigos de recuperação da verificação em duas etapas (o Supabase Auth não tem os seus).
