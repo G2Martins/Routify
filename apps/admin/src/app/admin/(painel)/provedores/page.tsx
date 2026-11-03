@@ -4,6 +4,7 @@ import { MIGRACAO_HISTORICOS, MIGRACAO_PROVEDORES } from '@/lib/erros';
 import { modeloAtivo } from '@/lib/saude';
 import type {
   AblacaoLia23,
+  AblacaoLia24,
   AvaliacaoForaDoTempo,
   CoberturaDataset,
   ComparacaoProvedores,
@@ -25,10 +26,11 @@ import {
   UltimaRodada,
   ViesPorHora,
 } from './secoes';
+import { Periodos } from './Periodos';
 
 const JANELAS = [7, 30, 90];
 // Análises publicadas por ml/publish_metrics.py que esta página lê.
-const ANALISES = ['ablation_lia_2_3', 'avaliacao_fora_do_tempo', 'fase3_comparacao', 'cobertura_dataset'];
+const ANALISES = ['ablation_lia_2_3', 'ablation_lia_2_4', 'avaliacao_fora_do_tempo', 'fase3_comparacao', 'cobertura_dataset'];
 
 export default async function ProvedoresPage({ searchParams }: { searchParams: Promise<{ dias?: string }> }) {
   const { dias: diasParam } = await searchParams;
@@ -88,6 +90,7 @@ export default async function ProvedoresPage({ searchParams }: { searchParams: P
       <Grupo titulo="Evidência do modelo" />
       <div className="space-y-5">
         <Ablacao a={ablacao} />
+        <Periodos a={analise<AblacaoLia24>('ablation_lia_2_4')} />
         <ForaDoTempo a={analise<AvaliacaoForaDoTempo>('avaliacao_fora_do_tempo')} />
       </div>
 

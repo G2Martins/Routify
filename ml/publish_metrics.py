@@ -130,6 +130,7 @@ def main():
         ('benchmark_lstm_xgboost', _json('benchmark_lstm_vs_xgboost.json')),
         ('estresse_lia22', _json('lia_2.2_estresse.json')),
         ('ablation_lia_2_3', _json('ablation_lia_2.3.json')),
+        ('ablation_lia_2_4', _json('ablation_lia_2.4.json')),
         ('avaliacao_fora_do_tempo', _json('avaliacao_fora_do_tempo.json')),
         ('cobertura_dataset', _json('cobertura_dataset.json')),
         ('experimento_velocidade_livre', _json('experimento_velocidade_livre.json')),

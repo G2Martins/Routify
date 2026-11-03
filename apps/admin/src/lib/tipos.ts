@@ -355,3 +355,20 @@ export type SistemaApi = {
   servicos: Record<string, boolean> | null;
   commit: string | null;
 };
+
+/** ml/artifacts/ablation_lia_2.4.json (ml/ablation_lia_2_4.py): erro por período do dia, leitura fresca e de 30 min. */
+export type ErroPeriodo = { n: number; vies_seg: number; mae_seg: number; rmse_seg: number };
+export type PorPeriodo = Record<'modelo' | 'baseline' | 'persistencia', Record<string, ErroPeriodo>>;
+export type AblacaoLia24 = {
+  gerado_em: string;
+  smoke?: boolean;
+  linhas: number;
+  linhas_por_periodo: Record<string, number>;
+  variantes: {
+    nome: string;
+    receita: Record<string, boolean | number>;
+    cv: Record<string, number | undefined>;
+    por_periodo: PorPeriodo;
+    por_periodo_recencia_30min: PorPeriodo;
+  }[];
+};
