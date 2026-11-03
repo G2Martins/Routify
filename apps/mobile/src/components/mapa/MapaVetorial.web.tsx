@@ -151,6 +151,10 @@ type Rota = {
   trafego?: (number | null)[] | null;
 };
 
+/** Ponto de /trafego/agora (tela "Trânsito agora"). */
+export type PontoTransito = { lat: number; lon: number; nivel: number; nome?: string | null };
+const ROTULO_NIVEL = ['livre', 'moderado', 'lento', 'parado'];
+
 const IDS_CAMADAS = ['rota-alt', 'rota-conector', 'rota-brilho', 'rota-contorno', 'rota-linha', 'rota-transito', 'rota-cometa-brilho', 'rota-cometa'];
 const IDS_FONTES = ['rota', 'rota-alt', 'rota-conector', 'rota-transito', 'rota-cometa'];
 
@@ -167,6 +171,7 @@ const MapaVetorial = forwardRef(({ onFalha }: { onFalha?: () => void }, ref) => 
   // showRoute antes do mapa pronto (rede lenta, chunk do MapLibre ainda baixando): aplica depois.
   const pendente = useRef(false);
   const rotaRef = useRef<Rota | null>(null);
+  const pontosRef = useRef<PontoTransito[] | null>(null);
   const marcadores = useRef<{ origem?: MLMarker; destino?: MLMarker; usuario?: MLMarker }>({});
   const quadros = useRef<{ desenho?: number; cometa?: number; espera?: ReturnType<typeof setTimeout> }>({});
   const pararSeguir = useRef<(() => void) | null>(null);
@@ -189,6 +194,43 @@ const MapaVetorial = forwardRef(({ onFalha }: { onFalha?: () => void }, ref) => 
     if (!map || !map.getStyle()) return;
     IDS_CAMADAS.forEach((id) => map.getLayer(id) && map.removeLayer(id));
     IDS_FONTES.forEach((id) => map.getSource(id) && map.removeSource(id));
+  }
+
+  /** Pontos do "Trânsito agora" (abaixo da rota, recriados depois de trocar o estilo). Nome só como texto. */
+  function desenharPontos() {
+    const map = mapRef.current;
+    if (!map || !estiloPronto.current || !map.getStyle()) return;
+    if (map.getLayer('transito-agora')) map.removeLayer('transito-agora');
+    if (map.getSource('transito-agora')) map.removeSource('transito-agora');
+    const pontos = pontosRef.current;
+    if (!pontos?.length) return;
+    const [moderado, lento, parado] = trafficColors[temaRef.current.mapStyle === 'street' ? 'light' : 'dark'];
+    map.addSource('transito-agora', {
+      type: 'geojson',
+      data: {
+        type: 'FeatureCollection',
+        features: pontos.map((p) => ({
+          type: 'Feature',
+          properties: { nivel: p.nivel, rotulo: `${p.nome ?? 'Via monitorada'}: ${ROTULO_NIVEL[p.nivel] ?? '—'}` },
+          geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
+        })),
+      },
+    });
+    map.addLayer(
+      {
+        id: 'transito-agora',
+        type: 'circle',
+        source: 'transito-agora',
+        paint: {
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, ['+', 2.5, ['get', 'nivel']], 14, ['+', 6, ['*', 2, ['get', 'nivel']]]],
+          'circle-color': ['match', ['get', 'nivel'], 1, moderado, 2, lento, 3, parado, temaRef.current.c.success],
+          'circle-opacity': 0.9,
+          'circle-stroke-width': 1,
+          'circle-stroke-color': paleta().fundo,
+        },
+      },
+      map.getLayer('rota-alt') ? 'rota-alt' : undefined,
+    );
   }
 
   /** Cria (ou recria, depois de trocar o estilo) as camadas da rota. `animar`: desenha e solta o cometa. */
@@ -369,12 +411,20 @@ const MapaVetorial = forwardRef(({ onFalha }: { onFalha?: () => void }, ref) => 
           } else if (rotaRef.current) {
             desenharRota(false); // trocar o estilo apaga as camadas da rota: recria sem animar
           }
+          desenharPontos();
         };
         map.on('load', () => {
           revelar();
           pronto();
         });
         map.on('style.load', pronto);
+        // Toque num ponto do "Trânsito agora": via e nível, como texto (o nome vem do OSM).
+        map.on('click', 'transito-agora', (e) => {
+          const f = e.features?.[0];
+          const coords = (f?.geometry as { coordinates?: [number, number] } | undefined)?.coordinates;
+          if (!f || !coords) return;
+          new ml.Popup({ closeButton: false, offset: 8 }).setLngLat(coords).setText(String(f.properties?.rotulo ?? '')).addTo(map);
+        });
       } catch (e) {
         console.warn('[Routify] mapa vetorial indisponível, voltando ao Leaflet', e);
         if (vivo) onFalha?.();
@@ -402,6 +452,7 @@ const MapaVetorial = forwardRef(({ onFalha }: { onFalha?: () => void }, ref) => 
   useEffect(() => {
     vinhetaRef.current?.style.setProperty('--rt-vinheta', mapPalettes[mapStyle === 'street' ? 'claro' : 'escuro'].vinheta);
     if (rotaRef.current) desenharRota(false);
+    desenharPontos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [theme.mode, mapStyle]);
 
@@ -456,6 +507,11 @@ const MapaVetorial = forwardRef(({ onFalha }: { onFalha?: () => void }, ref) => 
         marcadorUsuario(lat, lon);
         onLocation?.(lat, lon);
       }, onError);
+    },
+
+    showTrafficPoints(pontos: PontoTransito[] | null) {
+      pontosRef.current = pontos;
+      desenharPontos();
     },
 
     stopFollow() {
