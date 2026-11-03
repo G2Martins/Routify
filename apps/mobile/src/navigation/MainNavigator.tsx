@@ -80,8 +80,8 @@ function TabIcon({ focused, routeName }: { focused: boolean; routeName: string }
   return (
     <View
       style={{
-        width: 52,
-        height: 30,
+        width: 48,
+        height: 28,
         borderRadius: theme.radius.pill,
         alignItems: 'center',
         justifyContent: 'center',
@@ -108,11 +108,14 @@ function MainTabsMobile() {
           backgroundColor: c.surface,
           borderTopColor: c.border,
           borderTopWidth: 1,
-          height: 64 + insets.bottom,
-          paddingTop: 8,
-          paddingBottom: 8 + insets.bottom,
+          // O item da biblioteca tem 5 px de respiro fixo por lado: 10 + ícone 28 + 2 + rótulo 14 = 54 px úteis. Com 50,
+          // o rótulo ficava com 9 px e saía cortado ao meio no celular (2026-11-03). 66 - 4 - 6 = 56.
+          height: 66 + insets.bottom,
+          paddingTop: 4,
+          paddingBottom: 6 + insets.bottom,
         },
-        tabBarLabelStyle: { fontFamily: theme.fonts.sansMedium, fontSize: 11, marginTop: 2 },
+        tabBarIconStyle: { height: 28 },
+        tabBarLabelStyle: { fontFamily: theme.fonts.sansMedium, fontSize: 11, lineHeight: 14, marginTop: 2 },
       })}
     >
       {tabsCommonScreens()}

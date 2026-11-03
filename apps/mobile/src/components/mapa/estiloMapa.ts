@@ -102,7 +102,7 @@ function predios3d(cor: string): LayerSpecification {
  * Estilo final para o modo escolhido. "satellite" = imagem da Esri com só os nomes do vetor por
  * cima (híbrido); "dark"/"street" = vetor recolorido. Não altera a base em cache.
  */
-export function montarEstilo(estiloBase: StyleSpecification, modo: MapStyle): StyleSpecification {
+export function montarEstilo(estiloBase: StyleSpecification, modo: MapStyle, com3d = true): StyleSpecification {
   const satelite = modo === 'satellite';
   const p = mapPalettes[modo === 'street' ? 'claro' : 'escuro'];
   const camadas: LayerSpecification[] = [];
@@ -123,7 +123,7 @@ export function montarEstilo(estiloBase: StyleSpecification, modo: MapStyle): St
       if (nova) Object.assign(camada.paint, nova);
     }
     camadas.push(camada);
-    if (!satelite && camada.id === 'building') camadas.push(predios3d(p.predio3d));
+    if (com3d && !satelite && camada.id === 'building') camadas.push(predios3d(p.predio3d));
   }
   const fontes = Object.fromEntries(
     Object.entries(estiloBase.sources).map(([id, f]) => [id, { ...f, attribution: '' }]),

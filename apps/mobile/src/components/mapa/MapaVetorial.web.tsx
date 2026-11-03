@@ -28,10 +28,17 @@ const TRANSP = 'rgba(0,0,0,0)';
 const DESENHO_MS = 1400;
 const COMETA_MS = 2400;
 const COMETA_PAUSA_MS = 1600;
+const COMETA_VOLTAS = 2;
+
+// Celular e tablet (tela estreita ou toque): o mapa é o que mais pesa no quadro. Arrastando no celular emulado (CPU 4×,
+// DPR 3) ficava em ~17 fps. Aqui: densidade de pixel limitada a 2× (DPR 3 desenha 2,25× mais pixels), sem prédios 3D,
+// sem a vinheta de tela cheia e com o pulso do marcador terminando.
+const MEDIA_LEVE = '(max-width: 820px), (pointer: coarse)';
+const LEVE = typeof window !== 'undefined' && !!window.matchMedia?.(MEDIA_LEVE).matches;
 
 const ANIM_CSS = `
 .rt-mapa-entra{animation:rtEntra .76s cubic-bezier(.16,1,.3,1) both}
-@keyframes rtEntra{from{opacity:0;filter:blur(10px) saturate(.6);transform:scale(1.015)}to{opacity:1;filter:none;transform:none}}
+@keyframes rtEntra{from{opacity:0;transform:scale(1.015)}to{opacity:1;transform:none}}
 .rt-ponto{position:relative;width:18px;height:18px}
 .rt-ponto i{position:absolute;inset:0;border-radius:50%;background:var(--rt-cor);border:3px solid var(--rt-borda);box-shadow:0 2px 10px var(--rt-sombra);box-sizing:border-box}
 .rt-ponto::before{content:'';position:absolute;inset:0;border-radius:50%;background:var(--rt-cor);animation:rtPulso 2.4s cubic-bezier(.16,1,.3,1) infinite}
@@ -41,6 +48,7 @@ const ANIM_CSS = `
 @keyframes rtCai{from{transform:translateY(-26px) scale(.55);opacity:0}to{transform:none;opacity:1}}
 .rt-vinheta{position:absolute;inset:0;pointer-events:none;background:radial-gradient(130% 95% at 50% 45%,transparent 58%,var(--rt-vinheta) 100%)}
 .maplibregl-ctrl-attrib,.maplibregl-ctrl-attrib a{font-family:Geist_500Medium,system-ui,sans-serif;font-size:10px}
+@media ${MEDIA_LEVE}{.rt-vinheta{display:none}.rt-ponto::before{animation-iteration-count:3}}
 @media (prefers-reduced-motion: reduce){.rt-mapa-entra,.rt-ponto::before,.rt-pino{animation:none}.rt-mapa-entra{opacity:1!important}}
 `;
 
@@ -296,11 +304,16 @@ const MapaVetorial = forwardRef(({ onFalha }: { onFalha?: () => void }, ref) => 
     quadros.current.desenho = requestAnimationFrame(passo);
   }
 
-  /** Um ponto de luz percorre a rota de tempos em tempos (pausa com a aba escondida). */
+  /**
+   * Um ponto de luz percorre a rota COMETA_VOLTAS vezes depois do desenho (pausa com a aba escondida). Cada quadro
+   * refaz a fonte do mapa (setData): em loop eterno o mapa nunca parava de redesenhar com uma rota aberta e o celular
+   * perdia quadro ao arrastar. No celular, nenhuma passada.
+   */
   function soltarCometa() {
     const rota = rotaRef.current;
-    if (!rota || reduzirMovimento() || rota.coords.length < 2) return;
+    if (!rota || LEVE || reduzirMovimento() || rota.coords.length < 2) return;
     const acc = acumulado(rota.coords);
+    let voltas = COMETA_VOLTAS;
     const volta = () => {
       const map = mapRef.current;
       const fonte = map?.getSource('rota-cometa') as GeoJSONSource | undefined;
@@ -317,7 +330,7 @@ const MapaVetorial = forwardRef(({ onFalha }: { onFalha?: () => void }, ref) => 
         const ponto = pontoEm(rota.coords, acc, easeInOut(f));
         fonteAgora.setData(colecao(f < 1 ? [{ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: ponto } }] : []));
         if (f < 1) quadros.current.cometa = requestAnimationFrame(passo);
-        else quadros.current.espera = setTimeout(volta, COMETA_PAUSA_MS);
+        else if (--voltas > 0) quadros.current.espera = setTimeout(volta, COMETA_PAUSA_MS);
       };
       quadros.current.cometa = requestAnimationFrame(passo);
     };
@@ -388,7 +401,8 @@ const MapaVetorial = forwardRef(({ onFalha }: { onFalha?: () => void }, ref) => 
         baseRef.current = base;
         const map = new ml.Map({
           container: containerRef.current,
-          style: montarEstilo(base, temaRef.current.mapStyle),
+          style: montarEstilo(base, temaRef.current.mapStyle, !LEVE),
+          pixelRatio: Math.min(window.devicePixelRatio || 1, LEVE ? 2 : 3),
           center: CENTRO,
           zoom: 12.4,
           minZoom: 8.5,
@@ -445,7 +459,7 @@ const MapaVetorial = forwardRef(({ onFalha }: { onFalha?: () => void }, ref) => 
     const map = mapRef.current;
     if (!map || !baseRef.current) return;
     estiloPronto.current = false;
-    map.setStyle(montarEstilo(baseRef.current, mapStyle));
+    map.setStyle(montarEstilo(baseRef.current, mapStyle, !LEVE));
   }, [mapStyle]);
 
   // Vinheta e cores da rota acompanham o tema.
