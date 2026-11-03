@@ -5,7 +5,7 @@ A LIA foi treinada com `velocidade_livre` = freeFlowSpeed da TomTom de cada pont
 (é feature e é o denominador do alvo). Na rota, a API usava o limite de via do
 OSM (`speed_kph`) no lugar — mais alto, deixando o tempo otimista. Este artefato
 dá à API a mesma velocidade livre do treino para as arestas do próprio trecho
-monitorado (flag VEL_LIVRE_TOMTOM=1 na API).
+monitorado (a API carrega na subida com VEL_LIVRE_CALIBRADA=1, o padrão).
 
 Uso:  python free_flow_speeds.py [--parquet artifacts/backup_20260923_historico_trafego.parquet]
 """

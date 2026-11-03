@@ -54,7 +54,7 @@ PALAVRAS_COTA = ('quota', 'over rate', 'limit exceeded', 'insufficient', 'credit
 
 # Teto global de chamadas por minuto. Sem auth na API ainda, é o que impede um
 # cliente hostil de queimar a cota do pool inteiro.
-MAX_CHAMADAS_MIN = int(os.getenv('TOMTOM_MAX_CHAMADAS_MIN', '120'))
+MAX_CHAMADAS_MIN = 120  # o painel ADM ajusta em runtime (tomtom_orcamento_min, config_runtime)
 TIMEOUT_S = 4.0
 TENTATIVAS = 3
 
@@ -440,13 +440,6 @@ class TomTomClient:
 # Classificações que definem o lugar (a TomTom lista várias por POI).
 CODIGOS_MARCO = {'SHOPPING_CENTER', 'AIRPORT', 'COLLEGE_UNIVERSITY', 'SCHOOL', 'HOSPITAL_POLYCLINIC',
                  'RAILWAY_STATION', 'PUBLIC_TRANSPORT_STOP', 'STADIUM', 'GOVERNMENT_OFFICE', 'MUSEUM'}
-
-
-def criar_cliente() -> TomTomClient:
-    chaves = [] if os.getenv('TOMTOM_ATIVO', '1') == '0' else carregar_chaves()
-    logger.info(f"TomTom sob demanda: {len(chaves)} chave(s)"
-                + ('' if chaves else ' — modo degradado (só LIA)'))
-    return TomTomClient(chaves)
 
 
 # ---------------------------------------------------------------------------

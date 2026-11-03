@@ -23,7 +23,7 @@ const dev = process.env.NODE_ENV !== 'production';
 const tiles = 'https://tiles.openfreemap.org https://tile.openstreetmap.org https://server.arcgisonline.com';
 const jsdelivr = 'https://cdn.jsdelivr.net';
 const iconify = 'https://api.iconify.design https://api.simplesvg.com https://api.unisvg.com';
-const ipGeo = 'https://ipapi.co https://ipwho.is https://api.bigdatacloud.net';
+const ipGeo = 'https://ipapi.co';
 
 // CSP no padrão do Valerium: começa em Report-Only (não quebra nada) e vira
 // bloqueio com CSP_ENFORCE=1 depois de conferir o console em produção.

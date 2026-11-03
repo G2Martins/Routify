@@ -35,8 +35,8 @@ como serviço `routify-collector` (ver [`deploy/README.md`](deploy/README.md)).
 * **Comparador LIA × provedores** (`comparar_provedores.py`): 8 rodadas por dia (timer `routify-comparador`),
   16 corredores fixos e 14 viagens entre pontos famosos (`CORREDORES_POI`, prefixo `poi-`, coordenadas do OSM em
   `pontos_df.json`). Pede a mesma viagem à LIA de produção (127.0.0.1, sem entrar na captura de uso), à TomTom
-  com trânsito (referência) e ao OSRM (sem trânsito); Mapbox e OpenRouteService entram sozinhos se houver
-  `MAPBOX_TOKEN`/`ORS_API_KEY` no `.env`. Grava em `comparacao_provedores` (painel `/admin/provedores`). Erro HTTP
+  com trânsito (referência) e ao OSRM (sem trânsito); o Mapbox entra sozinho se houver
+  `MAPBOX_TOKEN` no `.env`. Grava em `comparacao_provedores` (painel `/admin/provedores`). Erro HTTP
   vira só o status: a URL da TomTom traz a chave. Em `detalhes` vão os ETAs só pelo histórico, o equivalente da LIA
   nos provedores: `historico_s` da TomTom (`computeTravelTimeFor=all`, na rota dela e no trajeto da LIA) e `tipico_s`
   do Mapbox (`duration_typical`). Até 2026-11-02 a linha `tomtom` saía sem `sem_transito_s` (faltava esse parâmetro).
@@ -94,7 +94,7 @@ Encerrar com `Ctrl + C`.
 | `COLETOR_FASE3` | `1` liga a Fase 3 | `0` |
 | `TOMTOM_KEYS_FILE` | outro arquivo de chaves (subconjunto do pool) | `config/tomtom_keys.json` |
 | `ROUTIFY_API_INTERNA` | API que o comparador consulta | `http://127.0.0.1:8000` |
-| `MAPBOX_TOKEN` / `ORS_API_KEY` | ligam Mapbox (trânsito ao vivo) e OpenRouteService no comparador | ausentes |
+| `MAPBOX_TOKEN` | liga o Mapbox (trânsito ao vivo) no comparador | ausente |
 
 ## 🚨 Troubleshooting
 

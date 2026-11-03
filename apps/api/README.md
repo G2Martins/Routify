@@ -43,6 +43,7 @@ apps/api/
 │   ├── route.py        ← POST /route (A* LIA + fusão TomTom)
 │   ├── search.py       ← GET /search/places (autocomplete de endereços)
 │   ├── eventos.py      ← POST /eventos (eventos do app, JWT obrigatório)
+│   ├── mfa.py          ← POST /mfa/codigos-recuperacao e /mfa/recuperar (verificação em duas etapas)
 │   └── admin.py        ← /admin/tomtom (estado do pool, testar chave) — só admin
 └── requirements.txt
 ```
@@ -104,8 +105,6 @@ Também depende de `../services/collector/config/.env` (`SUPABASE_URL`/`SUPABASE
 |---|---|---|
 | `TOMTOM_API_KEYS` | — | chaves separadas por vírgula (deploy/secrets). Tem precedência sobre o arquivo |
 | `TOMTOM_KEYS_FILE` | `../services/collector/config/tomtom_keys.json` | mesmo formato do coletor (`{"tomtom_keys": [{"id", "key"}]}`) |
-| `TOMTOM_MAX_CHAMADAS_MIN` | `120` | teto global de chamadas por minuto (proteção de cota) |
-| `TOMTOM_ATIVO` | `1` | `0` desliga a integração |
 
 | Variável | Padrão | Uso |
 |---|---|---|
@@ -126,6 +125,8 @@ Testes: `.venv/Scripts/python -m pytest -q` (o HTTP da TomTom é simulado; nenhu
 | `/route` | 20/min por IP |
 | `/search/places` | 90/min por IP |
 | `/eventos` | 60/min por usuário |
+| `/mfa/codigos-recuperacao` | 5/h por usuário |
+| `/mfa/recuperar` | 5 a cada 15 min por usuário e 20 por IP |
 | `/admin/tomtom` | 60/min por admin |
 | teste de chave | 6/min por admin |
 
@@ -191,6 +192,18 @@ Eventos do app para a análise de uso. Exige JWT e aceita no máximo 60 por minu
 - `dados` = dicionário plano, com até 12 chaves escalares. Chaves de coordenada são recusadas.
 
 Responde `202`.
+
+### `POST /mfa/codigos-recuperacao` · `POST /mfa/recuperar`
+Códigos de recuperação da verificação em duas etapas (o Supabase Auth não tem os seus).
+- **Gerar** exige JWT de sessão **aal2** e um fator TOTP verificado (só a senha não cria código para desligar o 2º
+  fator). Devolve 10 códigos `XXXX-XXXX-XXXX-XXXX` (80 bits cada), uma única vez; os anteriores deixam de valer.
+- **Recuperar** aceita a sessão aal1 (senha certa) + `{"codigo": "…"}` (corpo estrito; hífens e minúsculas tanto
+  faz). Código válido → remove os fatores TOTP pela API admin do Auth, apaga os códigos restantes e responde
+  `{"ok": true, "fatores_removidos": n}`. O Supabase encerra as sessões da conta: o app pede para entrar de novo
+  só com a senha. Errado ou já usado → 400.
+- O banco guarda só `sha256(user_id:código)` em `mfa_codigos_recuperacao` (RLS sem policy; migration
+  `20261102030000_mfa_codigos_recuperacao.sql`). Uso único pelo `UPDATE … WHERE usado_em IS NULL`. Se o Auth falhar
+  depois de aceitar o código, ele volta a valer. Geração, uso e tentativa recusada vão para `admin_auditoria`, sem IP.
 
 ### `GET /metrics`
 Métricas reais do modelo (usadas pelo `DashboardScreen` do app): RMSE de validação cruzada, número de vias monitoradas, importância de features.

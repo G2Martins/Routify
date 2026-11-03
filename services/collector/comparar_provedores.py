@@ -12,8 +12,7 @@ de cada provedor coincide com a rota da TomTom (a até 40 m, nos dois sentidos).
 
     cd services/collector && .venv/bin/python comparar_provedores.py [--sem-gravar]
 
-Provedores opcionais entram sozinhos quando a chave existe no config/.env:
-ORS_API_KEY (OpenRouteService), MAPBOX_TOKEN (Mapbox driving-traffic).
+O Mapbox (driving-traffic) entra sozinho quando MAPBOX_TOKEN existe no config/.env.
 """
 import argparse
 import json
@@ -148,18 +147,6 @@ def osrm(o, d, sessao=requests):
                       traco=_traco_geojson((rota.get('geometry') or {}).get('coordinates')))
 
 
-def openrouteservice(o, d, chave, sessao=requests):
-    """OpenRouteService (chave grátis): perfil driving-car, sem trânsito ao vivo."""
-    r = sessao.get('https://api.openrouteservice.org/v2/directions/driving-car',
-                   params={'start': f'{o[1]},{o[0]}', 'end': f'{d[1]},{d[0]}'},
-                   headers={**UA, 'Authorization': chave}, timeout=TIMEOUT)
-    r.raise_for_status()
-    f = r.json()['features'][0]
-    s = f['properties']['summary']
-    return _resultado(s['duration'], s['distance'] / 1000,
-                      traco=_traco_geojson((f.get('geometry') or {}).get('coordinates')))
-
-
 def mapbox(o, d, token, sessao=requests):
     """Mapbox Directions, perfil driving-traffic (trânsito ao vivo). Token público (pk.) serve."""
     url = f'https://api.mapbox.com/directions/v5/mapbox/driving-traffic/{o[1]},{o[0]};{d[1]},{d[0]}'
@@ -225,7 +212,7 @@ def routify(o, d, sessao=requests) -> dict:
 
 
 COM_TRANSITO = {'lia': True, 'routify': True, 'tomtom_mesmo_trajeto': True, 'tomtom': True,
-                'mapbox': True, 'osrm': False, 'openrouteservice': False}
+                'mapbox': True, 'osrm': False}
 
 
 def _erro(e: Exception) -> str:
@@ -242,8 +229,6 @@ def provedores() -> dict:
     p = {'osrm': osrm}
     if chaves:
         p['tomtom'] = lambda o, d, s: tomtom(o, d, random.choice(chaves), s)
-    if os.getenv('ORS_API_KEY'):
-        p['openrouteservice'] = lambda o, d, s: openrouteservice(o, d, os.environ['ORS_API_KEY'], s)
     if os.getenv('MAPBOX_TOKEN'):
         p['mapbox'] = lambda o, d, s: mapbox(o, d, os.environ['MAPBOX_TOKEN'], s)
     return p
@@ -324,7 +309,7 @@ def main():
     ap.add_argument('--sem-gravar', action='store_true', help='só mostra, não grava no Supabase')
     ap.add_argument('--corredores', nargs='*', help='ids de CORREDORES ou CORREDORES_POI (padrão: todos)')
     args = ap.parse_args()
-    # Chaves opcionais (MAPBOX_TOKEN, ORS_API_KEY) moram no mesmo .env do coletor.
+    # A chave opcional (MAPBOX_TOKEN) mora no mesmo .env do coletor.
     from dotenv import load_dotenv
     load_dotenv(os.path.join(AQUI, 'config', '.env'))
     escolhidos = [c for c in TODOS if not args.corredores or c[0] in args.corredores]

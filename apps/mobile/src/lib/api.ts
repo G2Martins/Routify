@@ -50,3 +50,19 @@ export function enviarEvento(
     }
   })();
 }
+
+/** POST na API com o JWT da sessão. Devolve o status e o JSON (null sem corpo); erro de rede sobe. */
+export async function postApi<T = unknown>(caminho: string, corpo?: unknown): Promise<{ status: number; dados: T | null }> {
+  const r = await fetch(`${API_URL}${caminho}`, {
+    method: 'POST',
+    headers: await apiHeaders(corpo !== undefined),
+    body: corpo === undefined ? undefined : JSON.stringify(corpo),
+  });
+  let dados: T | null = null;
+  try {
+    dados = (await r.json()) as T;
+  } catch {
+    // resposta sem JSON
+  }
+  return { status: r.status, dados };
+}

@@ -52,6 +52,7 @@ TAGS = [
     {"name": "Autocomplete", "description": "Busca de endereços: base local do DF (malha + regiões/bairros) e TomTom Search em paralelo, ranqueadas juntas; Nominatim só como último recurso."},
     {"name": "LIA", "description": "Inferência do modelo para um trecho (debug e dashboards)."},
     {"name": "Uso", "description": "Eventos do app para a análise de uso do painel ADM."},
+    {"name": "Conta", "description": "Segurança da própria conta: códigos de recuperação da verificação em duas etapas."},
     {"name": "Sistema", "description": "Saúde da API e métricas do modelo carregado."},
 ]
 

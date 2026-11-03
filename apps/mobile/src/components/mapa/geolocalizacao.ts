@@ -5,31 +5,6 @@
  * rede (baixa precisão, PC sem GPS) e, por último, a posição aproximada por IP (só para centralizar).
  */
 
-export function contextoSeguro(): boolean {
-  if (typeof window === 'undefined') return false;
-  return window.isSecureContext || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-}
-
-const nomeErro = (err: GeolocationPositionError) =>
-  err.code === err.PERMISSION_DENIED
-    ? 'PERMISSION_DENIED'
-    : err.code === err.POSITION_UNAVAILABLE
-    ? 'POSITION_UNAVAILABLE'
-    : err.code === err.TIMEOUT
-    ? 'TIMEOUT'
-    : `UNKNOWN(${err.code})`;
-
-async function registrarFalha(rotulo: string, err: GeolocationPositionError) {
-  let permissao = 'n/a';
-  try {
-    const perm = await (navigator as any).permissions?.query?.({ name: 'geolocation' });
-    permissao = perm?.state ?? 'n/a';
-  } catch {
-    // permissions API indisponível
-  }
-  console.warn(`[Routify] geo ${rotulo} FAIL`, { code: err.code, name: nomeErro(err), message: err.message, permission: permissao });
-}
-
 /**
  * Centraliza em quem usa. `colocar(lat, lon, zoom)` recebe a posição; `onError` recebe a mensagem
  * para o usuário quando nada funcionou ou a posição é aproximada.
@@ -39,7 +14,7 @@ export function localizarUsuario(colocar: (lat: number, lon: number, zoom: numbe
     onError?.('Geolocalização não suportada neste navegador.');
     return;
   }
-  if (!contextoSeguro()) {
+  if (!window.isSecureContext) {
     onError?.('Geolocalização requer HTTPS ou localhost. Acesse via https:// ou http://localhost:8081');
     return;
   }
@@ -58,20 +33,19 @@ export function localizarUsuario(colocar: (lat: number, lon: number, zoom: numbe
 
   const porIp = async () => {
     // CORS liberado; precisão de cidade, só para centralizar.
-    for (const url of ['https://ipapi.co/json/', 'https://ipwho.is/', 'https://api.bigdatacloud.net/data/reverse-geocode-client?localityLanguage=pt']) {
-      try {
-        const r = await fetch(url);
-        if (!r.ok) continue;
-        const j = await r.json();
-        const lat = Number(j.latitude ?? j.lat);
-        const lon = Number(j.longitude ?? j.lon);
-        if (Number.isFinite(lat) && Number.isFinite(lon)) {
-          colocar(lat, lon, 12);
-          return true;
-        }
-      } catch {
-        // próximo provedor
+    // ponytail: um provedor só; se o ipapi.co cair ou limitar, volte com ipwho.is e api.bigdatacloud.net (CSP em apps/admin/next.config.ts).
+    try {
+      const r = await fetch('https://ipapi.co/json/');
+      if (!r.ok) return false;
+      const j = await r.json();
+      const lat = parseFloat(j.latitude);
+      const lon = parseFloat(j.longitude);
+      if (Number.isFinite(lat) && Number.isFinite(lon)) {
+        colocar(lat, lon, 12);
+        return true;
       }
+    } catch {
+      // sem rede ou bloqueado: fica sem posição por IP
     }
     return false;
   };
@@ -82,7 +56,6 @@ export function localizarUsuario(colocar: (lat: number, lon: number, zoom: numbe
       colocar(latitude, longitude, 15);
       return;
     } catch (err) {
-      await registrarFalha('HIGH', err as GeolocationPositionError);
       const codigo = (err as GeolocationPositionError).code;
       if (codigo === 1) {
         onError?.('Permissão negada. Cadeado da URL → permitir localização.');
@@ -102,8 +75,8 @@ export function localizarUsuario(colocar: (lat: number, lon: number, zoom: numbe
       const { latitude, longitude } = (await tentar(false)).coords;
       colocar(latitude, longitude, 14);
       return;
-    } catch (err) {
-      await registrarFalha('LOW', err as GeolocationPositionError);
+    } catch {
+      // segue para o IP
     }
     if (await porIp()) {
       onError?.('Localização aproximada por IP (PC sem GPS).');
@@ -122,7 +95,7 @@ export function acompanhar(
     onError?.('Geolocalização indisponível.');
     return null;
   }
-  if (!contextoSeguro()) {
+  if (!window.isSecureContext) {
     onError?.('Geolocalização requer HTTPS ou localhost.');
     return null;
   }

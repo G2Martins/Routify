@@ -157,7 +157,7 @@ Cascata de fallback em [src/components/mapa/geolocalizacao.ts](src/components/ma
 
 1. **HIGH accuracy** (GPS, timeout 8s — 4s no Edge)
 2. **LOW accuracy** (Wi-Fi/network, timeout 12s — pulado no Edge se HIGH falhar com `POSITION_UNAVAILABLE`)
-3. **IP geolocation** (`ipapi.co`, `ipwho.is`, `bigdatacloud.net` — precisão de cidade)
+3. **IP geolocation** (`ipapi.co` — precisão de cidade)
 
 Edge requer `lfsvc` ativo (Windows). Chrome/Firefox/Comet usam Google Location API próprio.
 

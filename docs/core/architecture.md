@@ -98,7 +98,7 @@ sequenceDiagram
 | Cota esgotada | 403/429 com texto de cota, ou **3 respostas 429 seguidas** na mesma chave/serviço | cooldown de 24 h (janela rolante; a cota free é mensal por API, então vira uma re-sondagem diária) |
 | Chave inválida | 401/403 sem texto de cota | cooldown de 10 min |
 | Erro de rede / 5xx | exceção httpx / status ≥ 500 | não penaliza a chave; a chamada falha e a rota degrada |
-| Abuso | mais de `TOMTOM_MAX_CHAMADAS_MIN` chamadas/min (padrão 120) | corta as chamadas até a janela liberar |
+| Abuso | mais de 120 chamadas/min (orçamento global; o painel ADM ajusta) | corta as chamadas até a janela liberar |
 
 Por que o cooldown é **por serviço**: a cota free da TomTom é mensal e separada por API (Flow 20 mil, Incidents 2,5 mil, Search 2,5 mil, Routing 20 mil por chave, segundo a página de pricing em set/2026). Esgotar Incidents numa chave não tira o Flow dela. O valor da chave nunca aparece em log, só o id.
 

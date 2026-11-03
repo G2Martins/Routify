@@ -87,28 +87,38 @@ def aal_do_token(token: str) -> str:
         return 'aal1'
 
 
-async def exigir_admin(request: Request) -> str:
-    """Dependência dos endpoints /admin: valida o JWT no Supabase Auth a cada
-    chamada (sem cache — um admin rebaixado perde o acesso na hora) e exige
-    app_metadata.role = admin. Devolve o user_id."""
+async def usuario_autenticado(request: Request):
+    """Valida o JWT no Supabase Auth a cada chamada (sem cache: conta rebaixada ou sessão encerrada
+    perde o acesso na hora) e devolve (usuário, token). Base do /admin e das ações da própria conta (MFA)."""
     sb = getattr(request.app.state, 'supabase', None)
     auth = request.headers.get('authorization') or ''
     if sb is None:
         raise HTTPException(status_code=503, detail='Autenticação indisponível.')
     if not auth.lower().startswith('bearer ') or len(auth) > 4200:
         raise HTTPException(status_code=401, detail='Login necessário.')
+    token = auth[7:].strip()
     try:
-        resp = await asyncio.to_thread(sb.auth.get_user, auth[7:].strip())
+        resp = await asyncio.to_thread(sb.auth.get_user, token)
         user = resp.user if resp is not None else None
     except Exception:
         user = None
     if user is None:
         raise HTTPException(status_code=401, detail='Sessão inválida ou expirada.')
+    return user, token
+
+
+def tem_mfa(user) -> bool:
+    """A conta tem um 2º fator (TOTP) verificado."""
+    return any(getattr(f, 'status', None) == 'verified' for f in (getattr(user, 'factors', None) or []))
+
+
+async def exigir_admin(request: Request) -> str:
+    """Dependência dos endpoints /admin: exige app_metadata.role = admin. Devolve o user_id."""
+    user, token = await usuario_autenticado(request)
     if (getattr(user, 'app_metadata', None) or {}).get('role') != 'admin':
         raise HTTPException(status_code=403, detail='Acesso restrito a administradores.')
     # Quem ativou a verificação em duas etapas precisa de sessão aal2 (mesma regra do aal_ok() no banco).
-    if any(getattr(f, 'status', None) == 'verified' for f in (getattr(user, 'factors', None) or [])) \
-            and aal_do_token(auth[7:].strip()) != 'aal2':
+    if tem_mfa(user) and aal_do_token(token) != 'aal2':
         raise HTTPException(status_code=403, detail='Confirme o código da verificação em duas etapas.')
     request.state.user_id = str(user.id)
     return str(user.id)

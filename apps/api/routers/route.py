@@ -366,7 +366,7 @@ def assign_lia_weights(model, encoder, profiles, G: nx.MultiDiGraph,
             fonte = 'model' if dist < DIST_VIA_PROPRIA_M else 'transfer'
             if fonte == 'model' and vel_tomtom and via in vel_tomtom:
                 # Trecho monitorado: mesma velocidade livre do treino (TomTom), não
-                # o limite de via do OSM (VEL_LIVRE_TOMTOM=1; ver ml/free_flow_speeds.py).
+                # o limite de via do OSM (VEL_LIVRE_CALIBRADA, padrão; ver ml/free_flow_speeds.py).
                 vel_livre = vel_tomtom[via]
             linha = tpl.copy()
             linha[IDX_VEL_LIVRE] = vel_livre

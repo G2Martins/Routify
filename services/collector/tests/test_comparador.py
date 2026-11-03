@@ -62,7 +62,6 @@ def test_fora_da_malha_a_lia_fica_sem_tempo_e_sem_referencia_de_trajeto():
 def test_cada_provedor_externo_le_tempo_e_distancia():
     s = _Sessao({
         'project-osrm': _Resp({'routes': [{'duration': 1200.44, 'distance': 20500}]}),
-        'openrouteservice': _Resp({'features': [{'properties': {'summary': {'duration': 1250, 'distance': 20800}}}]}),
         'mapbox': _Resp({'routes': [{'duration': 1580, 'distance': 21100, 'duration_typical': 1500}]}),
         'tomtom': _Resp({'routes': [{'summary': {'travelTimeInSeconds': 1600, 'lengthInMeters': 21000,
                                                  'noTrafficTravelTimeInSeconds': 1250, 'trafficDelayInSeconds': 350,
@@ -70,7 +69,6 @@ def test_cada_provedor_externo_le_tempo_e_distancia():
     })
     o, d = (-15.8, -48.0), (-15.79, -47.88)
     assert cp.osrm(o, d, s)['tempo_s'] == 1200.4 and cp.osrm(o, d, s)['distancia_km'] == 20.5
-    assert cp.openrouteservice(o, d, 'k', s)['distancia_km'] == 20.8
     mb = cp.mapbox(o, d, 't', s)
     assert mb['tempo_s'] == 1580 and mb['detalhes'] == {'tipico_s': 1500}
     tt = cp.tomtom(o, d, 'k', s)
@@ -102,7 +100,6 @@ def test_rodada_gera_uma_linha_por_provedor_com_a_marca_de_transito():
 
 def test_provedores_opcionais_so_entram_com_chave(monkeypatch):
     monkeypatch.delenv('MAPBOX_TOKEN', raising=False)
-    monkeypatch.delenv('ORS_API_KEY', raising=False)
     assert set(cp.provedores()) == {'osrm', 'tomtom'}
     monkeypatch.setenv('MAPBOX_TOKEN', 't')
     assert 'mapbox' in cp.provedores()

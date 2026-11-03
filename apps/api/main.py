@@ -36,7 +36,7 @@ import recency_cache  # noqa: E402
 import tomtom  # noqa: E402
 import trajeto  # noqa: E402
 import usage  # noqa: E402
-from routers import admin, eventos, predict, route, search  # noqa: E402
+from routers import admin, eventos, mfa, predict, route, search  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -312,12 +312,10 @@ async def lifespan(app: FastAPI):
         # Velocidade livre na escala da TomTom (a mesma do treino da LIA): a exata nos
         # trechos monitorados e um fator único TomTom/OSM no resto (graph_enrichment).
         # Padrão desde 2026-11-02; VEL_LIVRE_CALIBRADA=0 volta ao limite do OSM (Fase 3).
-        calibrada = os.getenv('VEL_LIVRE_CALIBRADA', '1') == '1'
-        if calibrada or os.getenv('VEL_LIVRE_TOMTOM', '0') == '1':
+        if os.getenv('VEL_LIVRE_CALIBRADA', '1') == '1':
             with open(os.path.join(MODELS_DIR, 'velocidade_livre_tomtom.json'), encoding='utf-8') as f:
                 G.graph['vel_livre_tomtom'] = {int(k): float(v) for k, v in json.load(f)['pontos'].items()}
             logging.info(f"Velocidade livre da TomTom em {len(G.graph['vel_livre_tomtom'])} trechos monitorados")
-        if calibrada:
             fatores_grupo = None
             if os.getenv('SEM_ATRASO_CALIBRADO', '0') != '1':  # modo calibração: base = fator único
                 caminho_cal = os.path.join(MODELS_DIR, 'semaforos_calibracao.json')
@@ -372,7 +370,10 @@ async def lifespan(app: FastAPI):
         app.state.combustivel = combustivel.carregar(os.path.join(MODELS_DIR, 'consumo_combustivel.json'))
         app.state.transfer_confidence = transfer_confidence
         # TomTom sob demanda (tomtom.py): sem chave, a API segue só com a LIA.
-        app.state.tomtom = tomtom.criar_cliente()
+        chaves_tomtom = tomtom.carregar_chaves()
+        logging.info(f"TomTom sob demanda: {len(chaves_tomtom)} chave(s)"
+                     + ('' if chaves_tomtom else ' — modo degradado (só LIA)'))
+        app.state.tomtom = tomtom.TomTomClient(chaves_tomtom)
         # Flags do painel ADM (kill switch, orçamento, chaves pausadas…) — config_runtime.py
         app.state.config = config_runtime.ConfigRuntime()
         await app.state.config.atualizar(sb, app.state.tomtom)
@@ -454,20 +455,12 @@ app.include_router(route.router)
 app.include_router(search.router)
 app.include_router(eventos.router)
 app.include_router(admin.router)
+app.include_router(mfa.router)
 
 
-def _cv_metric(meta: dict, nome_2_0: str, nome_1_0: str | None = None):
-    """Lê uma métrica de CV aceitando os dois formatos de metadata.
-
-    LIA 1.0 gravava na raiz (cv_rmse_medio_seg); a 2.0 aninha sob 'cv'
-    (cv.modelo_rmse_seg). Aceitar ambos evita que o dashboard fique vazio ao
-    trocar LIA_VERSION entre as versões. nome_1_0=None para métricas que só
-    existem na 2.0.
-    """
-    cv = meta.get("cv")
-    if isinstance(cv, dict) and cv.get(nome_2_0) is not None:
-        return cv[nome_2_0]
-    return meta.get(nome_1_0) if nome_1_0 else None
+def _cv_metric(meta: dict, nome: str):
+    """Métrica de CV do metadata, aninhada sob 'cv' (cv.modelo_rmse_seg); None se a versão não a tem."""
+    return (meta.get("cv") or {}).get(nome)
 
 
 @app.get(
@@ -494,7 +487,7 @@ async def health():
     return {
         "status": "ok",
         "modelo_ativo": app.state.model_version,
-        "cv_rmse_seg": _cv_metric(meta, "modelo_rmse_seg", "cv_rmse_medio_seg"),
+        "cv_rmse_seg": _cv_metric(meta, "modelo_rmse_seg"),
         "dados_treino": meta.get("dados_treino"),
         "total_amostras_treino": meta.get("total_amostras"),
         # Só contagens — nunca ids nem valores de chave num endpoint público.
@@ -507,8 +500,7 @@ async def health():
                       "atraso_cruzamento_via_s": app.state.graph.graph.get('atraso_cruzamento_via_s', 0.0)},
         "velocidade_livre_fatores": app.state.graph.graph.get('vel_livre_calibrada'),
         "prior_congestionamento": app.state.graph.graph.get('prior_congestionamento'),
-        "velocidade_livre": ("calibrada" if app.state.graph.graph.get('vel_livre_calibrada')
-                             else "tomtom" if app.state.graph.graph.get('vel_livre_tomtom') else "osm"),
+        "velocidade_livre": "calibrada" if app.state.graph.graph.get('vel_livre_calibrada') else "osm",
         "contexto": app.state.contexto.resumo() if app.state.contexto else None,
     }
 
@@ -528,8 +520,8 @@ async def metrics():
     meta = app.state.metadata
     return {
         "modelo_ativo": app.state.model_version,
-        "cv_rmse_seg": _cv_metric(meta, "modelo_rmse_seg", "cv_rmse_medio_seg"),
-        "cv_mae_seg": _cv_metric(meta, "modelo_mae_seg", "cv_mae_medio_seg"),
+        "cv_rmse_seg": _cv_metric(meta, "modelo_rmse_seg"),
+        "cv_mae_seg": _cv_metric(meta, "modelo_mae_seg"),
         "n_pontos_monitorados": meta.get("n_pontos_monitorados"),
         "periodo_dados": f"{meta.get('periodo_inicio', '')} → {meta.get('periodo_fim', '')}",
         "total_amostras_treino": meta.get("total_amostras"),
