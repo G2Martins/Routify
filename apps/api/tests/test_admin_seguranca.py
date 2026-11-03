@@ -170,3 +170,11 @@ def test_eventos_limita_por_ip_antes_do_token(monkeypatch):
     r = cli.post('/eventos', headers={'Authorization': 'Bearer t9'}, json=corpo)
     assert r.status_code == 429 and int(r.headers['Retry-After']) >= 1
     assert idas == ['t0', 't1', 't2']
+
+
+def test_admin_exige_mfa_quando_ligado(monkeypatch):
+    """ADMIN_EXIGE_MFA=1 (com a migration 20261103030000): admin sem 2º fator e sessão aal1 fica de fora."""
+    monkeypatch.setenv('ADMIN_EXIGE_MFA', '1')
+    assert _status(seguranca.exigir_admin(_request('Bearer x', papel='admin'))) == 403
+    monkeypatch.setenv('ADMIN_EXIGE_MFA', '0')
+    assert asyncio.run(seguranca.exigir_admin(_request('Bearer x', papel='admin'))) == 'u-1'

@@ -124,7 +124,8 @@ async def exigir_admin(request: Request) -> str:
     if (getattr(user, 'app_metadata', None) or {}).get('role') != 'admin':
         raise HTTPException(status_code=403, detail='Acesso restrito a administradores.')
     # Quem ativou a verificação em duas etapas precisa de sessão aal2 (mesma regra do aal_ok() no banco).
-    if tem_mfa(user) and aal_do_token(token) != 'aal2':
+    # ADMIN_EXIGE_MFA=1 (junto com a migration 20261103030000): admin SEM 2º fator também fica de fora.
+    if (tem_mfa(user) or os.getenv('ADMIN_EXIGE_MFA', '0') == '1') and aal_do_token(token) != 'aal2':
         raise HTTPException(status_code=403, detail='Confirme o código da verificação em duas etapas.')
     request.state.user_id = str(user.id)
     return str(user.id)
