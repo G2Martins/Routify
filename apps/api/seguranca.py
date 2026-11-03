@@ -87,6 +87,11 @@ def aal_do_token(token: str) -> str:
         return 'aal1'
 
 
+# Antes de validar o token: sem isso, quem martela com token inválido faz a API repassar cada tentativa ao
+# Supabase Auth. Por IP e folgado (NAT de operadora põe muita gente atrás do mesmo IP).
+_limite_auth_ip = Limitador(60)
+
+
 async def usuario_autenticado(request: Request):
     """Valida o JWT no Supabase Auth a cada chamada (sem cache: conta rebaixada ou sessão encerrada
     perde o acesso na hora) e devolve (usuário, token). Base do /admin e das ações da própria conta (MFA)."""
@@ -94,6 +99,7 @@ async def usuario_autenticado(request: Request):
     auth = request.headers.get('authorization') or ''
     if sb is None:
         raise HTTPException(status_code=503, detail='Autenticação indisponível.')
+    limitar(_limite_auth_ip, ip_cliente(request))
     if not auth.lower().startswith('bearer ') or len(auth) > 4200:
         raise HTTPException(status_code=401, detail='Login necessário.')
     token = auth[7:].strip()

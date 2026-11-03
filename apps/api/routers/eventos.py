@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 import usage
 from openapi import erro
-from seguranca import Limitador, limitar
+from seguranca import Limitador, ip_cliente, limitar
 
 router = APIRouter(prefix="/eventos", tags=["Uso"], dependencies=[Security(usage.bearer)])
 
@@ -44,6 +44,7 @@ class EventoInput(BaseModel):
 
 
 _limite = Limitador(EVENTOS_POR_MINUTO)
+_limite_ip = Limitador(2 * EVENTOS_POR_MINUTO)  # antes de validar o token no Supabase Auth
 
 
 @router.post(
@@ -59,6 +60,7 @@ _limite = Limitador(EVENTOS_POR_MINUTO)
 )
 async def registrar_evento(body: EventoInput, request: Request):
     sb = getattr(request.app.state, 'supabase', None)
+    limitar(_limite_ip, ip_cliente(request), "Muitos eventos em pouco tempo.")
     user_id = await usage.usuario_do_token_async(sb, request.headers.get('authorization'))
     if user_id is None:
         raise HTTPException(status_code=401, detail="Login necessário para registrar eventos.")

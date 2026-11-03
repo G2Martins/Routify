@@ -95,7 +95,8 @@ Plano da fase: [2026-09-23-plano-fase-final.md](2026-09-23-plano-fase-final.md) 
 - [x] "imatch recusado" no log da API: 0 nas 26 rodadas de 2026-11-02; a rotina da EC2 segue conferindo a cada rodada.
 - [ ] LIA 2.4 (dezembro): dados de novembro primeiro; depois tendência da recência e perfil por quantil no pico (a candidata por pesos de período foi rejeitada em 2026-11-02, `ablation_lia_2.4.json`); calendário escolar SEEDF/UnB. A/B na EC2 com `ab_ec2.sh lia24` antes de trocar o padrão.
 - [ ] **Dono:** OK para o deploy da API (códigos de recuperação + cortes) e do front (telas de recuperação). Pacote do front pronto; depois, testar o fluxo de recuperação ponta a ponta com uma conta de teste.
-- [ ] Testes P0 da análise: limite por IP antes do auth em `/eventos` e `/admin`; TestClient HTTP (422 com NaN/extra/fora do DF, 429 com `Retry-After`, 401/403 do admin); contrato modelo ↔ metadata; migrations + RLS no CI (pgTAP).
+- [x] Limite por IP antes de validar o token (`/eventos`, `/admin`, `/mfa`), com teste de que a tentativa barrada não chega ao Supabase Auth (2026-11-02).
+- [ ] Testes P0 da análise: TestClient HTTP (422 com NaN/extra/fora do DF, 429 com `Retry-After`, 401/403 do admin); contrato modelo ↔ metadata; migrations + RLS no CI (pgTAP).
 - [ ] `route_history`: grant de INSERT por coluna + CHECKs (ou a API persiste).
 - [ ] Backup semanal do dataset (Action com `pg_dump` cifrado).
 - [ ] `/route` fora do event loop (cache dos pesos por hora/dia) — p95 e `/health` sob carga.

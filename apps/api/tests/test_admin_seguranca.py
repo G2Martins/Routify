@@ -136,3 +136,37 @@ def test_aal_do_token_lixo_vira_aal1():
     assert seguranca.aal_do_token('nao-e-jwt') == 'aal1'
     assert seguranca.aal_do_token('a.%%%.c') == 'aal1'
     assert seguranca.aal_do_token(_jwt('aal2')[7:]) == 'aal2'
+
+
+def test_limite_por_ip_vem_antes_de_consultar_o_auth():
+    req = _request('Bearer x', erro=True)
+    idas = []
+    original = req.app.state.supabase.auth.get_user
+    req.app.state.supabase.auth.get_user = lambda t: (idas.append(t), original(t))[1]
+    for _ in range(60):
+        assert _status(seguranca.exigir_admin(req)) == 401
+    assert _status(seguranca.exigir_admin(req)) == 429
+    assert len(idas) == 60  # a 61ª tentativa nem chegou ao Supabase Auth
+
+
+def test_eventos_limita_por_ip_antes_do_token(monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from routers import eventos
+    monkeypatch.setattr(eventos, '_limite_ip', seguranca.Limitador(3))
+    idas = []
+
+    def get_user(token):
+        idas.append(token)
+        raise RuntimeError('token inválido')
+
+    app = FastAPI()
+    app.include_router(eventos.router)
+    app.state.supabase = types.SimpleNamespace(auth=types.SimpleNamespace(get_user=get_user))
+    cli = TestClient(app)
+    corpo = {'tipo': 'busca', 'plataforma': 'web', 'dados': {}}
+    for i in range(3):
+        assert cli.post('/eventos', headers={'Authorization': f'Bearer t{i}'}, json=corpo).status_code == 401
+    r = cli.post('/eventos', headers={'Authorization': 'Bearer t9'}, json=corpo)
+    assert r.status_code == 429 and int(r.headers['Retry-After']) >= 1
+    assert idas == ['t0', 't1', 't2']

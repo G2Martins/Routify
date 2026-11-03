@@ -127,6 +127,7 @@ Testes: `.venv/Scripts/python -m pytest -q` (o HTTP da TomTom é simulado; nenhu
 | `/eventos` | 60/min por usuário |
 | `/mfa/codigos-recuperacao` | 5/h por usuário |
 | `/mfa/recuperar` | 5 a cada 15 min por usuário e 20 por IP |
+| antes de validar o token no Auth | 60/min por IP (`/admin`, `/mfa`) e 120/min por IP (`/eventos`) |
 | `/admin/tomtom` | 60/min por admin |
 | teste de chave | 6/min por admin |
 
