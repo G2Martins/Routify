@@ -22,6 +22,7 @@ import json
 import logging
 import math
 import os
+import asyncio
 import time
 from datetime import datetime, timezone
 from collections import deque
@@ -473,6 +474,21 @@ class TomTomClient:
 # Classificações que definem o lugar (a TomTom lista várias por POI).
 CODIGOS_MARCO = {'SHOPPING_CENTER', 'AIRPORT', 'COLLEGE_UNIVERSITY', 'SCHOOL', 'HOSPITAL_POLYCLINIC',
                  'RAILWAY_STATION', 'PUBLIC_TRANSPORT_STOP', 'STADIUM', 'GOVERNMENT_OFFICE', 'MUSEUM'}
+
+
+async def enviar_uso(pool: KeyPool, sb, origem: str = 'api') -> None:
+    """Contadores do pool desde o último envio → tomtom_uso_dia (RPC registrar_tomtom_uso; /admin/operacao soma
+    com o coletor). Se o envio falhar, os contadores voltam para o próximo."""
+    if sb is None:
+        return
+    linhas = pool.descarregar_uso()
+    if not linhas:
+        return
+    try:
+        await asyncio.to_thread(lambda: sb.rpc('registrar_tomtom_uso', {'p_origem': origem, 'p_linhas': linhas}).execute())
+    except Exception as e:
+        pool.devolver_uso(linhas)
+        logger.warning(f"Uso das chaves TomTom não gravado ({type(e).__name__}); vai no próximo envio")
 
 
 # ---------------------------------------------------------------------------

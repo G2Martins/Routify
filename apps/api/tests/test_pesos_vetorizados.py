@@ -11,7 +11,9 @@ import pytest
 
 import lia_inference as lia_inf
 import recency_cache
-from routers import route
+
+pytest.importorskip('osmnx')  # o CI instala só o mínimo; a rota importa o osmnx
+from routers import route  # noqa: E402
 from routers.route import (DIST_VIA_PROPRIA_M, NON_DRIVABLE_HIGHWAYS, PENALTY_NON_DRIVABLE_S,  # noqa: F401
                            _confianca_transfer, logger, valor_highway)
 from test_lia_caca_erros import _contexto, _Encoder, _ModeloSensivelAOrdem, _perfis

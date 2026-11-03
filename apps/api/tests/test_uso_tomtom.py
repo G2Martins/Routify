@@ -1,10 +1,8 @@
 """Uso real das chaves TomTom (tomtom_uso_dia): o pool conta por (chave, serviço), o envio zera, e um envio que
 falha devolve os contadores para o próximo; o painel soma isso com o coletor."""
 import asyncio
-import time
 import types
 
-import main
 import tomtom
 
 CHAVES = [{'id': 'key_01', 'key': 'SEGREDO-1'}, {'id': 'key_02', 'key': 'SEGREDO-2'}]
@@ -38,26 +36,20 @@ class _Sb:
         return types.SimpleNamespace(execute=execute)
 
 
-def _app(sb):
-    pool = tomtom.KeyPool(CHAVES)
-    return types.SimpleNamespace(state=types.SimpleNamespace(tomtom=types.SimpleNamespace(pool=pool), supabase=sb)), pool
-
-
 def test_envio_manda_o_acumulado_como_api():
-    sb = _Sb()
-    app, pool = _app(sb)
+    sb, pool = _Sb(), tomtom.KeyPool(CHAVES)
     pool.sucesso('key_01', 'incidentes')
-    asyncio.run(main._enviar_uso_tomtom(app))
+    asyncio.run(tomtom.enviar_uso(pool, sb))
     assert sb.chamadas[0][0] == 'registrar_tomtom_uso'
     assert sb.chamadas[0][1]['p_origem'] == 'api' and sb.chamadas[0][1]['p_linhas'][0]['chamadas'] == 1
-    asyncio.run(main._enviar_uso_tomtom(app))
+    asyncio.run(tomtom.enviar_uso(pool, sb))
     assert len(sb.chamadas) == 1  # nada novo: não chama o banco
 
 
 def test_envio_que_falha_devolve_os_contadores():
-    app, pool = _app(_Sb(falhar=True))
+    pool = tomtom.KeyPool(CHAVES)
     pool.sucesso('key_01', 'fluxo')
-    asyncio.run(main._enviar_uso_tomtom(app))
+    asyncio.run(tomtom.enviar_uso(pool, _Sb(falhar=True)))
     pool.sucesso('key_01', 'fluxo')
     linhas = pool.descarregar_uso()
     assert linhas[0]['chamadas'] == 2  # a do envio que falhou + a nova
