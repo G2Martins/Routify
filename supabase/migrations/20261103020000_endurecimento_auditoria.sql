@@ -5,6 +5,10 @@
 --    PostgREST. anon não lê nem grava histórico ou perfil (o app exige login). (Auditoria: B, extras de grant.)
 revoke truncate, trigger, references on all tables in schema public from anon, authenticated;
 revoke all on table public.route_history, public.profiles from anon;
+-- avisos_app: o anônimo lê só o que o banner usa (AvisoApp.tsx ordena por criado_em); criado_por, o uuid de quem
+-- publicou, fica para o painel (B5). authenticated segue com a tabela: o painel lê select('*') como admin.
+revoke select on table public.avisos_app from anon;
+grant select (id, mensagem, nivel, ativo, inicio, fim, criado_em) on table public.avisos_app to anon;
 alter default privileges for role postgres in schema public revoke truncate, trigger, references on tables from anon, authenticated;
 
 -- 2. Dataset da tese só cresce (M7): o coletor só insere, a API e o ml só leem. Uma service_role vazada não apaga
