@@ -37,7 +37,7 @@ import recency_cache  # noqa: E402
 import tomtom  # noqa: E402
 import trajeto  # noqa: E402
 import usage  # noqa: E402
-from routers import admin, eventos, mfa, predict, route, search, trafego  # noqa: E402
+from routers import admin, eventos, mfa, planejar, predict, route, search, trafego  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -485,6 +485,7 @@ async def registrar_requisicao(request: Request, call_next):
 
 app.include_router(predict.router)
 app.include_router(route.router)
+app.include_router(planejar.router)
 app.include_router(search.router)
 app.include_router(eventos.router)
 app.include_router(admin.router)

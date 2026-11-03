@@ -295,12 +295,11 @@ def assign_lia_weights(model, encoder, profiles, G: nx.MultiDiGraph,
     de lia_inference.montar_features() — equivalente ao comportamento da LIA 2.0.
     contexto: via → features da LIA 2.2 (ContextoAoVivo.para_requisicao), ou None.
     """
-    if G.number_of_edges() == 0:
+    fixo = _pesos_fixos(G, encoder)
+    if not fixo['dicts']:
         return {'model': 0, 'transfer': 0, 'heuristic': 0, 'blocked': 0}
-
     ordem = lia_inf.ordem_features(model)
     IDX_VEL_LIVRE = ordem.index('velocidade_livre')
-    fixo = _pesos_fixos(G, encoder)
 
     # Razão de congestionamento de referência para arestas SEM via monitorada
     # em 500 m. Vem do nível global da cascata de perfis — a mediana observada
@@ -385,7 +384,9 @@ def _pesos_fixos(G: nx.MultiDiGraph, encoder) -> dict:
     """O que não muda entre requisições, por aresta: fonte (modelo, transferência, heurística, bloqueada),
     via, comprimento, velocidade livre e distância até a via. Calculado na 1ª rota e guardado no grafo
     (só depende do enriquecimento da subida e do encoder do modelo carregado)."""
-    chave = (G.number_of_edges(), id(encoder), id(G.graph.get('vel_livre_tomtom')))
+    # Sem G.number_of_edges(): num MultiDiGraph ele percorre o grafo todo (~130 ms por rota). As arestas não mudam
+    # depois da subida, e um grafo novo (testes) traz o próprio G.graph, sem este cache.
+    chave = (id(encoder), id(G.graph.get('vel_livre_tomtom')))
     fixo = G.graph.get('_pesos_fixos')
     if fixo is not None and fixo['chave'] == chave:
         return fixo

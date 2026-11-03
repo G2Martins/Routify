@@ -13,10 +13,17 @@
 
 ## 📖 Sobre o App
 
-**Última revisão:** 2026-11-02
+**Última revisão:** 2026-11-03
 
 Cliente do **Routify** rodando em **iOS, Android e Web** via Expo + React Native. Consome a `apps/api` para roteamento A\* com pesos da LIA, fundido com a TomTom. Tem:
 - mapa interativo: vetorial (MapLibre GL + OpenFreeMap) na web, com o Leaflet de reserva sem WebGL; react-native-maps no celular;
+- **Planejar saída** (aba Planejar, `PlanejarScreen`): origem e destino pelo mesmo autocomplete do mapa e, depois de
+  "Planejar", um gráfico de barras com o tempo do mesmo trajeto em cada horário de partida (12 saídas a cada 30 min,
+  a partir de agora; `POST /route/horarios`). A mais rápida fica em destaque, com a frase "Saindo às 07:30 você gasta
+  ~12 min a menos que às 08:30". É previsão da LIA pelo histórico, sem trânsito ao vivo. Barras em `View` puro (sem
+  biblioteca de gráfico); cada linha traz hora e minutos, e serve de tabela para o leitor de tela. Recalculando, o
+  gráfico anterior fica esmaecido no lugar; 429 e erros da API viram aviso. Textos e contrato em `src/lib/planejar.ts`
+  (`tests/planejar.test.mjs`);
 - histórico de rotas, perfil e dashboard de métricas.
 
 **Design:** paleta da logo + linguagem Valerium. Tokens em `src/constants/Theme.ts`, peças prontas em `src/components/ui.tsx`, regras em [docs/core/design-system.md](../../docs/core/design-system.md).
@@ -65,7 +72,7 @@ Cliente do **Routify** rodando em **iOS, Android e Web** via Expo + React Native
  ┃ ┣ 📂 context/          # AuthContext, ThemeContext
  ┃ ┣ 📂 lib/              # supabase client, responsive, api
  ┃ ┣ 📂 navigation/       # MainNavigator (tabs + auth stack)
- ┃ ┗ 📂 screens/          # Map, Dashboard, History, Profile, Login...
+ ┃ ┗ 📂 screens/          # Map, Planejar, Dashboard, History, Profile, Login...
  ┣ 📜 App.tsx             # Entry point
  ┣ 📜 app.json            # Config Expo
  ┗ 📜 package.json

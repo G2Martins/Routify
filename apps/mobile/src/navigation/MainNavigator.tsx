@@ -17,6 +17,8 @@ import Icon from '../components/Icon';
 import SideRail from '../components/SideRail';
 
 import MapScreen from '../screens/MapScreen';
+import PlanejarScreen from '../screens/PlanejarScreen';
+import TransitoScreen from '../screens/TransitoScreen';
 import DashboardScreen from '../screens/DashboardScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import HistoryScreen from '../screens/HistoryScreen';
@@ -34,10 +36,12 @@ const ProfileStack = createNativeStackNavigator();
 // Ref global pra navegar/observar state de fora do navigator.
 export const navigationRef = createNavigationContainerRef();
 
-const TAB_NAMES = ['Mapa', 'Painel', 'Histórico', 'Perfil'];
+const TAB_NAMES = ['Mapa', 'Planejar', 'Trânsito', 'Painel', 'Histórico', 'Perfil'];
 
 const TAB_ICONS: Record<string, { active: string; inactive: string }> = {
   Mapa: { active: 'ion:map', inactive: 'ion:map-outline' },
+  Planejar: { active: 'ion:alarm', inactive: 'ion:alarm-outline' },
+  'Trânsito': { active: 'ion:speedometer', inactive: 'ion:speedometer-outline' },
   Painel: { active: 'ion:grid', inactive: 'ion:grid-outline' },
   Histórico: { active: 'ion:time', inactive: 'ion:time-outline' },
   Perfil: { active: 'ion:person', inactive: 'ion:person-outline' },
@@ -58,6 +62,8 @@ function tabsCommonScreens() {
   return (
     <>
       <Tab.Screen name="Mapa" component={MapScreen} />
+      <Tab.Screen name="Planejar" component={PlanejarScreen} />
+      <Tab.Screen name="Trânsito" component={TransitoScreen} />
       <Tab.Screen name="Painel" component={DashboardScreen} />
       <Tab.Screen name="Histórico" component={HistoryScreen} />
       <Tab.Screen name="Perfil" component={ProfileStackNavigator} />

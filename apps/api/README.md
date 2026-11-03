@@ -13,7 +13,7 @@
 
 ---
 
-**Última revisão:** 2026-11-02
+**Última revisão:** 2026-11-03
 
 ## 🎯 Função
 
@@ -41,6 +41,7 @@ apps/api/
 ├── routers/
 │   ├── predict.py      ← POST /predict (inferência por segmento)
 │   ├── route.py        ← POST /route (A* LIA + fusão TomTom)
+│   ├── planejar.py     ← POST /route/horarios (planejar saída: mesmo trajeto, vários horários)
 │   ├── search.py       ← GET /search/places (autocomplete de endereços)
 │   ├── eventos.py      ← POST /eventos (eventos do app, JWT obrigatório)
 │   ├── mfa.py          ← POST /mfa/codigos-recuperacao e /mfa/recuperar (verificação em duas etapas)
@@ -123,6 +124,7 @@ Testes: `.venv/Scripts/python -m pytest -q` (o HTTP da TomTom é simulado; nenhu
 | Rota | Limite |
 |---|---|
 | `/route` | 20/min por IP |
+| `/route/horarios` | 10/min por IP |
 | `/search/places` | 90/min por IP |
 | `/eventos` | 60/min por usuário |
 | `/trafego/agora` | 30/min por IP |
@@ -353,6 +355,70 @@ para permitir comparação direta. O bloco `tomtom` diz o que a TomTom acrescent
 6. **Fusão:** `tomtom.rota_reconstruida` com `supportingPoints` + `trajeto.escolher`.
 
 Política de chaves, cotas e modo degradado: [docs/core/architecture.md](../../docs/core/architecture.md).
+
+---
+
+### `POST /route/horarios`
+
+**Planejar saída:** o tempo previsto do **mesmo trajeto** em várias horas de partida, e a mais rápida
+(`routers/planejar.py`). Não chama a TomTom (zero cota) e não grava origem nem destino. Limite: 10/min por IP.
+
+**Request** (corpo estrito, `extra="forbid"`):
+```json
+{
+  "origem":  { "lat": -15.7939, "lon": -47.8828 },
+  "destino": { "lat": -15.8339, "lon": -48.0569 },
+  "inicio": "2026-11-04T06:00:00-03:00",
+  "passo_min": 30,
+  "janelas": 12
+}
+```
+
+- `origem` e `destino`: dentro da caixa do DF (lat −16,10 a −15,45; lon −48,35 a −47,25), sem `NaN` nem `Infinity`.
+  Ponto a mais de 600 m da malha dá 422, porque aqui não há rota da TomTom.
+- `inicio` (opcional): a primeira saída, de agora a 7 dias à frente; sem fuso = Brasília. Padrão: agora, arredondado
+  para os próximos 5 min.
+- `passo_min`: de 15 a 120 (padrão 30). `janelas`: de 2 a 24 saídas (padrão 12).
+
+**Response:**
+```json
+{
+  "horarios": [
+    { "saida": "2026-11-04T06:00:00-03:00", "tempo_seg": 1352 },
+    { "saida": "2026-11-04T06:30:00-03:00", "tempo_seg": 1410 }
+  ],
+  "melhor": 0,
+  "distancia_km": 23.84,
+  "tempo_livre_seg": 1340,
+  "lia_cobertura_pct": 94.17,
+  "mesmo_trajeto": true,
+  "modelo_utilizado": "lia_2.3"
+}
+```
+
+**Como sai o número:**
+
+1. O caminho é o A\* do `/route` para a primeira saída: snap no maior componente, `assign_lia_weights` no grafo
+   inteiro, atraso de semáforo e de cruzamento no peso, conversões proibidas quando ligadas. Sem leitura ao vivo do
+   corredor, sem interdições e sem fusão.
+2. Para cada saída, a LIA prevê a razão das vias monitoradas na hora e no dia da saída, numa chamada só ao modelo
+   (vias × saídas). Cada aresta segue a regra do `assign_lia_weights` (sensor, transferência e o prior `corredor`
+   recalculado para aquela saída), mais os atrasos de cruzamento do `/route`. Na primeira saída, o tempo é o
+   `tempo_lia_seg` do `/route` no mesmo instante (teste de paridade em `tests/test_planejar.py`).
+3. **Recência no futuro:** vale a regra do `/predict` (`recencia_no_instante`). A leitura ao vivo envelhece até a
+   saída e some acima de 24 h; aí vale o perfil + 24 h de defasagem. A LIA 2.3 foi treinada com a recência envelhecida
+   de 15 a 480 min, então desconta sozinha a leitura velha. Os vizinhos só entram se a leitura ainda caberia na janela
+   de 60 min na hora da saída.
+
+**Simplificação (`mesmo_trajeto: true`):** o A\* não é refeito por saída; no pico, outro caminho pode ser mais rápido.
+`tempo_livre_seg` é o mesmo trajeto com razão 1,0, mais os atrasos.
+
+**Latência medida local** (grafo de 38 km, LIA 2.3, sem rede, 4 viagens):
+
+- total de ~0,85 a 1,1 s com 12 saídas e de ~1,0 a 1,25 s com 24;
+- ~0,63 s é o `assign_lia_weights`, o mesmo custo do `/route`;
+- o A\* leva de 0,01 a 0,25 s, e a previsão das saídas ~0,2 s (12) ou ~0,37 s (24);
+- a 1ª chamada depois da subida soma ~0,4 s (cache `_pesos_fixos` e aquecimento).
 
 ---
 

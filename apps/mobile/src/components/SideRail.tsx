@@ -15,6 +15,8 @@ import { ADMIN_URL, API_URL } from '../lib/api';
 
 const TAB_ICONS: Record<string, { active: string; inactive: string }> = {
   Mapa: { active: 'ion:map', inactive: 'ion:map-outline' },
+  Planejar: { active: 'ion:alarm', inactive: 'ion:alarm-outline' },
+  'Trânsito': { active: 'ion:speedometer', inactive: 'ion:speedometer-outline' },
   Painel: { active: 'ion:grid', inactive: 'ion:grid-outline' },
   Histórico: { active: 'ion:time', inactive: 'ion:time-outline' },
   Perfil: { active: 'ion:person', inactive: 'ion:person-outline' },
