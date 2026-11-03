@@ -1,0 +1,54 @@
+# Build do front (export web do Expo + painel Next standalone) num runner Linux do GitHub. Antes rodava na EC2 de
+# produção: o next build jogava a API (grafo + modelo, ~0,8 GB) no swap da t3.small e as primeiras rotas depois de
+# cada deploy levaram 32–41 s (2026-11-02, api_requisicoes). O artefato sai pronto para o hosting_deploy da
+# Hostinger (docs/core/deploy.md §2). Valores públicos por natureza, guardados como variáveis/segredos do repo
+# (o repositório é público: domínios não entram no código).
+name: Front (build Linux)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      API_URL: ${{ vars.ROUTIFY_API_URL }}
+      SITE_URL: ${{ vars.ROUTIFY_SITE_URL }}
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      NEXT_PUBLIC_API_URL: ${{ vars.ROUTIFY_API_URL }}
+      NEXT_PUBLIC_APP_URL: /
+    steps:
+      - name: Conferir configuração
+        run: |
+          for v in API_URL SITE_URL EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_ANON_KEY; do
+            [ -n "${!v}" ] || { echo "::error::falta $v (vars ROUTIFY_API_URL/ROUTIFY_SITE_URL, secrets SUPABASE_*)"; exit 1; }
+          done
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            apps/mobile/package-lock.json
+            apps/admin/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: apps/mobile
+      - name: Pacote (export web do Expo + código do painel)
+        run: bash scripts/empacotar-front.sh "$RUNNER_TEMP/front-src.tar.gz"
+      - name: Build Linux do painel (Next standalone)
+        run: |
+          mkdir "$RUNNER_TEMP/front" && tar -xzf "$RUNNER_TEMP/front-src.tar.gz" -C "$RUNNER_TEMP/front"
+          cd "$RUNNER_TEMP/front" && bash montar-front-linux.sh "$RUNNER_TEMP/routify-front.tar.gz"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: routify-front
+          path: ${{ runner.temp }}/routify-front.tar.gz
+          retention-days: 7
+          if-no-files-found: error

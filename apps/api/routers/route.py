@@ -12,7 +12,7 @@ from typing import Dict, List, Tuple, Optional
 import networkx as nx
 import osmnx as ox
 import numpy as np
-from fastapi import APIRouter, Request, HTTPException, Security
+from fastapi import APIRouter, Request, Response, HTTPException, Security
 from pydantic import BaseModel, ConfigDict, Field
 
 import combustivel
@@ -293,13 +293,12 @@ def assign_lia_weights(model, encoder, profiles, G: nx.MultiDiGraph,
     de lia_inference.montar_features() — equivalente ao comportamento da LIA 2.0.
     contexto: via → features da LIA 2.2 (ContextoAoVivo.para_requisicao), ou None.
     """
-    arestas = list(G.edges(keys=True, data=True))
-    if not arestas:
+    if G.number_of_edges() == 0:
         return {'model': 0, 'transfer': 0, 'heuristic': 0, 'blocked': 0}
 
-    conhecidas = set(encoder.classes_.tolist())
     ordem = lia_inf.ordem_features(model)
     IDX_VEL_LIVRE = ordem.index('velocidade_livre')
+    fixo = _pesos_fixos(G, encoder)
 
     # Razão de congestionamento de referência para arestas SEM via monitorada
     # em 500 m. Vem do nível global da cascata de perfis — a mediana observada
@@ -320,106 +319,56 @@ def assign_lia_weights(model, encoder, profiles, G: nx.MultiDiGraph,
     # harmônica ponderada pelo tempo livre). Vale para as arestas sem sensor e é o alvo para onde a
     # transferência encolhe com a distância (antes: 1,0, mais livre que o sensor e que a cidade).
     prior_vivo = G.graph.get('prior_congestionamento') == 'corredor'
-    heuristicas = []  # (índice, comprimento, vel. livre): no modo corredor, o prior só sai depois da predição
 
     # --- Template por via, não por aresta ---
-    # Fixados hora e dia_semana, a única feature que varia entre arestas da
-    # mesma via é velocidade_livre. Montar uma linha-modelo por via e só
-    # substituir essa posição evita 22 mil chamadas a encoder.transform().
-    vias_usadas = sorted({
-        d.get('id_ponto_lia') for _, _, _, d in arestas
-        if d.get('id_ponto_lia') is not None
-    } & conhecidas)
-
-    templates = {}
-    if vias_usadas:
-        encodados = encoder.transform(vias_usadas)  # uma chamada, vetorizada
-        for via, enc in zip(vias_usadas, encodados):
-            perfis = lia_inf.lookup_perfis(profiles, via, hora, dia_semana)
-            recencia = recencia_cache.get(via) if recencia_cache is not None else None
-            templates[via] = np.asarray(
-                lia_inf.montar_features(int(enc), hora, dia_semana, 0.0, perfis, recencia,
-                                        contexto(via) if contexto else None, ordem),
-                dtype=float,
-            )
-
-    linhas, indices, fontes = [], [], []
-    resultado = {'model': 0, 'transfer': 0, 'heuristic': 0, 'blocked': 0}
-    vel_tomtom = G.graph.get('vel_livre_tomtom')  # None = comportamento da tese (OSM)
-
-    for i, (u, v, k, d) in enumerate(arestas):
-        if valor_highway(d) in NON_DRIVABLE_HIGHWAYS:
-            d['travel_time_lia'] = PENALTY_NON_DRIVABLE_S
-            d['lia_source'] = 'blocked'
-            resultado['blocked'] += 1
-            continue
-
-        vel_livre = float(d.get('speed_kph') or 50.0)
-        if vel_livre <= 0:
-            vel_livre = 50.0
-        length_m = float(d.get('length') or 100.0)
-
-        via = d.get('id_ponto_lia')
-        tpl = templates.get(via) if via is not None else None
-        if tpl is not None:
-            dist = float(d.get('dist_lia_m') or 0.0)
-            fonte = 'model' if dist < DIST_VIA_PROPRIA_M else 'transfer'
-            if fonte == 'model' and vel_tomtom and via in vel_tomtom:
-                # Trecho monitorado: mesma velocidade livre do treino (TomTom), não
-                # o limite de via do OSM (VEL_LIVRE_CALIBRADA, padrão; ver ml/free_flow_speeds.py).
-                vel_livre = vel_tomtom[via]
-            linha = tpl.copy()
-            linha[IDX_VEL_LIVRE] = vel_livre
-            linhas.append(linha)
-            indices.append(i)
-            fontes.append((fonte, dist, vel_livre, length_m))
-            resultado[fonte] += 1
-        else:
-            # Sem via monitorada em 500 m: adota a razão global do horário.
-            # Mesma fórmula do ramo do modelo, então as duas famílias de aresta
-            # ficam comparáveis e o A* não é enviesado por escolha de esquema.
-            if prior_vivo:
-                heuristicas.append((i, length_m, vel_livre))
-                resultado['heuristic'] += 1
-                continue
-            d['travel_time_lia'] = lia_inf.tempo_de_razao(length_m, vel_livre, razao_global)
-            d['lia_source'] = 'heuristic'
-            d['lia_razao'] = round(razao_global, 4)
-            resultado['heuristic'] += 1
-
-    # --- Uma única chamada ao modelo para todas as arestas vinculadas ---
+    # Fixados hora e dia_semana, a única feature que varia entre arestas da mesma via é
+    # velocidade_livre. Uma linha-modelo por via; o modelo só vê as combinações (via, velocidade)
+    # distintas (poucas mil) em vez de uma linha por aresta (dezenas de mil): a mesma linha dá a
+    # mesma previsão, então o resultado é idêntico ao de antes e o /route fica ~5× mais rápido.
+    vinc = fixo['vinculada']
     prior = razao_global
-    if linhas:
-        razoes = np.clip(
-            model.predict(np.vstack(linhas)),
-            lia_inf.RAZAO_MIN, lia_inf.RAZAO_MAX,
-        )
-        if prior_vivo:
-            eh_modelo = np.array([f[0] == 'model' for f in fontes])
-            if eh_modelo.any():
-                t_livre = np.array([f[3] / max(f[2], 1.0) for f in fontes])[eh_modelo]  # ∝ tempo livre
-                prior = float(lia_inf.clamp_razao(t_livre.sum() / (t_livre / razoes[eh_modelo]).sum()))
+    razoes = np.empty(0)
+    if vinc.any():
+        templates = np.vstack([
+            np.asarray(lia_inf.montar_features(
+                int(enc), hora, dia_semana, 0.0, lia_inf.lookup_perfis(profiles, via, hora, dia_semana),
+                recencia_cache.get(via) if recencia_cache is not None else None,
+                contexto(via) if contexto else None, ordem), dtype=float)
+            for via, enc in zip(fixo['vias'], fixo['vias_cod'])
+        ])
+        via_idx, vel_v = fixo['via_idx'][vinc], fixo['vel'][vinc]
+        chaves, volta = np.unique(np.column_stack([via_idx, vel_v]), axis=0, return_inverse=True)
+        linhas = templates[chaves[:, 0].astype(int)]
+        linhas[:, IDX_VEL_LIVRE] = chaves[:, 1]
+        razoes = np.clip(model.predict(linhas), lia_inf.RAZAO_MIN, lia_inf.RAZAO_MAX)[volta.ravel()]
+
+        eh_modelo = fixo['fonte'][vinc] == 'model'
+        if prior_vivo and eh_modelo.any():
+            t_livre = (fixo['comp'][vinc] / np.maximum(vel_v, 1.0))[eh_modelo]  # ∝ tempo livre
+            prior = float(lia_inf.clamp_razao(t_livre.sum() / (t_livre / razoes[eh_modelo]).sum()))
 
         # Confiança da transferência, vetorizada: quanto mais longe a via de
         # referência, mais a razão volta para fluxo livre (1.0).
-        dists = np.array([f[1] for f in fontes])
-        eh_transfer = np.array([f[0] == 'transfer' for f in fontes])
-        conf = _confianca_transfer(dists, transfer_confidence)
-        conf = np.where(eh_transfer, conf, 1.0)
+        conf = np.where(fixo['fonte'][vinc] == 'transfer',
+                        _confianca_transfer(fixo['dist'][vinc], transfer_confidence), 1.0)
         razoes = razoes * conf + (prior if prior_vivo else 1.0) * (1.0 - conf)
 
-        for idx, razao, (fonte, _, vel_livre, length_m) in zip(indices, razoes, fontes):
-            _, _, _, d = arestas[idx]
-            d['travel_time_lia'] = lia_inf.tempo_de_razao(length_m, vel_livre, float(razao))
-            d['lia_source'] = fonte
-            d['lia_razao'] = round(float(razao), 4)
+    # Razão de cada aresta (vinculadas: modelo; sem sensor: prior) e tempo pela mesma fórmula de
+    # lia_inf.tempo_de_razao, para as duas famílias ficarem comparáveis e o A* não se enviesar.
+    razao_aresta = np.full(len(fixo['dicts']), prior if prior_vivo else razao_global)
+    razao_aresta[vinc] = razoes
+    vel_ef = np.maximum(fixo['vel'] * np.clip(razao_aresta, lia_inf.RAZAO_MIN, lia_inf.RAZAO_MAX), 1.0)
+    tempos = np.maximum(1.0, fixo['comp'] / (vel_ef / 3.6))
+    tempos[fixo['bloqueada']] = PENALTY_NON_DRIVABLE_S
 
-    for i, length_m, vel_livre in heuristicas:
-        d = arestas[i][3]
-        d['travel_time_lia'] = lia_inf.tempo_de_razao(length_m, vel_livre, prior)
-        d['lia_source'] = 'heuristic'
-        d['lia_razao'] = round(prior, 4)
+    # Grava no grafo (reseta também o que a requisição anterior marcou, ex.: sensores virtuais).
+    for d, t, r, fonte in zip(fixo['dicts'], tempos.tolist(), razao_aresta.tolist(), fixo['fonte']):
+        d['travel_time_lia'] = t
+        d['lia_source'] = fonte
+        if fonte != 'blocked':
+            d['lia_razao'] = round(r, 4)
 
+    resultado = fixo['contagem']
     logger.info(
         f"Pesos atribuídos (prior {'corredor' if prior_vivo else 'perfil'} {prior:.3f}): "
         f"{resultado['model']:,} do modelo, "
@@ -427,7 +376,55 @@ def assign_lia_weights(model, encoder, profiles, G: nx.MultiDiGraph,
         f"{resultado['heuristic']:,} heurística, "
         f"{resultado['blocked']:,} bloqueadas"
     )
-    return resultado
+    return dict(resultado)
+
+
+def _pesos_fixos(G: nx.MultiDiGraph, encoder) -> dict:
+    """O que não muda entre requisições, por aresta: fonte (modelo, transferência, heurística, bloqueada),
+    via, comprimento, velocidade livre e distância até a via. Calculado na 1ª rota e guardado no grafo
+    (só depende do enriquecimento da subida e do encoder do modelo carregado)."""
+    chave = (G.number_of_edges(), id(encoder), id(G.graph.get('vel_livre_tomtom')))
+    fixo = G.graph.get('_pesos_fixos')
+    if fixo is not None and fixo['chave'] == chave:
+        return fixo
+    conhecidas = set(encoder.classes_.tolist())
+    vel_tomtom = G.graph.get('vel_livre_tomtom')  # None = comportamento da tese (OSM)
+    dicts, fontes, vias, comp, vel, dist = [], [], [], [], [], []
+    for _, _, _, d in G.edges(keys=True, data=True):
+        dicts.append(d)
+        vel_livre = float(d.get('speed_kph') or 50.0)
+        if vel_livre <= 0:
+            vel_livre = 50.0
+        comp.append(float(d.get('length') or 100.0))
+        via = d.get('id_ponto_lia')
+        if valor_highway(d) in NON_DRIVABLE_HIGHWAYS:
+            fonte, via = 'blocked', None
+        elif via is not None and via in conhecidas:
+            fonte = 'model' if float(d.get('dist_lia_m') or 0.0) < DIST_VIA_PROPRIA_M else 'transfer'
+            if fonte == 'model' and vel_tomtom and via in vel_tomtom:
+                # Trecho monitorado: mesma velocidade livre do treino (TomTom), não
+                # o limite de via do OSM (VEL_LIVRE_CALIBRADA, padrão; ver ml/free_flow_speeds.py).
+                vel_livre = vel_tomtom[via]
+        else:
+            fonte, via = 'heuristic', None
+        fontes.append(fonte)
+        vias.append(via)
+        vel.append(vel_livre)
+        dist.append(float(d.get('dist_lia_m') or 0.0))
+    usadas = sorted({v for v in vias if v is not None})
+    pos = {v: i for i, v in enumerate(usadas)}
+    fonte_arr = np.array(fontes, dtype=object)
+    fixo = {
+        'chave': chave, 'dicts': dicts, 'fonte': fonte_arr, 'vias': usadas,
+        'vias_cod': encoder.transform(usadas) if usadas else [],
+        'via_idx': np.array([pos.get(v, -1) for v in vias], dtype=float),
+        'vinculada': np.isin(fonte_arr, ['model', 'transfer']),
+        'bloqueada': fonte_arr == 'blocked',
+        'comp': np.array(comp), 'vel': np.array(vel), 'dist': np.array(dist),
+        'contagem': {f: int((fonte_arr == f).sum()) for f in ('model', 'transfer', 'heuristic', 'blocked')},
+    }
+    G.graph['_pesos_fixos'] = fixo
+    return fixo
 
 
 def _trechos(G: nx.MultiDiGraph, nos: List[int]):
@@ -635,9 +632,20 @@ def _snap(request: Request, G: nx.MultiDiGraph, lat: float, lon: float) -> Tuple
         429: erro("Limite de rotas por minuto excedido.", "Muitas requisições. Tente de novo em instantes."),
     },
 )
-async def calculate_route(body: RouteInput, request: Request):
+async def calculate_route(body: RouteInput, request: Request, response: Response):
     limitar(_limite_ip, ip_cliente(request))
     inicio_req = time.perf_counter()
+    # Tempo por fase (ms) no Server-Timing e no log: a auditoria de latência de 2026-11-02 começou sem isso.
+    etapas: Dict[str, float] = {}
+    ultima = [inicio_req]
+
+    def marca(nome: str) -> None:
+        agora = time.perf_counter()
+        etapas[nome] = (agora - ultima[0]) * 1000
+        ultima[0] = agora
+
+    def server_timing() -> None:
+        response.headers['Server-Timing'] = ', '.join(f'{k};dur={v:.0f}' for k, v in etapas.items())
     # Usuário é opcional (rota anônima segue funcionando); com token válido, o
     # uso fica associado à conta para o painel ADM.
     sb = getattr(request.app.state, 'supabase', None)
@@ -674,8 +682,10 @@ async def calculate_route(body: RouteInput, request: Request):
     origem = (body.origem.lat, body.origem.lon)
     destino = (body.destino.lat, body.destino.lon)
 
+    marca('prep')
     orig_node, dist_orig = _snap(request, G, *origem)
     dest_node, dist_dest = _snap(request, G, *destino)
+    marca('snap')
     fora_da_malha = max(dist_orig, dist_dest) > trajeto.LIMITE_SNAP_M
     logger.info(f"Snap: origem {orig_node} a {dist_orig:.0f} m, destino {dest_node} a {dist_dest:.0f} m")
 
@@ -693,6 +703,7 @@ async def calculate_route(body: RouteInput, request: Request):
         )
     ref = referencia_tt or {}
     degradado = not tt_ativo or tt.pool.disponiveis('fluxo') == 0
+    marca('tomtom')
 
     def resumo_tomtom(polyline, interdicoes, referencia) -> TomTomResumo:
         return TomTomResumo(
@@ -720,6 +731,7 @@ async def calculate_route(body: RouteInput, request: Request):
             )
         resumo_tt = resumo_tomtom(ref['polyline'], 0, ref)
         request.state.degradado = degradado
+        server_timing()
         _registrar_rota(sb, user_id, body, version, hora, dia_semana, resumo_tt, inicio_req,
                         distancia_km=ref.get('distancia_km'), tempo_lia=None, tempo_curta=None,
                         rotas_diferentes=None, cobertura=0.0)
@@ -748,6 +760,7 @@ async def calculate_route(body: RouteInput, request: Request):
     atraso_sem = float(G.graph.get('atraso_semaforo_s', 0.0))
     atraso_cruz = float(G.graph.get('atraso_cruzamento_s', 0.0))
     atraso_cruz_via = float(G.graph.get('atraso_cruzamento_via_s', 0.0))
+    marca('pesos')
 
     # Heurística Haversine para A*: distância / maior velocidade do grafo = limite inferior
     vmax = _vmax_ms(G)
@@ -774,6 +787,7 @@ async def calculate_route(body: RouteInput, request: Request):
         else:
             logger.warning("Nenhum caminho respeita as conversões proibidas: segue o caminho livre")
 
+    marca('astar')
     polyline = montar_polyline(G, path_nodes)
     niveis = niveis_lia(G, path_nodes)  # antes do await da fusão (pesos no grafo compartilhado)
     tempo_lia, distancia_total, cobertura_pct = _resumir_caminho(G, path_nodes)
@@ -806,6 +820,7 @@ async def calculate_route(body: RouteInput, request: Request):
         if any((u, v, k) in bloqueadas for k in G[u][v])
     )
 
+    marca('baseline')  # inclui os resumos do caminho
     # --- Fusão: a TomTom reconstrói a rota da LIA e diz se há melhor ---
     fonte_rota, alternativa, tempo_exibido, tempo_outra = 'lia', None, tempo_lia, None
     polyline_final, distancia_final, via_final = polyline, distancia_total, via_principal
@@ -829,12 +844,15 @@ async def calculate_route(body: RouteInput, request: Request):
     # Buracos da LIA (sem sensor perto) pegam o trânsito que a TomTom vê no mesmo lugar.
     niveis = trajeto.preencher_com_tomtom(polyline, niveis, nossa.get('polyline'), nossa.get('trafego'))
     trafego_final = (melhor or {}).get('trafego') if fonte_rota == 'tomtom' else niveis
+    marca('fusao')
+    server_timing()
 
     logger.info(
         f"Rota ({fonte_rota}): {len(path_nodes)} nós, exibido {tempo_exibido:.0f}s (LIA {tempo_lia:.0f}s, "
         f"{semaforos} semáforos, TomTom {nossa.get('tempo_seg')}s), {distancia_final / 1000:.2f}km, "
         f"cobertura LIA {cobertura_pct:.0f}%"
         + (f" | menor distância: {tempo_curta:.0f}s" if tempo_curta is not None else " | sem baseline")
+        + " | ms " + ' '.join(f'{k}={v:.0f}' for k, v in etapas.items())
     )
 
     resumo_tt = resumo_tomtom(polyline_final, interdicoes, ref)
