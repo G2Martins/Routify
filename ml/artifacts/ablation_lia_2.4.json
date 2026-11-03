@@ -1,0 +1,1082 @@
+{
+  "gerado_em": "2026-11-02T23:39:26+00:00",
+  "smoke": false,
+  "linhas": 1513194,
+  "periodo": [
+    "2026-03-07 19:26:09.540211-03:00",
+    "2026-07-19 21:33:24.384683-03:00"
+  ],
+  "linhas_por_periodo": {
+    "dia_fim_de_semana": 9656,
+    "dia_util": 356907,
+    "madrugada": 300624,
+    "noite": 511182,
+    "pico_manha_util": 194348,
+    "pico_tarde_util": 140477
+  },
+  "features": [
+    "id_ponto_enc",
+    "hora",
+    "dia_semana",
+    "hora_sin",
+    "hora_cos",
+    "is_fim_semana",
+    "is_horario_pico",
+    "velocidade_livre",
+    "perfil_via_hora_dow",
+    "perfil_via_hora",
+    "perfil_via",
+    "perfil_hora_dow",
+    "perfil_via_hora_dow_std",
+    "perfil_via_hora_dow_n",
+    "razao_lag1",
+    "delta_min_lag1",
+    "vizinhos_razao",
+    "vizinhos_n",
+    "chuva_mm",
+    "chuva_3h_mm",
+    "is_feriado"
+  ],
+  "hiperparametros": {
+    "n_estimators": 600,
+    "max_depth": 7,
+    "learning_rate": 0.05,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "min_child_weight": 10,
+    "reg_alpha": 0.1,
+    "reg_lambda": 1.0,
+    "objective": "reg:squarederror",
+    "eval_metric": "rmse",
+    "early_stopping_rounds": 40,
+    "tree_method": "hist",
+    "random_state": 42
+  },
+  "variantes": [
+    {
+      "nome": "2.3",
+      "receita": {
+        "oof": true,
+        "envelhecer": true,
+        "es_interno": true
+      },
+      "cv": {
+        "modelo_rmse_razao": 0.0401,
+        "modelo_rmse_razao_std": 0.0027,
+        "modelo_mae_razao": 0.0161,
+        "modelo_mae_razao_std": 0.0016,
+        "modelo_rmse_seg": 35.4756,
+        "modelo_rmse_seg_std": 3.5338,
+        "modelo_mae_seg": 13.3133,
+        "modelo_mae_seg_std": 1.4181,
+        "modelo_rmse_razao_congestionado": 0.0786,
+        "modelo_rmse_razao_congestionado_std": 0.0019,
+        "modelo_rmse_seg_congestionado": 74.316,
+        "modelo_rmse_seg_congestionado_std": 5.5198,
+        "baseline_rmse_razao": 0.0581,
+        "baseline_rmse_razao_std": 0.0045,
+        "baseline_mae_razao": 0.0184,
+        "baseline_mae_razao_std": 0.0029,
+        "baseline_rmse_seg": 57.1699,
+        "baseline_rmse_seg_std": 6.9476,
+        "baseline_mae_seg": 17.2555,
+        "baseline_mae_seg_std": 3.1069,
+        "baseline_rmse_razao_congestionado": 0.1208,
+        "baseline_rmse_razao_congestionado_std": 0.0065,
+        "baseline_rmse_seg_congestionado": 123.6586,
+        "baseline_rmse_seg_congestionado_std": 7.9082,
+        "persistencia_rmse_razao": 0.0492,
+        "persistencia_rmse_razao_std": 0.0025,
+        "persistencia_mae_razao": 0.0143,
+        "persistencia_mae_razao_std": 0.0016,
+        "persistencia_rmse_seg": 39.9591,
+        "persistencia_rmse_seg_std": 1.592,
+        "persistencia_mae_seg": 12.0399,
+        "persistencia_mae_seg_std": 1.2724,
+        "persistencia_rmse_razao_congestionado": 0.0907,
+        "persistencia_rmse_razao_congestionado_std": 0.0047,
+        "persistencia_rmse_seg_congestionado": 76.0684,
+        "persistencia_rmse_seg_congestionado_std": 4.3807
+      },
+      "por_idade": {
+        "15": {
+          "modelo_rmse_seg": 38.4506,
+          "modelo_mae_seg": 14.5221,
+          "baseline_rmse_seg": 59.2555,
+          "baseline_mae_seg": 18.3794,
+          "persistencia_rmse_seg": 46.7365,
+          "persistencia_mae_seg": 15.3178,
+          "folds": 5
+        },
+        "30": {
+          "modelo_rmse_seg": 43.7542,
+          "modelo_mae_seg": 16.9445,
+          "baseline_rmse_seg": 62.6994,
+          "baseline_mae_seg": 20.4713,
+          "persistencia_rmse_seg": 64.845,
+          "persistencia_mae_seg": 23.0803,
+          "folds": 5
+        },
+        "60": {
+          "modelo_rmse_seg": 47.1909,
+          "modelo_mae_seg": 18.2074,
+          "baseline_rmse_seg": 63.8341,
+          "baseline_mae_seg": 21.1109,
+          "persistencia_rmse_seg": 88.0107,
+          "persistencia_mae_seg": 32.5301,
+          "folds": 5
+        },
+        "120": {
+          "modelo_rmse_seg": 61.5199,
+          "modelo_mae_seg": 24.5059,
+          "baseline_rmse_seg": 65.0438,
+          "baseline_mae_seg": 21.801,
+          "persistencia_rmse_seg": 128.9277,
+          "persistencia_mae_seg": 50.809,
+          "folds": 5
+        }
+      },
+      "folds": [
+        {
+          "rmse_seg": 40.85,
+          "mae_seg": 15.3965,
+          "baseline_rmse_seg": 61.6238,
+          "persistencia_rmse_seg": 40.4669,
+          "persistencia_mae_seg": 13.167,
+          "arvores": 240
+        },
+        {
+          "rmse_seg": 35.1267,
+          "mae_seg": 12.4766,
+          "baseline_rmse_seg": 65.9502,
+          "persistencia_rmse_seg": 39.9698,
+          "persistencia_mae_seg": 11.8263,
+          "arvores": 203
+        },
+        {
+          "rmse_seg": 37.3391,
+          "mae_seg": 14.0955,
+          "baseline_rmse_seg": 59.4809,
+          "persistencia_rmse_seg": 40.8318,
+          "persistencia_mae_seg": 13.1521,
+          "arvores": 600
+        },
+        {
+          "rmse_seg": 33.7966,
+          "mae_seg": 13.3821,
+          "baseline_rmse_seg": 52.4178,
+          "persistencia_rmse_seg": 41.5751,
+          "persistencia_mae_seg": 12.348,
+          "arvores": 600
+        },
+        {
+          "rmse_seg": 30.2658,
+          "mae_seg": 11.2158,
+          "baseline_rmse_seg": 46.3767,
+          "persistencia_rmse_seg": 36.9521,
+          "persistencia_mae_seg": 9.706,
+          "arvores": 600
+        }
+      ],
+      "por_periodo": {
+        "modelo": {
+          "dia_fim_de_semana": {
+            "n": 146,
+            "vies_seg": 9.181,
+            "mae_seg": 29.389,
+            "rmse_seg": 47.59
+          },
+          "dia_util": {
+            "n": 296385,
+            "vies_seg": -3.191,
+            "mae_seg": 15.401,
+            "rmse_seg": 34.407
+          },
+          "madrugada": {
+            "n": 228117,
+            "vies_seg": 0.486,
+            "mae_seg": 0.991,
+            "rmse_seg": 6.177
+          },
+          "noite": {
+            "n": 467320,
+            "vies_seg": 0.228,
+            "mae_seg": 9.415,
+            "rmse_seg": 29.531
+          },
+          "pico_manha_util": {
+            "n": 155304,
+            "vies_seg": 0.474,
+            "mae_seg": 23.734,
+            "rmse_seg": 47.617
+          },
+          "pico_tarde_util": {
+            "n": 113723,
+            "vies_seg": -11.342,
+            "mae_seg": 34.357,
+            "rmse_seg": 65.179
+          }
+        },
+        "baseline": {
+          "dia_fim_de_semana": {
+            "n": 146,
+            "vies_seg": 9.046,
+            "mae_seg": 30.817,
+            "rmse_seg": 86.235
+          },
+          "dia_util": {
+            "n": 296385,
+            "vies_seg": -4.289,
+            "mae_seg": 18.25,
+            "rmse_seg": 50.679
+          },
+          "madrugada": {
+            "n": 228117,
+            "vies_seg": 0.037,
+            "mae_seg": 0.638,
+            "rmse_seg": 9.971
+          },
+          "noite": {
+            "n": 467320,
+            "vies_seg": -5.832,
+            "mae_seg": 8.129,
+            "rmse_seg": 38.844
+          },
+          "pico_manha_util": {
+            "n": 155304,
+            "vies_seg": 1.173,
+            "mae_seg": 36.578,
+            "rmse_seg": 80.281
+          },
+          "pico_tarde_util": {
+            "n": 113723,
+            "vies_seg": -8.08,
+            "mae_seg": 59.092,
+            "rmse_seg": 121.949
+          }
+        },
+        "persistencia": {
+          "dia_fim_de_semana": {
+            "n": 146,
+            "vies_seg": -10.094,
+            "mae_seg": 18.132,
+            "rmse_seg": 54.187
+          },
+          "dia_util": {
+            "n": 296385,
+            "vies_seg": -0.763,
+            "mae_seg": 14.254,
+            "rmse_seg": 40.329
+          },
+          "madrugada": {
+            "n": 228117,
+            "vies_seg": -0.137,
+            "mae_seg": 0.444,
+            "rmse_seg": 6.959
+          },
+          "noite": {
+            "n": 467320,
+            "vies_seg": 1.321,
+            "mae_seg": 8.756,
+            "rmse_seg": 40.065
+          },
+          "pico_manha_util": {
+            "n": 155304,
+            "vies_seg": -2.331,
+            "mae_seg": 22.391,
+            "rmse_seg": 52.076
+          },
+          "pico_tarde_util": {
+            "n": 113723,
+            "vies_seg": 0.55,
+            "mae_seg": 28.878,
+            "rmse_seg": 55.621
+          }
+        }
+      },
+      "por_periodo_recencia_30min": {
+        "modelo": {
+          "dia_util": {
+            "n": 289105,
+            "vies_seg": -3.946,
+            "mae_seg": 17.29,
+            "rmse_seg": 39.87
+          },
+          "madrugada": {
+            "n": 219092,
+            "vies_seg": 0.4,
+            "mae_seg": 1.02,
+            "rmse_seg": 6.949
+          },
+          "noite": {
+            "n": 168930,
+            "vies_seg": -1.365,
+            "mae_seg": 9.976,
+            "rmse_seg": 31.751
+          },
+          "pico_manha_util": {
+            "n": 149353,
+            "vies_seg": -0.168,
+            "mae_seg": 29.075,
+            "rmse_seg": 56.749
+          },
+          "pico_tarde_util": {
+            "n": 113398,
+            "vies_seg": -11.271,
+            "mae_seg": 41.973,
+            "rmse_seg": 79.6
+          }
+        },
+        "baseline": {
+          "dia_util": {
+            "n": 289105,
+            "vies_seg": -4.228,
+            "mae_seg": 18.314,
+            "rmse_seg": 50.866
+          },
+          "madrugada": {
+            "n": 219092,
+            "vies_seg": 0.048,
+            "mae_seg": 0.638,
+            "rmse_seg": 10.093
+          },
+          "noite": {
+            "n": 168930,
+            "vies_seg": -6.417,
+            "mae_seg": 9.831,
+            "rmse_seg": 43.403
+          },
+          "pico_manha_util": {
+            "n": 149353,
+            "vies_seg": 0.915,
+            "mae_seg": 36.526,
+            "rmse_seg": 80.579
+          },
+          "pico_tarde_util": {
+            "n": 113398,
+            "vies_seg": -8.092,
+            "mae_seg": 59.148,
+            "rmse_seg": 122.072
+          }
+        },
+        "persistencia": {
+          "dia_util": {
+            "n": 289105,
+            "vies_seg": -2.013,
+            "mae_seg": 18.92,
+            "rmse_seg": 50.039
+          },
+          "madrugada": {
+            "n": 219092,
+            "vies_seg": -0.554,
+            "mae_seg": 0.908,
+            "rmse_seg": 13.733
+          },
+          "noite": {
+            "n": 168930,
+            "vies_seg": 11.013,
+            "mae_seg": 18.128,
+            "rmse_seg": 64.765
+          },
+          "pico_manha_util": {
+            "n": 149353,
+            "vies_seg": -8.218,
+            "mae_seg": 44.481,
+            "rmse_seg": 94.739
+          },
+          "pico_tarde_util": {
+            "n": 113398,
+            "vies_seg": -4.243,
+            "mae_seg": 56.147,
+            "rmse_seg": 102.884
+          }
+        }
+      },
+      "segundos": 1261.2
+    },
+    {
+      "nome": "+pesos 0,5",
+      "receita": {
+        "oof": true,
+        "envelhecer": true,
+        "es_interno": true,
+        "alfa_pesos": 0.5
+      },
+      "cv": {
+        "modelo_rmse_razao": 0.0408,
+        "modelo_rmse_razao_std": 0.0032,
+        "modelo_mae_razao": 0.017,
+        "modelo_mae_razao_std": 0.0018,
+        "modelo_rmse_seg": 35.8764,
+        "modelo_rmse_seg_std": 3.6373,
+        "modelo_mae_seg": 13.9995,
+        "modelo_mae_seg_std": 1.5349,
+        "modelo_rmse_razao_congestionado": 0.0793,
+        "modelo_rmse_razao_congestionado_std": 0.0011,
+        "modelo_rmse_seg_congestionado": 75.9626,
+        "modelo_rmse_seg_congestionado_std": 4.9404,
+        "baseline_rmse_razao": 0.0581,
+        "baseline_rmse_razao_std": 0.0045,
+        "baseline_mae_razao": 0.0184,
+        "baseline_mae_razao_std": 0.0029,
+        "baseline_rmse_seg": 57.1699,
+        "baseline_rmse_seg_std": 6.9476,
+        "baseline_mae_seg": 17.2555,
+        "baseline_mae_seg_std": 3.1069,
+        "baseline_rmse_razao_congestionado": 0.1208,
+        "baseline_rmse_razao_congestionado_std": 0.0065,
+        "baseline_rmse_seg_congestionado": 123.6586,
+        "baseline_rmse_seg_congestionado_std": 7.9082,
+        "persistencia_rmse_razao": 0.0492,
+        "persistencia_rmse_razao_std": 0.0025,
+        "persistencia_mae_razao": 0.0143,
+        "persistencia_mae_razao_std": 0.0016,
+        "persistencia_rmse_seg": 39.9591,
+        "persistencia_rmse_seg_std": 1.592,
+        "persistencia_mae_seg": 12.0399,
+        "persistencia_mae_seg_std": 1.2724,
+        "persistencia_rmse_razao_congestionado": 0.0907,
+        "persistencia_rmse_razao_congestionado_std": 0.0047,
+        "persistencia_rmse_seg_congestionado": 76.0684,
+        "persistencia_rmse_seg_congestionado_std": 4.3807
+      },
+      "por_idade": {
+        "15": {
+          "modelo_rmse_seg": 38.7772,
+          "modelo_mae_seg": 15.175,
+          "baseline_rmse_seg": 59.2555,
+          "baseline_mae_seg": 18.3794,
+          "persistencia_rmse_seg": 46.7365,
+          "persistencia_mae_seg": 15.3178,
+          "folds": 5
+        },
+        "30": {
+          "modelo_rmse_seg": 44.3892,
+          "modelo_mae_seg": 17.7338,
+          "baseline_rmse_seg": 62.6994,
+          "baseline_mae_seg": 20.4713,
+          "persistencia_rmse_seg": 64.845,
+          "persistencia_mae_seg": 23.0803,
+          "folds": 5
+        },
+        "60": {
+          "modelo_rmse_seg": 48.0237,
+          "modelo_mae_seg": 19.0117,
+          "baseline_rmse_seg": 63.8341,
+          "baseline_mae_seg": 21.1109,
+          "persistencia_rmse_seg": 88.0107,
+          "persistencia_mae_seg": 32.5301,
+          "folds": 5
+        },
+        "120": {
+          "modelo_rmse_seg": 62.1217,
+          "modelo_mae_seg": 25.315,
+          "baseline_rmse_seg": 65.0438,
+          "baseline_mae_seg": 21.801,
+          "persistencia_rmse_seg": 128.9277,
+          "persistencia_mae_seg": 50.809,
+          "folds": 5
+        }
+      },
+      "folds": [
+        {
+          "rmse_seg": 41.0794,
+          "mae_seg": 15.1929,
+          "baseline_rmse_seg": 61.6238,
+          "persistencia_rmse_seg": 40.4669,
+          "persistencia_mae_seg": 13.167,
+          "arvores": 228
+        },
+        {
+          "rmse_seg": 36.4835,
+          "mae_seg": 15.432,
+          "baseline_rmse_seg": 65.9502,
+          "persistencia_rmse_seg": 39.9698,
+          "persistencia_mae_seg": 11.8263,
+          "arvores": 54
+        },
+        {
+          "rmse_seg": 37.5728,
+          "mae_seg": 14.146,
+          "baseline_rmse_seg": 59.4809,
+          "persistencia_rmse_seg": 40.8318,
+          "persistencia_mae_seg": 13.1521,
+          "arvores": 597
+        },
+        {
+          "rmse_seg": 34.0798,
+          "mae_seg": 14.1032,
+          "baseline_rmse_seg": 52.4178,
+          "persistencia_rmse_seg": 41.5751,
+          "persistencia_mae_seg": 12.348,
+          "arvores": 600
+        },
+        {
+          "rmse_seg": 30.1664,
+          "mae_seg": 11.1235,
+          "baseline_rmse_seg": 46.3767,
+          "persistencia_rmse_seg": 36.9521,
+          "persistencia_mae_seg": 9.706,
+          "arvores": 600
+        }
+      ],
+      "por_periodo": {
+        "modelo": {
+          "dia_fim_de_semana": {
+            "n": 146,
+            "vies_seg": 1.871,
+            "mae_seg": 23.676,
+            "rmse_seg": 53.009
+          },
+          "dia_util": {
+            "n": 296385,
+            "vies_seg": -2.882,
+            "mae_seg": 15.958,
+            "rmse_seg": 34.776
+          },
+          "madrugada": {
+            "n": 228117,
+            "vies_seg": 1.174,
+            "mae_seg": 1.687,
+            "rmse_seg": 6.54
+          },
+          "noite": {
+            "n": 467320,
+            "vies_seg": 0.518,
+            "mae_seg": 9.967,
+            "rmse_seg": 29.912
+          },
+          "pico_manha_util": {
+            "n": 155304,
+            "vies_seg": -0.816,
+            "mae_seg": 24.584,
+            "rmse_seg": 46.999
+          },
+          "pico_tarde_util": {
+            "n": 113723,
+            "vies_seg": -11.497,
+            "mae_seg": 35.693,
+            "rmse_seg": 66.964
+          }
+        },
+        "baseline": {
+          "dia_fim_de_semana": {
+            "n": 146,
+            "vies_seg": 9.046,
+            "mae_seg": 30.817,
+            "rmse_seg": 86.235
+          },
+          "dia_util": {
+            "n": 296385,
+            "vies_seg": -4.289,
+            "mae_seg": 18.25,
+            "rmse_seg": 50.679
+          },
+          "madrugada": {
+            "n": 228117,
+            "vies_seg": 0.037,
+            "mae_seg": 0.638,
+            "rmse_seg": 9.971
+          },
+          "noite": {
+            "n": 467320,
+            "vies_seg": -5.832,
+            "mae_seg": 8.129,
+            "rmse_seg": 38.844
+          },
+          "pico_manha_util": {
+            "n": 155304,
+            "vies_seg": 1.173,
+            "mae_seg": 36.578,
+            "rmse_seg": 80.281
+          },
+          "pico_tarde_util": {
+            "n": 113723,
+            "vies_seg": -8.08,
+            "mae_seg": 59.092,
+            "rmse_seg": 121.949
+          }
+        },
+        "persistencia": {
+          "dia_fim_de_semana": {
+            "n": 146,
+            "vies_seg": -10.094,
+            "mae_seg": 18.132,
+            "rmse_seg": 54.187
+          },
+          "dia_util": {
+            "n": 296385,
+            "vies_seg": -0.763,
+            "mae_seg": 14.254,
+            "rmse_seg": 40.329
+          },
+          "madrugada": {
+            "n": 228117,
+            "vies_seg": -0.137,
+            "mae_seg": 0.444,
+            "rmse_seg": 6.959
+          },
+          "noite": {
+            "n": 467320,
+            "vies_seg": 1.321,
+            "mae_seg": 8.756,
+            "rmse_seg": 40.065
+          },
+          "pico_manha_util": {
+            "n": 155304,
+            "vies_seg": -2.331,
+            "mae_seg": 22.391,
+            "rmse_seg": 52.076
+          },
+          "pico_tarde_util": {
+            "n": 113723,
+            "vies_seg": 0.55,
+            "mae_seg": 28.878,
+            "rmse_seg": 55.621
+          }
+        }
+      },
+      "por_periodo_recencia_30min": {
+        "modelo": {
+          "dia_util": {
+            "n": 289105,
+            "vies_seg": -3.567,
+            "mae_seg": 17.878,
+            "rmse_seg": 40.09
+          },
+          "madrugada": {
+            "n": 219092,
+            "vies_seg": 1.125,
+            "mae_seg": 1.759,
+            "rmse_seg": 7.367
+          },
+          "noite": {
+            "n": 168930,
+            "vies_seg": -0.835,
+            "mae_seg": 10.823,
+            "rmse_seg": 32.261
+          },
+          "pico_manha_util": {
+            "n": 149353,
+            "vies_seg": -1.128,
+            "mae_seg": 30.004,
+            "rmse_seg": 57.34
+          },
+          "pico_tarde_util": {
+            "n": 113398,
+            "vies_seg": -11.788,
+            "mae_seg": 43.382,
+            "rmse_seg": 81.383
+          }
+        },
+        "baseline": {
+          "dia_util": {
+            "n": 289105,
+            "vies_seg": -4.228,
+            "mae_seg": 18.314,
+            "rmse_seg": 50.866
+          },
+          "madrugada": {
+            "n": 219092,
+            "vies_seg": 0.048,
+            "mae_seg": 0.638,
+            "rmse_seg": 10.093
+          },
+          "noite": {
+            "n": 168930,
+            "vies_seg": -6.417,
+            "mae_seg": 9.831,
+            "rmse_seg": 43.403
+          },
+          "pico_manha_util": {
+            "n": 149353,
+            "vies_seg": 0.915,
+            "mae_seg": 36.526,
+            "rmse_seg": 80.579
+          },
+          "pico_tarde_util": {
+            "n": 113398,
+            "vies_seg": -8.092,
+            "mae_seg": 59.148,
+            "rmse_seg": 122.072
+          }
+        },
+        "persistencia": {
+          "dia_util": {
+            "n": 289105,
+            "vies_seg": -2.013,
+            "mae_seg": 18.92,
+            "rmse_seg": 50.039
+          },
+          "madrugada": {
+            "n": 219092,
+            "vies_seg": -0.554,
+            "mae_seg": 0.908,
+            "rmse_seg": 13.733
+          },
+          "noite": {
+            "n": 168930,
+            "vies_seg": 11.013,
+            "mae_seg": 18.128,
+            "rmse_seg": 64.765
+          },
+          "pico_manha_util": {
+            "n": 149353,
+            "vies_seg": -8.218,
+            "mae_seg": 44.481,
+            "rmse_seg": 94.739
+          },
+          "pico_tarde_util": {
+            "n": 113398,
+            "vies_seg": -4.243,
+            "mae_seg": 56.147,
+            "rmse_seg": 102.884
+          }
+        }
+      },
+      "segundos": 276.1
+    },
+    {
+      "nome": "+pesos 1",
+      "receita": {
+        "oof": true,
+        "envelhecer": true,
+        "es_interno": true,
+        "alfa_pesos": 1.0
+      },
+      "cv": {
+        "modelo_rmse_razao": 0.0406,
+        "modelo_rmse_razao_std": 0.0033,
+        "modelo_mae_razao": 0.0166,
+        "modelo_mae_razao_std": 0.0016,
+        "modelo_rmse_seg": 35.1909,
+        "modelo_rmse_seg_std": 3.4488,
+        "modelo_mae_seg": 13.5695,
+        "modelo_mae_seg_std": 1.3926,
+        "modelo_rmse_razao_congestionado": 0.0788,
+        "modelo_rmse_razao_congestionado_std": 0.002,
+        "modelo_rmse_seg_congestionado": 74.4619,
+        "modelo_rmse_seg_congestionado_std": 4.7238,
+        "baseline_rmse_razao": 0.0581,
+        "baseline_rmse_razao_std": 0.0045,
+        "baseline_mae_razao": 0.0184,
+        "baseline_mae_razao_std": 0.0029,
+        "baseline_rmse_seg": 57.1699,
+        "baseline_rmse_seg_std": 6.9476,
+        "baseline_mae_seg": 17.2555,
+        "baseline_mae_seg_std": 3.1069,
+        "baseline_rmse_razao_congestionado": 0.1208,
+        "baseline_rmse_razao_congestionado_std": 0.0065,
+        "baseline_rmse_seg_congestionado": 123.6586,
+        "baseline_rmse_seg_congestionado_std": 7.9082,
+        "persistencia_rmse_razao": 0.0492,
+        "persistencia_rmse_razao_std": 0.0025,
+        "persistencia_mae_razao": 0.0143,
+        "persistencia_mae_razao_std": 0.0016,
+        "persistencia_rmse_seg": 39.9591,
+        "persistencia_rmse_seg_std": 1.592,
+        "persistencia_mae_seg": 12.0399,
+        "persistencia_mae_seg_std": 1.2724,
+        "persistencia_rmse_razao_congestionado": 0.0907,
+        "persistencia_rmse_razao_congestionado_std": 0.0047,
+        "persistencia_rmse_seg_congestionado": 76.0684,
+        "persistencia_rmse_seg_congestionado_std": 4.3807
+      },
+      "por_idade": {
+        "15": {
+          "modelo_rmse_seg": 38.3603,
+          "modelo_mae_seg": 14.7925,
+          "baseline_rmse_seg": 59.2555,
+          "baseline_mae_seg": 18.3794,
+          "persistencia_rmse_seg": 46.7365,
+          "persistencia_mae_seg": 15.3178,
+          "folds": 5
+        },
+        "30": {
+          "modelo_rmse_seg": 44.0403,
+          "modelo_mae_seg": 17.4078,
+          "baseline_rmse_seg": 62.6994,
+          "baseline_mae_seg": 20.4713,
+          "persistencia_rmse_seg": 64.845,
+          "persistencia_mae_seg": 23.0803,
+          "folds": 5
+        },
+        "60": {
+          "modelo_rmse_seg": 47.593,
+          "modelo_mae_seg": 18.6815,
+          "baseline_rmse_seg": 63.8341,
+          "baseline_mae_seg": 21.1109,
+          "persistencia_rmse_seg": 88.0107,
+          "persistencia_mae_seg": 32.5301,
+          "folds": 5
+        },
+        "120": {
+          "modelo_rmse_seg": 61.1942,
+          "modelo_mae_seg": 24.4855,
+          "baseline_rmse_seg": 65.0438,
+          "baseline_mae_seg": 21.801,
+          "persistencia_rmse_seg": 128.9277,
+          "persistencia_mae_seg": 50.809,
+          "folds": 5
+        }
+      },
+      "folds": [
+        {
+          "rmse_seg": 40.6984,
+          "mae_seg": 15.319,
+          "baseline_rmse_seg": 61.6238,
+          "persistencia_rmse_seg": 40.4669,
+          "persistencia_mae_seg": 13.167,
+          "arvores": 238
+        },
+        {
+          "rmse_seg": 34.5707,
+          "mae_seg": 13.8441,
+          "baseline_rmse_seg": 65.9502,
+          "persistencia_rmse_seg": 39.9698,
+          "persistencia_mae_seg": 11.8263,
+          "arvores": 75
+        },
+        {
+          "rmse_seg": 36.5769,
+          "mae_seg": 13.944,
+          "baseline_rmse_seg": 59.4809,
+          "persistencia_rmse_seg": 40.8318,
+          "persistencia_mae_seg": 13.1521,
+          "arvores": 598
+        },
+        {
+          "rmse_seg": 33.9463,
+          "mae_seg": 13.7011,
+          "baseline_rmse_seg": 52.4178,
+          "persistencia_rmse_seg": 41.5751,
+          "persistencia_mae_seg": 12.348,
+          "arvores": 587
+        },
+        {
+          "rmse_seg": 30.1624,
+          "mae_seg": 11.0391,
+          "baseline_rmse_seg": 46.3767,
+          "persistencia_rmse_seg": 36.9521,
+          "persistencia_mae_seg": 9.706,
+          "arvores": 581
+        }
+      ],
+      "por_periodo": {
+        "modelo": {
+          "dia_fim_de_semana": {
+            "n": 146,
+            "vies_seg": 0.242,
+            "mae_seg": 24.354,
+            "rmse_seg": 63.9
+          },
+          "dia_util": {
+            "n": 296385,
+            "vies_seg": -3.377,
+            "mae_seg": 15.714,
+            "rmse_seg": 35.002
+          },
+          "madrugada": {
+            "n": 228117,
+            "vies_seg": 0.76,
+            "mae_seg": 1.268,
+            "rmse_seg": 6.175
+          },
+          "noite": {
+            "n": 467320,
+            "vies_seg": 0.3,
+            "mae_seg": 9.606,
+            "rmse_seg": 29.597
+          },
+          "pico_manha_util": {
+            "n": 155304,
+            "vies_seg": -1.146,
+            "mae_seg": 24.096,
+            "rmse_seg": 46.302
+          },
+          "pico_tarde_util": {
+            "n": 113723,
+            "vies_seg": -10.086,
+            "mae_seg": 34.553,
+            "rmse_seg": 63.729
+          }
+        },
+        "baseline": {
+          "dia_fim_de_semana": {
+            "n": 146,
+            "vies_seg": 9.046,
+            "mae_seg": 30.817,
+            "rmse_seg": 86.235
+          },
+          "dia_util": {
+            "n": 296385,
+            "vies_seg": -4.289,
+            "mae_seg": 18.25,
+            "rmse_seg": 50.679
+          },
+          "madrugada": {
+            "n": 228117,
+            "vies_seg": 0.037,
+            "mae_seg": 0.638,
+            "rmse_seg": 9.971
+          },
+          "noite": {
+            "n": 467320,
+            "vies_seg": -5.832,
+            "mae_seg": 8.129,
+            "rmse_seg": 38.844
+          },
+          "pico_manha_util": {
+            "n": 155304,
+            "vies_seg": 1.173,
+            "mae_seg": 36.578,
+            "rmse_seg": 80.281
+          },
+          "pico_tarde_util": {
+            "n": 113723,
+            "vies_seg": -8.08,
+            "mae_seg": 59.092,
+            "rmse_seg": 121.949
+          }
+        },
+        "persistencia": {
+          "dia_fim_de_semana": {
+            "n": 146,
+            "vies_seg": -10.094,
+            "mae_seg": 18.132,
+            "rmse_seg": 54.187
+          },
+          "dia_util": {
+            "n": 296385,
+            "vies_seg": -0.763,
+            "mae_seg": 14.254,
+            "rmse_seg": 40.329
+          },
+          "madrugada": {
+            "n": 228117,
+            "vies_seg": -0.137,
+            "mae_seg": 0.444,
+            "rmse_seg": 6.959
+          },
+          "noite": {
+            "n": 467320,
+            "vies_seg": 1.321,
+            "mae_seg": 8.756,
+            "rmse_seg": 40.065
+          },
+          "pico_manha_util": {
+            "n": 155304,
+            "vies_seg": -2.331,
+            "mae_seg": 22.391,
+            "rmse_seg": 52.076
+          },
+          "pico_tarde_util": {
+            "n": 113723,
+            "vies_seg": 0.55,
+            "mae_seg": 28.878,
+            "rmse_seg": 55.621
+          }
+        }
+      },
+      "por_periodo_recencia_30min": {
+        "modelo": {
+          "dia_util": {
+            "n": 289105,
+            "vies_seg": -4.308,
+            "mae_seg": 17.733,
+            "rmse_seg": 40.404
+          },
+          "madrugada": {
+            "n": 219092,
+            "vies_seg": 0.669,
+            "mae_seg": 1.332,
+            "rmse_seg": 7.171
+          },
+          "noite": {
+            "n": 168930,
+            "vies_seg": -1.362,
+            "mae_seg": 10.331,
+            "rmse_seg": 32.118
+          },
+          "pico_manha_util": {
+            "n": 149353,
+            "vies_seg": -1.694,
+            "mae_seg": 29.928,
+            "rmse_seg": 57.647
+          },
+          "pico_tarde_util": {
+            "n": 113398,
+            "vies_seg": -10.576,
+            "mae_seg": 42.57,
+            "rmse_seg": 79.281
+          }
+        },
+        "baseline": {
+          "dia_util": {
+            "n": 289105,
+            "vies_seg": -4.228,
+            "mae_seg": 18.314,
+            "rmse_seg": 50.866
+          },
+          "madrugada": {
+            "n": 219092,
+            "vies_seg": 0.048,
+            "mae_seg": 0.638,
+            "rmse_seg": 10.093
+          },
+          "noite": {
+            "n": 168930,
+            "vies_seg": -6.417,
+            "mae_seg": 9.831,
+            "rmse_seg": 43.403
+          },
+          "pico_manha_util": {
+            "n": 149353,
+            "vies_seg": 0.915,
+            "mae_seg": 36.526,
+            "rmse_seg": 80.579
+          },
+          "pico_tarde_util": {
+            "n": 113398,
+            "vies_seg": -8.092,
+            "mae_seg": 59.148,
+            "rmse_seg": 122.072
+          }
+        },
+        "persistencia": {
+          "dia_util": {
+            "n": 289105,
+            "vies_seg": -2.013,
+            "mae_seg": 18.92,
+            "rmse_seg": 50.039
+          },
+          "madrugada": {
+            "n": 219092,
+            "vies_seg": -0.554,
+            "mae_seg": 0.908,
+            "rmse_seg": 13.733
+          },
+          "noite": {
+            "n": 168930,
+            "vies_seg": 11.013,
+            "mae_seg": 18.128,
+            "rmse_seg": 64.765
+          },
+          "pico_manha_util": {
+            "n": 149353,
+            "vies_seg": -8.218,
+            "mae_seg": 44.481,
+            "rmse_seg": 94.739
+          },
+          "pico_tarde_util": {
+            "n": 113398,
+            "vies_seg": -4.243,
+            "mae_seg": 56.147,
+            "rmse_seg": 102.884
+          }
+        }
+      },
+      "segundos": 288.2
+    }
+  ]
+}
