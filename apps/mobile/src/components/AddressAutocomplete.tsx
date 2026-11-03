@@ -32,17 +32,9 @@ import { supabase, RouteHistoryRow } from '../lib/supabase';
 import { API_URL, apiHeaders, enviarEvento } from '../lib/api';
 import { Selo, Skeleton, useMenosMovimento } from './ui';
 import Icon from './Icon';
+import { combinar, palavras, PlaceSuggestion, semAcento } from '../lib/sugestoes';
 
-export interface PlaceSuggestion {
-  label: string;
-  sublabel: string;
-  lat: number;
-  lon: number;
-  source: 'malha' | 'tomtom' | 'nominatim' | 'recente';
-  /** Categoria em português vinda da API (Shopping, Universidade, Via, Endereço, Região, Bairro…). */
-  categoria?: string | null;
-  id_ponto?: number;
-}
+export type { PlaceSuggestion } from '../lib/sugestoes';
 
 const MIN_CHARS = 2; // mesmo min_length da API
 const MAX_CHARS = 120; // mesmo max_length da API: acima disso a API responde 422
@@ -90,9 +82,6 @@ const ICONE_CATEGORIA: Record<string, string> = {
 // Marcos ganham o destaque azul (o que a pessoa costuma querer dizer).
 const MARCOS = new Set(['Shopping', 'Aeroporto', 'Universidade', 'Escola', 'Hospital', 'Estação', 'Estádio', 'Órgão público', 'Parque', 'Região']);
 
-const semAcento = (s: string) =>
-  (typeof s.normalize === 'function' ? s.normalize('NFD') : s).replace(/[̀-ͯ]/g, '').toLowerCase();
-
 /** Minúsculas e sem acento, guardando de qual índice do original veio cada caractere. */
 function dobrar(s: string): { txt: string; idx: number[] } {
   let txt = '';
@@ -132,26 +121,6 @@ export function trechosDestacados(label: string, busca: string): { t: string; de
   partes.push({ t: label.slice(pos), destaque: false });
   const out = partes.filter((x) => x.t);
   return out.length ? out : [{ t: label, destaque: false }];
-}
-
-const palavras = (s: string) => semAcento(s).split(/[^a-z0-9]+/).filter(Boolean);
-
-/**
- * Destinos recentes que casam com o digitado (cada termo é começo de alguma palavra, sem acento)
- * vêm antes dos resultados da API; o mesmo lugar não aparece duas vezes. No máximo LIMITE linhas.
- */
-export function combinar(q: string, recentes: PlaceSuggestion[] | null, itens: PlaceSuggestion[]): PlaceSuggestion[] {
-  const termos = palavras(q);
-  if (!recentes?.length || !termos.length) return itens;
-  const casam = recentes
-    .filter((r) => {
-      const ps = palavras(r.label);
-      return termos.every((t) => ps.some((p) => p.startsWith(t)));
-    })
-    .slice(0, MAX_RECENTES_DIGITANDO);
-  const mesmo = (a: PlaceSuggestion, b: PlaceSuggestion) =>
-    semAcento(a.label) === semAcento(b.label) && Math.abs(a.lat - b.lat) < 0.002 && Math.abs(a.lon - b.lon) < 0.002;
-  return [...casam, ...itens.filter((i) => !casam.some((r) => mesmo(r, i)))].slice(0, LIMITE);
 }
 
 // Respostas da API por (texto, viés): module-level, então origem e destino dividem. Só memória.
@@ -260,7 +229,7 @@ export default function AddressAutocomplete({ placeholder, value, onChangeText, 
   );
 
   const curto = value.trim().length < MIN_CHARS;
-  const lista = curto ? recentes ?? [] : combinar(value, recentes, itens);
+  const lista = curto ? recentes ?? [] : combinar(value, recentes, itens, LIMITE, MAX_RECENTES_DIGITANDO);
   const carregandoRecentes = curto && recentes === null && !!user;
   const mostrar =
     focado &&
@@ -372,7 +341,7 @@ export default function AddressAutocomplete({ placeholder, value, onChangeText, 
         if (enterPendente.current) {
           // Enter foi apertado antes desta resposta: escolhe o 1º da lista nova, não o da letra anterior.
           enterPendente.current = false;
-          const nova = combinar(valueRef.current, recentesRef.current, validos);
+          const nova = combinar(valueRef.current, recentesRef.current, validos, LIMITE, MAX_RECENTES_DIGITANDO);
           if (nova.length) escolher(nova[0], 0, nova.length);
         }
       } catch {

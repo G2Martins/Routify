@@ -29,7 +29,7 @@ jobs:
         working-directory: services/collector
 
   frontend:
-    name: App mobile (tsc)
+    name: App mobile (tsc + testes)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -38,11 +38,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22  # o npm test usa --experimental-strip-types (Node >= 22.6)
           cache: npm
           cache-dependency-path: apps/mobile/package-lock.json
       - run: npm ci
       - run: npx tsc --noEmit
+      - run: npm test
 
   admin:
     name: Painel ADM (tsc + build)
