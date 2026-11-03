@@ -1,0 +1,955 @@
+{
+ "gerado_em": "2026-11-03T02:05:28+00:00",
+ "aplicado": false,
+ "regra": "células de ~1 km com via principal sem sensor a 500 m; grupo da via, depois buraco maior; 2 km entre pontos",
+ "km_via_principal": 6891.1,
+ "celulas_sem_sensor": 1765,
+ "cenarios": [
+  {
+   "pontos_novos": 0,
+   "pontos_total": 630,
+   "cadencia_coletor_min": 43,
+   "pct_km_via_principal_com_sensor_500m": 22.2,
+   "por_grupo_novos": {
+    "expressa": 0,
+    "arterial": 0,
+    "coletora": 0
+   }
+  },
+  {
+   "pontos_novos": 50,
+   "pontos_total": 680,
+   "cadencia_coletor_min": 46,
+   "pct_km_via_principal_com_sensor_500m": 24.7,
+   "por_grupo_novos": {
+    "expressa": 50,
+    "arterial": 0,
+    "coletora": 0
+   }
+  },
+  {
+   "pontos_novos": 100,
+   "pontos_total": 730,
+   "cadencia_coletor_min": 50,
+   "pct_km_via_principal_com_sensor_500m": 27.8,
+   "por_grupo_novos": {
+    "expressa": 100,
+    "arterial": 0,
+    "coletora": 0
+   }
+  },
+  {
+   "pontos_novos": 150,
+   "pontos_total": 780,
+   "cadencia_coletor_min": 53,
+   "pct_km_via_principal_com_sensor_500m": 30.1,
+   "por_grupo_novos": {
+    "expressa": 107,
+    "arterial": 43,
+    "coletora": 0
+   }
+  }
+ ],
+ "candidatos": [
+  {
+   "lat": -15.581635,
+   "lon": -47.530944,
+   "grupo": "expressa",
+   "buraco_m": 36932
+  },
+  {
+   "lat": -15.58198,
+   "lon": -47.553597,
+   "grupo": "expressa",
+   "buraco_m": 35120
+  },
+  {
+   "lat": -15.500185,
+   "lon": -48.218955,
+   "grupo": "expressa",
+   "buraco_m": 32163
+  },
+  {
+   "lat": -15.591151,
+   "lon": -47.590192,
+   "grupo": "expressa",
+   "buraco_m": 31651
+  },
+  {
+   "lat": -15.516606,
+   "lon": -48.194344,
+   "grupo": "expressa",
+   "buraco_m": 30430
+  },
+  {
+   "lat": -15.597528,
+   "lon": -47.616394,
+   "grupo": "expressa",
+   "buraco_m": 29275
+  },
+  {
+   "lat": -15.596243,
+   "lon": -47.640096,
+   "grupo": "expressa",
+   "buraco_m": 27849
+  },
+  {
+   "lat": -16.125211,
+   "lon": -47.961508,
+   "grupo": "expressa",
+   "buraco_m": 27830
+  },
+  {
+   "lat": -15.545967,
+   "lon": -48.194212,
+   "grupo": "expressa",
+   "buraco_m": 27178
+  },
+  {
+   "lat": -15.595074,
+   "lon": -47.659028,
+   "grupo": "expressa",
+   "buraco_m": 26842
+  },
+  {
+   "lat": -16.107662,
+   "lon": -47.972673,
+   "grupo": "expressa",
+   "buraco_m": 25771
+  },
+  {
+   "lat": -15.56833,
+   "lon": -48.196265,
+   "grupo": "expressa",
+   "buraco_m": 24681
+  },
+  {
+   "lat": -15.601181,
+   "lon": -47.680817,
+   "grupo": "expressa",
+   "buraco_m": 24667
+  },
+  {
+   "lat": -16.090628,
+   "lon": -47.983888,
+   "grupo": "expressa",
+   "buraco_m": 23778
+  },
+  {
+   "lat": -15.586868,
+   "lon": -48.188987,
+   "grupo": "expressa",
+   "buraco_m": 22717
+  },
+  {
+   "lat": -15.610126,
+   "lon": -47.697375,
+   "grupo": "expressa",
+   "buraco_m": 22636
+  },
+  {
+   "lat": -16.026842,
+   "lon": -48.226203,
+   "grupo": "expressa",
+   "buraco_m": 21918
+  },
+  {
+   "lat": -16.063328,
+   "lon": -47.98366,
+   "grupo": "expressa",
+   "buraco_m": 20754
+  },
+  {
+   "lat": -15.604838,
+   "lon": -48.199525,
+   "grupo": "expressa",
+   "buraco_m": 20607
+  },
+  {
+   "lat": -15.622005,
+   "lon": -47.71813,
+   "grupo": "expressa",
+   "buraco_m": 20057
+  },
+  {
+   "lat": -16.019089,
+   "lon": -48.207095,
+   "grupo": "expressa",
+   "buraco_m": 19916
+  },
+  {
+   "lat": -15.990715,
+   "lon": -48.228225,
+   "grupo": "expressa",
+   "buraco_m": 19344
+  },
+  {
+   "lat": -16.048939,
+   "lon": -48.000738,
+   "grupo": "expressa",
+   "buraco_m": 19037
+  },
+  {
+   "lat": -16.048909,
+   "lon": -48.022612,
+   "grupo": "expressa",
+   "buraco_m": 19026
+  },
+  {
+   "lat": -16.01886,
+   "lon": -48.183984,
+   "grupo": "expressa",
+   "buraco_m": 18393
+  },
+  {
+   "lat": -15.626791,
+   "lon": -48.199546,
+   "grupo": "expressa",
+   "buraco_m": 18176
+  },
+  {
+   "lat": -16.041953,
+   "lon": -48.059861,
+   "grupo": "expressa",
+   "buraco_m": 17953
+  },
+  {
+   "lat": -15.631676,
+   "lon": -47.735518,
+   "grupo": "expressa",
+   "buraco_m": 17911
+  },
+  {
+   "lat": -16.0366,
+   "lon": -47.979077,
+   "grupo": "expressa",
+   "buraco_m": 17840
+  },
+  {
+   "lat": -15.982318,
+   "lon": -48.211371,
+   "grupo": "expressa",
+   "buraco_m": 17356
+  },
+  {
+   "lat": -16.032045,
+   "lon": -48.076639,
+   "grupo": "expressa",
+   "buraco_m": 16657
+  },
+  {
+   "lat": -16.009299,
+   "lon": -48.164211,
+   "grupo": "expressa",
+   "buraco_m": 16359
+  },
+  {
+   "lat": -16.017656,
+   "lon": -47.981328,
+   "grupo": "expressa",
+   "buraco_m": 15721
+  },
+  {
+   "lat": -15.641355,
+   "lon": -47.754658,
+   "grupo": "expressa",
+   "buraco_m": 15598
+  },
+  {
+   "lat": -16.020321,
+   "lon": -48.102286,
+   "grupo": "expressa",
+   "buraco_m": 15412
+  },
+  {
+   "lat": -16.011617,
+   "lon": -48.130886,
+   "grupo": "expressa",
+   "buraco_m": 15115
+  },
+  {
+   "lat": -15.656168,
+   "lon": -48.202947,
+   "grupo": "expressa",
+   "buraco_m": 14890
+  },
+  {
+   "lat": -15.966829,
+   "lon": -48.18293,
+   "grupo": "expressa",
+   "buraco_m": 13931
+  },
+  {
+   "lat": -15.651045,
+   "lon": -47.775551,
+   "grupo": "expressa",
+   "buraco_m": 13114
+  },
+  {
+   "lat": -15.992534,
+   "lon": -47.986312,
+   "grupo": "expressa",
+   "buraco_m": 12893
+  },
+  {
+   "lat": -15.680645,
+   "lon": -48.205508,
+   "grupo": "expressa",
+   "buraco_m": 12154
+  },
+  {
+   "lat": -15.949708,
+   "lon": -48.173658,
+   "grupo": "expressa",
+   "buraco_m": 11940
+  },
+  {
+   "lat": -15.977404,
+   "lon": -48.005137,
+   "grupo": "expressa",
+   "buraco_m": 11070
+  },
+  {
+   "lat": -15.659543,
+   "lon": -47.794083,
+   "grupo": "expressa",
+   "buraco_m": 10917
+  },
+  {
+   "lat": -15.929017,
+   "lon": -48.167965,
+   "grupo": "expressa",
+   "buraco_m": 10126
+  },
+  {
+   "lat": -15.701308,
+   "lon": -48.202193,
+   "grupo": "expressa",
+   "buraco_m": 9919
+  },
+  {
+   "lat": -15.96326,
+   "lon": -48.017073,
+   "grupo": "expressa",
+   "buraco_m": 9484
+  },
+  {
+   "lat": -15.962041,
+   "lon": -47.991994,
+   "grupo": "expressa",
+   "buraco_m": 9457
+  },
+  {
+   "lat": -15.914701,
+   "lon": -48.156368,
+   "grupo": "expressa",
+   "buraco_m": 8280
+  },
+  {
+   "lat": -15.670494,
+   "lon": -47.816462,
+   "grupo": "expressa",
+   "buraco_m": 8230
+  },
+  {
+   "lat": -15.719542,
+   "lon": -48.196485,
+   "grupo": "expressa",
+   "buraco_m": 8064
+  },
+  {
+   "lat": -15.945424,
+   "lon": -48.038538,
+   "grupo": "expressa",
+   "buraco_m": 7556
+  },
+  {
+   "lat": -15.939614,
+   "lon": -47.827118,
+   "grupo": "expressa",
+   "buraco_m": 7495
+  },
+  {
+   "lat": -15.941504,
+   "lon": -47.988116,
+   "grupo": "expressa",
+   "buraco_m": 7224
+  },
+  {
+   "lat": -15.730908,
+   "lon": -48.178072,
+   "grupo": "expressa",
+   "buraco_m": 7203
+  },
+  {
+   "lat": -15.886699,
+   "lon": -48.151457,
+   "grupo": "expressa",
+   "buraco_m": 6778
+  },
+  {
+   "lat": -15.85893,
+   "lon": -48.174796,
+   "grupo": "expressa",
+   "buraco_m": 6726
+  },
+  {
+   "lat": -15.731121,
+   "lon": -48.155061,
+   "grupo": "expressa",
+   "buraco_m": 6444
+  },
+  {
+   "lat": -15.731558,
+   "lon": -48.102592,
+   "grupo": "expressa",
+   "buraco_m": 6278
+  },
+  {
+   "lat": -15.729099,
+   "lon": -48.12739,
+   "grupo": "expressa",
+   "buraco_m": 6228
+  },
+  {
+   "lat": -15.681542,
+   "lon": -47.836595,
+   "grupo": "expressa",
+   "buraco_m": 5759
+  },
+  {
+   "lat": -15.904832,
+   "lon": -48.13428,
+   "grupo": "expressa",
+   "buraco_m": 5676
+  },
+  {
+   "lat": -15.848286,
+   "lon": -48.191676,
+   "grupo": "expressa",
+   "buraco_m": 5622
+  },
+  {
+   "lat": -15.92308,
+   "lon": -47.975351,
+   "grupo": "expressa",
+   "buraco_m": 5456
+  },
+  {
+   "lat": -15.919986,
+   "lon": -47.828107,
+   "grupo": "expressa",
+   "buraco_m": 5328
+  },
+  {
+   "lat": -15.925116,
+   "lon": -48.046536,
+   "grupo": "expressa",
+   "buraco_m": 5182
+  },
+  {
+   "lat": -15.833881,
+   "lon": -48.210703,
+   "grupo": "expressa",
+   "buraco_m": 4525
+  },
+  {
+   "lat": -15.734413,
+   "lon": -48.081718,
+   "grupo": "expressa",
+   "buraco_m": 4295
+  },
+  {
+   "lat": -15.904095,
+   "lon": -47.963522,
+   "grupo": "expressa",
+   "buraco_m": 3901
+  },
+  {
+   "lat": -15.895971,
+   "lon": -47.819722,
+   "grupo": "expressa",
+   "buraco_m": 2650
+  },
+  {
+   "lat": -15.815113,
+   "lon": -48.208356,
+   "grupo": "expressa",
+   "buraco_m": 2494
+  },
+  {
+   "lat": -15.772576,
+   "lon": -48.231265,
+   "grupo": "expressa",
+   "buraco_m": 2443
+  },
+  {
+   "lat": -15.691868,
+   "lon": -47.866859,
+   "grupo": "expressa",
+   "buraco_m": 2343
+  },
+  {
+   "lat": -15.900192,
+   "lon": -48.05475,
+   "grupo": "expressa",
+   "buraco_m": 2340
+  },
+  {
+   "lat": -15.894999,
+   "lon": -48.103213,
+   "grupo": "expressa",
+   "buraco_m": 2258
+  },
+  {
+   "lat": -15.745363,
+   "lon": -48.061214,
+   "grupo": "expressa",
+   "buraco_m": 1790
+  },
+  {
+   "lat": -15.88291,
+   "lon": -47.959969,
+   "grupo": "expressa",
+   "buraco_m": 1692
+  },
+  {
+   "lat": -15.790625,
+   "lon": -47.957158,
+   "grupo": "expressa",
+   "buraco_m": 1423
+  },
+  {
+   "lat": -15.886589,
+   "lon": -48.073946,
+   "grupo": "expressa",
+   "buraco_m": 1419
+  },
+  {
+   "lat": -15.867223,
+   "lon": -47.944449,
+   "grupo": "expressa",
+   "buraco_m": 1403
+  },
+  {
+   "lat": -15.790026,
+   "lon": -47.982228,
+   "grupo": "expressa",
+   "buraco_m": 1282
+  },
+  {
+   "lat": -15.824753,
+   "lon": -47.830666,
+   "grupo": "expressa",
+   "buraco_m": 1033
+  },
+  {
+   "lat": -15.786758,
+   "lon": -48.006598,
+   "grupo": "expressa",
+   "buraco_m": 933
+  },
+  {
+   "lat": -15.790666,
+   "lon": -48.032921,
+   "grupo": "expressa",
+   "buraco_m": 927
+  },
+  {
+   "lat": -15.843612,
+   "lon": -47.953665,
+   "grupo": "expressa",
+   "buraco_m": 881
+  },
+  {
+   "lat": -15.842847,
+   "lon": -47.820256,
+   "grupo": "expressa",
+   "buraco_m": 878
+  },
+  {
+   "lat": -15.707274,
+   "lon": -47.892213,
+   "grupo": "expressa",
+   "buraco_m": 876
+  },
+  {
+   "lat": -15.873392,
+   "lon": -47.97873,
+   "grupo": "expressa",
+   "buraco_m": 810
+  },
+  {
+   "lat": -15.792478,
+   "lon": -48.159336,
+   "grupo": "expressa",
+   "buraco_m": 769
+  },
+  {
+   "lat": -15.789396,
+   "lon": -48.223678,
+   "grupo": "expressa",
+   "buraco_m": 756
+  },
+  {
+   "lat": -15.816584,
+   "lon": -47.949223,
+   "grupo": "expressa",
+   "buraco_m": 692
+  },
+  {
+   "lat": -15.830719,
+   "lon": -47.891304,
+   "grupo": "expressa",
+   "buraco_m": 657
+  },
+  {
+   "lat": -15.783808,
+   "lon": -48.125862,
+   "grupo": "expressa",
+   "buraco_m": 654
+  },
+  {
+   "lat": -15.798032,
+   "lon": -48.187737,
+   "grupo": "expressa",
+   "buraco_m": 645
+  },
+  {
+   "lat": -15.775375,
+   "lon": -48.046244,
+   "grupo": "expressa",
+   "buraco_m": 636
+  },
+  {
+   "lat": -15.808531,
+   "lon": -47.849873,
+   "grupo": "expressa",
+   "buraco_m": 629
+  },
+  {
+   "lat": -15.8117,
+   "lon": -47.982703,
+   "grupo": "expressa",
+   "buraco_m": 629
+  },
+  {
+   "lat": -15.849686,
+   "lon": -47.931838,
+   "grupo": "expressa",
+   "buraco_m": 619
+  },
+  {
+   "lat": -15.745776,
+   "lon": -47.920212,
+   "grupo": "expressa",
+   "buraco_m": 616
+  },
+  {
+   "lat": -15.77366,
+   "lon": -47.863291,
+   "grupo": "expressa",
+   "buraco_m": 598
+  },
+  {
+   "lat": -15.870477,
+   "lon": -48.030483,
+   "grupo": "expressa",
+   "buraco_m": 562
+  },
+  {
+   "lat": -15.794124,
+   "lon": -48.060657,
+   "grupo": "expressa",
+   "buraco_m": 553
+  },
+  {
+   "lat": -15.853395,
+   "lon": -48.039652,
+   "grupo": "expressa",
+   "buraco_m": 551
+  },
+  {
+   "lat": -15.826924,
+   "lon": -48.03063,
+   "grupo": "expressa",
+   "buraco_m": 538
+  },
+  {
+   "lat": -15.763839,
+   "lon": -47.931511,
+   "grupo": "expressa",
+   "buraco_m": 532
+  },
+  {
+   "lat": -15.800213,
+   "lon": -48.086323,
+   "grupo": "expressa",
+   "buraco_m": 525
+  },
+  {
+   "lat": -15.755837,
+   "lon": -47.86853,
+   "grupo": "expressa",
+   "buraco_m": 522
+  },
+  {
+   "lat": -15.52005,
+   "lon": -47.531014,
+   "grupo": "arterial",
+   "buraco_m": 41768
+  },
+  {
+   "lat": -15.455577,
+   "lon": -47.607986,
+   "grupo": "arterial",
+   "buraco_m": 40477
+  },
+  {
+   "lat": -15.537593,
+   "lon": -47.541462,
+   "grupo": "arterial",
+   "buraco_m": 39569
+  },
+  {
+   "lat": -15.474215,
+   "lon": -47.602911,
+   "grupo": "arterial",
+   "buraco_m": 39517
+  },
+  {
+   "lat": -16.073434,
+   "lon": -47.529359,
+   "grupo": "arterial",
+   "buraco_m": 38532
+  },
+  {
+   "lat": -15.494619,
+   "lon": -47.617893,
+   "grupo": "arterial",
+   "buraco_m": 36836
+  },
+  {
+   "lat": -16.047466,
+   "lon": -47.538174,
+   "grupo": "arterial",
+   "buraco_m": 36136
+  },
+  {
+   "lat": -15.517505,
+   "lon": -47.617709,
+   "grupo": "arterial",
+   "buraco_m": 35312
+  },
+  {
+   "lat": -16.029718,
+   "lon": -47.544383,
+   "grupo": "arterial",
+   "buraco_m": 34539
+  },
+  {
+   "lat": -15.534228,
+   "lon": -47.628622,
+   "grupo": "arterial",
+   "buraco_m": 33289
+  },
+  {
+   "lat": -16.00177,
+   "lon": -47.543892,
+   "grupo": "arterial",
+   "buraco_m": 33122
+  },
+  {
+   "lat": -15.642696,
+   "lon": -47.52937,
+   "grupo": "arterial",
+   "buraco_m": 32989
+  },
+  {
+   "lat": -15.528433,
+   "lon": -47.647852,
+   "grupo": "arterial",
+   "buraco_m": 31991
+  },
+  {
+   "lat": -16.089333,
+   "lon": -47.631678,
+   "grupo": "arterial",
+   "buraco_m": 31624
+  },
+  {
+   "lat": -15.547654,
+   "lon": -47.642408,
+   "grupo": "arterial",
+   "buraco_m": 31231
+  },
+  {
+   "lat": -15.610314,
+   "lon": -47.579329,
+   "grupo": "arterial",
+   "buraco_m": 30952
+  },
+  {
+   "lat": -15.647015,
+   "lon": -47.549278,
+   "grupo": "arterial",
+   "buraco_m": 30938
+  },
+  {
+   "lat": -15.967236,
+   "lon": -47.55585,
+   "grupo": "arterial",
+   "buraco_m": 30443
+  },
+  {
+   "lat": -15.994874,
+   "lon": -47.56904,
+   "grupo": "arterial",
+   "buraco_m": 30372
+  },
+  {
+   "lat": -16.062907,
+   "lon": -47.622386,
+   "grupo": "arterial",
+   "buraco_m": 30142
+  },
+  {
+   "lat": -15.528568,
+   "lon": -47.670727,
+   "grupo": "arterial",
+   "buraco_m": 30065
+  },
+  {
+   "lat": -15.945436,
+   "lon": -47.55248,
+   "grupo": "arterial",
+   "buraco_m": 29605
+  },
+  {
+   "lat": -15.652573,
+   "lon": -47.569745,
+   "grupo": "arterial",
+   "buraco_m": 28779
+  },
+  {
+   "lat": -15.563881,
+   "lon": -47.659112,
+   "grupo": "arterial",
+   "buraco_m": 28748
+  },
+  {
+   "lat": -16.028998,
+   "lon": -47.614315,
+   "grupo": "arterial",
+   "buraco_m": 28298
+  },
+  {
+   "lat": -16.121482,
+   "lon": -47.886689,
+   "grupo": "arterial",
+   "buraco_m": 28272
+  },
+  {
+   "lat": -15.52871,
+   "lon": -47.694143,
+   "grupo": "arterial",
+   "buraco_m": 28179
+  },
+  {
+   "lat": -15.725153,
+   "lon": -47.542189,
+   "grupo": "arterial",
+   "buraco_m": 27836
+  },
+  {
+   "lat": -15.704359,
+   "lon": -47.550778,
+   "grupo": "arterial",
+   "buraco_m": 27772
+  },
+  {
+   "lat": -15.973156,
+   "lon": -47.585443,
+   "grupo": "arterial",
+   "buraco_m": 27756
+  },
+  {
+   "lat": -15.628472,
+   "lon": -47.60559,
+   "grupo": "arterial",
+   "buraco_m": 27524
+  },
+  {
+   "lat": -16.116685,
+   "lon": -47.934207,
+   "grupo": "arterial",
+   "buraco_m": 27380
+  },
+  {
+   "lat": -15.934871,
+   "lon": -47.571248,
+   "grupo": "arterial",
+   "buraco_m": 27280
+  },
+  {
+   "lat": -16.00142,
+   "lon": -47.60649,
+   "grupo": "arterial",
+   "buraco_m": 27229
+  },
+  {
+   "lat": -16.124748,
+   "lon": -48.060084,
+   "grupo": "arterial",
+   "buraco_m": 27080
+  },
+  {
+   "lat": -16.10959,
+   "lon": -47.871544,
+   "grupo": "arterial",
+   "buraco_m": 26889
+  },
+  {
+   "lat": -15.760713,
+   "lon": -47.544616,
+   "grupo": "arterial",
+   "buraco_m": 26648
+  },
+  {
+   "lat": -15.811227,
+   "lon": -47.541424,
+   "grupo": "arterial",
+   "buraco_m": 26635
+  },
+  {
+   "lat": -15.785505,
+   "lon": -47.545442,
+   "grupo": "arterial",
+   "buraco_m": 26237
+  },
+  {
+   "lat": -15.524684,
+   "lon": -47.725211,
+   "grupo": "arterial",
+   "buraco_m": 26190
+  },
+  {
+   "lat": -15.58255,
+   "lon": -47.677848,
+   "grupo": "arterial",
+   "buraco_m": 25951
+  },
+  {
+   "lat": -15.654579,
+   "lon": -47.605105,
+   "grupo": "arterial",
+   "buraco_m": 25626
+  },
+  {
+   "lat": -15.830468,
+   "lon": -47.552841,
+   "grupo": "arterial",
+   "buraco_m": 25600
+  }
+ ]
+}
