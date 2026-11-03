@@ -53,6 +53,7 @@ def test_busca_tomtom_tem_teto_por_ip_e_dia(monkeypatch):
 
 def test_health_publico_nao_mostra_o_pool_tomtom(monkeypatch):
     """Tamanho do pool e livres por serviço só no /admin/saude, que exige admin (auditoria B2)."""
+    pytest.importorskip('osmnx')  # main importa o osmnx; o CI instala só o mínimo
     import main
     import seguranca
     estado = types.SimpleNamespace(
