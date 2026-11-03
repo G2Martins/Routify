@@ -353,3 +353,29 @@ nunca passa pelo chat, e é apagada em IAM quando a tarefa acaba (ou rotacionada
 ```
 
 Revogar: IAM → *Users* → `claude-ops` → *Security credentials* → *Deactivate*/*Delete* a access key.
+
+### 5.7 Crédito da AWS até dezembro (2026-11-03)
+
+O plano Free encerra a conta quando o crédito acaba, então gastar mais exige ver o saldo. O `claude-ops` não lia
+custo, métricas nem o saldo do plano (AccessDenied em `ce:GetCostAndUsage`, `cloudwatch:GetMetricStatistics` e
+`freetier:GetAccountPlanState`). O `aws-bootstrap.sh` já traz a permissão de leitura para instalações novas; numa
+conta existente, uma vez no CloudShell (o Cost Explorer ainda depende do acesso de IAM ao Billing, ativado pelo root):
+
+```bash
+aws iam put-user-policy --user-name claude-ops --policy-name RoutifyLeituraCustoMetricas --policy-document \
+'{"Version":"2012-10-17","Statement":[{"Sid":"VerCustoMetricasECredito","Effect":"Allow","Action":["ce:GetCostAndUsage","ce:GetCostForecast","freetier:GetAccountPlanState","freetier:GetFreeTierUsage","cloudwatch:GetMetricData","cloudwatch:GetMetricStatistics","cloudwatch:ListMetrics"],"Resource":"*"}]}'
+```
+
+Conta (us-east-1, sob demanda, 03/11 → 31/12 = 1.416 h; IP público US$ 0,005/h; EBS ~US$ 2,40/mês):
+
+| Instância | RAM | Até 31/12 | Observação |
+|---|---|---|---|
+| t3.small (atual) | 2 GB | ~US$ 41 | swap quando roda build ou o braço B do A/B junto |
+| t3.medium | 4 GB | ~US$ 71 | mesma CPU base (20%), sem swap; só cabe se o saldo for ≥ ~US$ 80 |
+| t3.small + Unlimited | 2 GB | ~US$ 41 + excedente | sem throttling de CPU; paga US$ 0,05/vCPU·h só acima da média base |
+
+Os dois picos de latência de 02/11 (41 s e 32 s no `/route`) vieram de build do front na própria EC2 (agora no
+GitHub Actions, `front-build.yml`). Com o saldo à vista: `aws freetier get-account-plan-state`. Trocar de tipo
+(~2 min fora do ar): `aws ec2 stop-instances` → `aws ec2 modify-instance-attribute --instance-type '{"Value":"t3.medium"}'`
+→ `aws ec2 start-instances`. Unlimited, sem parar: `aws ec2 modify-instance-credit-specification
+--instance-credit-specifications InstanceId=<id>,CpuCredits=unlimited`.

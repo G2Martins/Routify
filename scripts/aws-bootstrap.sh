@@ -112,7 +112,9 @@ JSON_CLI=$(cat <<'J'
               "arn:aws:ssm:<regiao>::document/AWS-RunShellScript",
               "arn:aws:ssm:<regiao>::document/AWS-StartSSHSession",
               "arn:aws:ssm:<regiao>::document/SSM-SessionManagerRunShell"]},
- {"Sid":"EncerrarPropriasSessoes","Effect":"Allow","Action":"ssm:TerminateSession","Resource":"arn:aws:ssm:*:*:session/${aws:username}-*"}
+ {"Sid":"EncerrarPropriasSessoes","Effect":"Allow","Action":"ssm:TerminateSession","Resource":"arn:aws:ssm:*:*:session/${aws:username}-*"},
+ {"Sid":"VerCustoMetricasECredito","Effect":"Allow","Action":["ce:GetCostAndUsage","ce:GetCostForecast","freetier:GetAccountPlanState",
+  "freetier:GetFreeTierUsage","cloudwatch:GetMetricData","cloudwatch:GetMetricStatistics","cloudwatch:ListMetrics"],"Resource":"*"}
 ]}
 J
 )
