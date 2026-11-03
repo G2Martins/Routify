@@ -167,6 +167,14 @@ export function PoolTomTom({ pausadas: pausadasServidor }: { pausadas: string[] 
                       {n}
                       <span className="text-sm text-muted-foreground">/{chaves.length}</span>
                     </p>
+                    {estado.hoje?.[s.chave] ? (
+                      <p
+                        className={`num mt-1.5 text-[11px] ${estado.hoje[s.chave].chamadas >= estado.hoje[s.chave].teto ? 'text-destructive' : 'text-muted-foreground'}`}
+                        title="Teto do dia UTC: 1/31 da cota mensal do pool. Passou dele, a API segue sem a TomTom até 00:00 UTC."
+                      >
+                        hoje {fmtInt(estado.hoje[s.chave].chamadas)} de {fmtInt(estado.hoje[s.chave].teto)}
+                      </p>
+                    ) : null}
                   </div>
                 );
               })}

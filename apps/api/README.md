@@ -134,6 +134,12 @@ Testes: `.venv/Scripts/python -m pytest -q` (o HTTP da TomTom é simulado; nenhu
 | `/admin/tomtom` | 60/min por admin |
 | teste de chave | 6/min por admin |
 
+**Tetos da TomTom (auditoria de 2026-11-03, M2):** além dos 120/min do pool (`tomtom_orcamento_min`), cada serviço
+gasta no máximo 1/31 da cota mensal do pool por dia UTC (`COTA_MES_POR_CHAVE` em `tomtom.py`; o Flow fica com os 15%
+que o coletor deixa) e cada IP faz no máximo 400 buscas com TomTom por dia (`TOMTOM_POR_IP_DIA` em
+`routers/search.py`). Passou do teto, a resposta sai sem a TomTom (busca só local, rota só LIA); o painel mostra
+"hoje X de Y" por serviço em `/admin/operacao`.
+
 ponytail: os limites ficam em memória, 1 réplica.
 
 ### Captura de uso (LGPD)
@@ -473,7 +479,8 @@ vinha primeiro uma loja de São Sebastião. Sinais usados:
 ]
 ```
 `categoria` também pode ser `Região` ou `Bairro` (localidades do OSM, `source: "malha"`). Consulta só de
-pontuação devolve `[]` sem gastar cota. Limite de 90/min por IP (429 com `Retry-After`).
+pontuação devolve `[]` sem gastar cota. Limite de 90/min por IP (429 com `Retry-After`); depois de 400 buscas
+no dia, o IP segue só com a base local (sem TomTom).
 
 ---
 

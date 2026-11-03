@@ -40,3 +40,12 @@ def test_rota_so_aceita_coordenadas_do_df():
     for fora in ({'lat': 48.85, 'lon': 2.35}, {'lat': -23.55, 'lon': -46.63}, {'lat': -15.79, 'lon': -50.0}):
         with pytest.raises(ValidationError):
             RouteInput(**{**ok, 'destino': fora})
+
+
+def test_busca_tomtom_tem_teto_por_ip_e_dia(monkeypatch):
+    """Um IP só não gasta a cota de Search do pool: passou do teto, só a base local (auditoria M2)."""
+    from routers import search
+    monkeypatch.setattr(search, 'TOMTOM_POR_IP_DIA', 3)
+    monkeypatch.setattr(search, '_tomtom_por_ip', {})
+    assert [search.tomtom_liberado('1.2.3.4') for _ in range(4)] == [True, True, True, False]
+    assert search.tomtom_liberado('5.6.7.8') is True

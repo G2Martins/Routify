@@ -55,6 +55,21 @@ _cache_malha = CacheTTL(3600, max_itens=512)
 # Autocomplete dispara a cada tecla (com debounce no app): folga para digitação
 # normal, corta robô queimando a cota de Search da TomTom.
 _limite_ip = Limitador(90)
+# Buscas na TomTom por IP e dia UTC (auditoria de 2026-11-03, M2). Passou disso, a busca segue só com a base local
+# (malha, lugares, pontos de interesse). 400 ≈ 80 buscas digitadas por dia; IP de operadora (CGNAT) é dividido.
+TOMTOM_POR_IP_DIA = 400
+_tomtom_por_ip: dict = {}
+
+
+def tomtom_liberado(ip: str) -> bool:
+    dia = int(time.time() // 86400)
+    reg = _tomtom_por_ip.get(ip)
+    if reg is None or reg[0] != dia:
+        if len(_tomtom_por_ip) > 50_000:  # teto de memória sob ataque de muitos IPs
+            _tomtom_por_ip.clear()
+        reg = _tomtom_por_ip[ip] = [dia, 0]
+    reg[1] += 1
+    return reg[1] <= TOMTOM_POR_IP_DIA
 
 _BAIRROS_JSON = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'ml', 'artifacts', 'bairros_df.json')
 _bairros: Optional[List[dict]] = None
@@ -676,7 +691,8 @@ async def autocomplete(
     lat: Optional[float] = Query(None, ge=-16.6, le=-15.0, description="Posição de quem busca (viés)."),
     lon: Optional[float] = Query(None, ge=-48.8, le=-46.8, description="Posição de quem busca (viés)."),
 ):
-    limitar(_limite_ip, ip_cliente(request))
+    ip = ip_cliente(request)
+    limitar(_limite_ip, ip)
     qn = normalizar(q)
     if not qn:  # só pontuação/símbolo: nada a buscar, nem cota da TomTom a gastar
         return []
@@ -695,7 +711,8 @@ async def autocomplete(
 
     # 20 = recall: com 10, lojas "...Aeroporto" empurravam o aeroporto para fora. Mesma chamada.
     # Sem acento nem pontuação: "Park-Shopping" e "park shopping" dividem o cache de 24 h (e a cota).
-    remotas = [tt.buscar(t, 20, perto) for t in [texto_tomtom(q)] + vs[1:2]] if tt is not None and tt.ativo else []
+    usar_tomtom = tt is not None and tt.ativo and tomtom_liberado(ip)
+    remotas = [tt.buscar(t, 20, perto) for t in [texto_tomtom(q)] + vs[1:2]] if usar_tomtom else []
     achados = await asyncio.gather(_malha(sb, q) if sb is not None else _nada(), *remotas, return_exceptions=True)
     locais = _lista(achados[0], 'malha')
     remotos = [r for a in achados[1:] for r in _lista(a, 'tomtom')]

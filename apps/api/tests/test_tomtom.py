@@ -145,6 +145,24 @@ def test_orcamento_do_minuto_corta_chamadas():
     assert res[2] is None and len(feitas) == 2
 
 
+def test_teto_diario_por_servico(monkeypatch):
+    """A cota é mensal: o dia gasta no máximo 1/31 dela por serviço (auditoria M2)."""
+    monkeypatch.setitem(tomtom.COTA_MES_POR_CHAVE, 'busca', 31)  # 1 chave -> teto de 1 busca por dia
+    feitas = []
+
+    def handler(req):
+        feitas.append(req.url.path)
+        return httpx.Response(200, json={'results': []})
+
+    async def duas(c):
+        await c.buscar('primeira')
+        await c.buscar('segunda')
+        return c.estado()['hoje']['busca']
+
+    hoje = _rodar(_cliente(handler, n_chaves=1), duas)
+    assert len(feitas) == 1 and hoje == {'chamadas': 1, 'teto': 1}
+
+
 def test_incidentes_usam_cache():
     feitas = []
 

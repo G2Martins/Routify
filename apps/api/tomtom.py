@@ -57,6 +57,10 @@ PALAVRAS_COTA = ('quota', 'over rate', 'limit exceeded', 'insufficient', 'credit
 # Teto global de chamadas por minuto. Sem auth na API ainda, é o que impede um
 # cliente hostil de queimar a cota do pool inteiro.
 MAX_CHAMADAS_MIN = 120  # o painel ADM ajusta em runtime (tomtom_orcamento_min, config_runtime)
+# Teto por dia (auditoria de 2026-11-03, M2): a cota grátis é MENSAL por chave e por API, e o teto por minuto
+# sozinho deixava um IP queimar a de Search do mês inteiro em ~13 h. Cada dia gasta no máximo 1/31 do mês; o Flow
+# da API fica com os 15% que o coletor deixa (services/collector/traffic_collector.intervalo_minutos).
+COTA_MES_POR_CHAVE = {'fluxo': 20_000 * 0.15, 'incidentes': 2_500, 'busca': 2_500, 'rota': 20_000}
 TIMEOUT_S = 4.0
 TENTATIVAS = 3
 
@@ -228,6 +232,30 @@ class _Orcamento:
         return True
 
 
+class _TetoDiario:
+    """Chamadas por serviço no dia UTC, com teto de 1/31 da cota mensal do pool."""
+
+    def __init__(self):
+        self.dia = None
+        self.contagem: Dict[str, int] = {}
+
+    def teto(self, servico: str, n_chaves: int) -> int:
+        return int(COTA_MES_POR_CHAVE[servico] * n_chaves / 31)
+
+    def permitir(self, servico: str, n_chaves: int) -> bool:
+        dia = int(time.time() // 86400)
+        if dia != self.dia:
+            self.dia, self.contagem = dia, {}
+        feitas = self.contagem.get(servico, 0)
+        if feitas >= self.teto(servico, n_chaves):
+            if feitas == self.teto(servico, n_chaves):  # avisa uma vez por dia
+                logger.warning(f"TomTom {servico}: teto do dia atingido — modo degradado até 00:00 UTC")
+                self.contagem[servico] = feitas + 1
+            return False
+        self.contagem[servico] = feitas + 1
+        return True
+
+
 class CacheTTL:
     """Dict com expiração e teto de itens (descarta o mais antigo)."""
 
@@ -254,6 +282,7 @@ class TomTomClient:
                  max_chamadas_min: int = MAX_CHAMADAS_MIN):
         self.pool = KeyPool(chaves)
         self._orcamento = _Orcamento(max_chamadas_min)
+        self._teto_dia = _TetoDiario()
         self._http = httpx.AsyncClient(base_url=BASE_URL, timeout=TIMEOUT_S, transport=transport)
         self._cache_incidentes = CacheTTL(300)
         self._cache_busca = CacheTTL(24 * 3600, max_itens=2048)
@@ -283,7 +312,9 @@ class TomTomClient:
 
     def estado(self) -> dict:
         return {'habilitado': self.habilitado, 'orcamento_min': self._orcamento.maximo,
-                'chamadas_ultimo_min': len(self._orcamento._instantes), 'chaves': self.pool.estado()}
+                'chamadas_ultimo_min': len(self._orcamento._instantes), 'chaves': self.pool.estado(),
+                'hoje': {s: {'chamadas': min(self._teto_dia.contagem.get(s, 0), self._teto_dia.teto(s, self.pool.total)),
+                             'teto': self._teto_dia.teto(s, self.pool.total)} for s in SERVICOS}}
 
     async def testar_chave(self, chave_id: str) -> Optional[dict]:
         """Uma chamada de Flow com a chave pedida (gasta 1 requisição da cota dela).
@@ -318,6 +349,8 @@ class TomTomClient:
                 return None  # todas em cooldown pra este serviço
             if not self._orcamento.permitir():
                 logger.warning('TomTom: orçamento do minuto esgotado — modo degradado')
+                return None
+            if not self._teto_dia.permitir(servico, self.pool.total):
                 return None
             try:
                 consulta = {**params, 'key': chave['key']}

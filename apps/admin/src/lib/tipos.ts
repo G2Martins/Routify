@@ -116,6 +116,8 @@ export type EstadoTomTom = {
   habilitado: boolean;
   orcamento_min: number;
   chamadas_ultimo_min: number;
+  // Teto do dia UTC por serviço (1/31 da cota mensal do pool); ausente em API anterior a 2026-11-03.
+  hoje?: Record<ServicoTomTom, { chamadas: number; teto: number }>;
   chaves: {
     id: string;
     pausada: boolean;
