@@ -94,8 +94,8 @@ class Clima(BaseModel):
     de_dia: bool = True
     vento_kmh: Optional[float] = None
     chuva_agora_mm: float = 0.0
-    chuva_3h_mm: float = Field(0.0, description="Chuva das 3 últimas horas — feature da LIA 2.2.")
-    feriado: bool = Field(False, description="Feriado hoje — feature da LIA 2.2.")
+    chuva_3h_mm: float = Field(0.0, description="Chuva das 3 últimas horas: feature da LIA 2.2.")
+    feriado: bool = Field(False, description="Feriado hoje: feature da LIA 2.2.")
 
 
 class Economia(BaseModel):
@@ -735,7 +735,7 @@ async def calculate_route(body: RouteInput, request: Request):
     logger.info(f"Snap: origem {orig_node} a {dist_orig:.0f} m, destino {dest_node} a {dist_dest:.0f} m")
 
     if not fora_da_malha and orig_node == dest_node and (not pontas_o or haversine_m(*origem, *destino) < 30.0):
-        raise HTTPException(status_code=422, detail="Origem e destino são o mesmo ponto no grafo.")
+        raise HTTPException(status_code=422, detail="Origem e destino são o mesmo lugar.")
 
     # TomTom sob demanda, em paralelo: recência ao vivo nas vias velhas do
     # corredor + interdições. A rota "de referência" (GET) só é pedida fora da
@@ -772,7 +772,7 @@ async def calculate_route(body: RouteInput, request: Request):
         if not ref.get('polyline') or not ref.get('tempo_seg'):
             raise HTTPException(
                 status_code=422,
-                detail="Origem ou destino fora da área atendida pelo Routify (caixa de ±38 km em volta do Plano Piloto).",
+                detail="Origem ou destino fora da área atendida pelo Routify.",
             )
         resumo_tt = resumo_tomtom(ref['polyline'], 0, ref)
         request.state.degradado = degradado
@@ -864,7 +864,7 @@ async def calculate_route(body: RouteInput, request: Request):
         tempo_lia += t_pontas
         distancia_total += m_pontas
         if distancia_total < DISTANCIA_MIN_M:
-            raise HTTPException(status_code=422, detail="Origem e destino estão na mesma quadra da via.")
+            raise HTTPException(status_code=422, detail="Origem e destino estão perto demais para traçar uma rota.")
     semaforos = trajeto.contar_semaforos(G, path_nodes)
     cruzamentos = trajeto.contar_cruzamentos(G, path_nodes)
     cruzamentos_via = trajeto.contar_cruzamentos(G, path_nodes, 'cruzamento_via')

@@ -343,13 +343,12 @@ async def planejar_saida(body: HorariosInput, request: Request):
     orig, dist_orig = route._snap(request, G, body.origem.lat, body.origem.lon)
     dest, dist_dest = route._snap(request, G, body.destino.lat, body.destino.lon)
     if max(dist_orig, dist_dest) > trajeto.LIMITE_SNAP_M:
-        raise HTTPException(status_code=422, detail="Origem ou destino fora da área que a LIA cobre "
-                                                    "(caixa de ±38 km em volta do Plano Piloto).")
+        raise HTTPException(status_code=422, detail="Origem ou destino fora da área atendida pelo Routify.")
     arvore = getattr(st, 'arvore_arestas', None)
     pontas_o = arvore.candidatos(body.origem.lat, body.origem.lon) if arvore is not None else []
     pontas_d = arvore.candidatos(body.destino.lat, body.destino.lon) if arvore is not None else []
     if orig == dest and (not pontas_o or route.haversine_m(body.origem.lat, body.origem.lon, body.destino.lat, body.destino.lon) < 30.0):
-        raise HTTPException(status_code=422, detail="Origem e destino são o mesmo ponto no grafo.")
+        raise HTTPException(status_code=422, detail="Origem e destino são o mesmo lugar.")
 
     # Daqui ao fim não há await: os pesos ficam no grafo compartilhado entre requisições (regra do /route).
     minutos = (primeira - agora).total_seconds() / 60.0
@@ -369,7 +368,7 @@ async def planejar_saida(body: HorariosInput, request: Request):
         polyline, _, t_pontas, m_pontas = route.juntar_pontas(G, tracado, polyline, route.niveis_lia(G, nos))
         distancia_m += m_pontas
         if distancia_m < route.DISTANCIA_MIN_M:
-            raise HTTPException(status_code=422, detail="Origem e destino estão na mesma quadra da via.")
+            raise HTTPException(status_code=422, detail="Origem e destino estão perto demais para traçar uma rota.")
     saidas = [primeira + timedelta(minutes=k * body.passo_min) for k in range(body.janelas)]
     niveis_arestas: List[List[Optional[int]]] = []
     tempos, livre = tempos_por_saida(st.model, st.encoder, st.profiles, G, nos, saidas, agora, recencia,
