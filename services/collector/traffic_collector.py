@@ -62,6 +62,27 @@ if not API_KEYS_DATA:
     raise ValueError("Nenhuma chave encontrada no arquivo JSON.")
 
 
+NOITE_HORAS, NOITE_INTERVALO_MIN = range(0, 5), 120  # 0h às 5h o trânsito é livre: persistência erra 1,6 s (nov/2026)
+
+
+def intervalo_diurno(n_chaves: int, n_pontos: int, cota_mensal: int = COTA_MENSAL_FLOW,
+                     reserva: float = RESERVA_API, dias_mes: int = 31) -> int:
+    """Como intervalo_minutos, mas com 1 ciclo a cada 2 h de madrugada: o que sobra vai para as horas com trânsito.
+    Mesma cota por dia. Com 39 chaves e 780 pontos: 46 min de dia, contra 53 min uniformes."""
+    base = intervalo_minutos(n_chaves, n_pontos, cota_mensal, reserva, dias_mes)
+    ciclos_dia = n_chaves * cota_mensal * (1.0 - reserva) / dias_mes / n_pontos
+    noite_min = len(NOITE_HORAS) * 60
+    ciclos_dia_util = ciclos_dia - noite_min / NOITE_INTERVALO_MIN
+    if ciclos_dia_util <= 0 or base >= NOITE_INTERVALO_MIN:
+        return base
+    return max(INTERVALO_PISO_MIN, math.ceil((1440.0 - noite_min) / ciclos_dia_util))
+
+
+def pular_na_madrugada(hora: int, minutos_desde_ultimo) -> bool:
+    """De madrugada, só coleta se o último ciclo tiver 2 h (None = nunca coletou)."""
+    return hora in NOITE_HORAS and minutos_desde_ultimo is not None and minutos_desde_ultimo < NOITE_INTERVALO_MIN - 1
+
+
 def intervalo_minutos(n_chaves: int, n_pontos: int, cota_mensal: int = COTA_MENSAL_FLOW,
                       reserva: float = RESERVA_API, dias_mes: int = 31) -> int:
     """Menor intervalo entre ciclos (min) que cabe na cota mensal do pool.

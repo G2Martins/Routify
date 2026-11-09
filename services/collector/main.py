@@ -11,6 +11,7 @@ import sys
 import time
 import logging
 import schedule
+from datetime import datetime
 from dotenv import load_dotenv
 import db as db_manager
 import traffic_collector
@@ -92,13 +93,18 @@ def main():
     # Wrapper que impede ciclos sobrepostos: se um ciclo demora mais que o
     # intervalo (por ex. todas as chaves esgotadas), o próximo é pulado em
     # vez de ser enfileirado. Evita backlog crescente no scheduler.
-    coleta_em_andamento = {'flag': False}
+    coleta_em_andamento = {'flag': False, 'ultimo': None}
+    fixo = bool(os.getenv('COLETOR_INTERVALO_MIN'))
 
     def coleta_protegida():
         if coleta_em_andamento['flag']:
             logging.warning("Ciclo anterior ainda em execução. Pulando este disparo.")
             return
-        coleta_em_andamento['flag'] = True
+        agora = time.time()
+        desde = None if coleta_em_andamento['ultimo'] is None else (agora - coleta_em_andamento['ultimo']) / 60
+        if not fixo and traffic_collector.pular_na_madrugada(datetime.now().hour, desde):
+            return
+        coleta_em_andamento['flag'], coleta_em_andamento['ultimo'] = True, agora
         try:
             traffic_collector.run_collection()
         finally:
@@ -106,9 +112,11 @@ def main():
 
     n_chaves = len(traffic_collector.API_KEYS_DATA)
     intervalo = intervalo_coleta(n_chaves, max(len(vias), 1))
+    if not fixo:
+        intervalo = traffic_collector.intervalo_diurno(n_chaves, max(len(vias), 1))
     logging.info(
-        f"Cadência: 1 ciclo a cada {intervalo} min — {n_chaves} chaves × "
-        f"{traffic_collector.COTA_MENSAL_FLOW}/mês, {len(vias)} pontos, "
+        f"Cadência: 1 ciclo a cada {intervalo} min (de madrugada, a cada {traffic_collector.NOITE_INTERVALO_MIN}) "
+        f"com {n_chaves} chaves × {traffic_collector.COTA_MENSAL_FLOW}/mês, {len(vias)} pontos, "
         f"reserva de {traffic_collector.RESERVA_API:.0%} pra API"
         + (" (fixado por COLETOR_INTERVALO_MIN)" if os.getenv('COLETOR_INTERVALO_MIN') else "")
     )

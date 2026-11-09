@@ -129,3 +129,14 @@ def test_lote_vai_pro_banco_uma_vez_com_tipos_inteiros(coletor, monkeypatch):
     monkeypatch.setattr(tc.db_manager, 'insert_historico_batch', lambda lote: gravou.append(lote))
     coletor.collect_for_all_vias([(1, 'Eixo', -15.8, -47.9), (2, 'EPTG', -15.8, -47.9)])
     assert gravou == [[(1, 30, 60, 120, 0.9), (2, 30, 60, 120, 0.9)]]
+
+
+def test_madrugada_economiza_para_o_dia():
+    assert tc.intervalo_minutos(39, 780) == 53
+    assert tc.intervalo_diurno(39, 780) == 46
+    # A cota por dia não muda: ciclos de dia + 2,5 de madrugada cabem no orçamento.
+    orcamento = 39 * 20000 * 0.85 / 31 / 780
+    assert 19 * 60 / tc.intervalo_diurno(39, 780) + 2.5 <= orcamento
+    assert tc.pular_na_madrugada(3, 46) and not tc.pular_na_madrugada(3, 125)
+    assert not tc.pular_na_madrugada(3, None) and not tc.pular_na_madrugada(8, 1)
+

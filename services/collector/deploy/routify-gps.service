@@ -1,0 +1,16 @@
+[Unit]
+Description=Routify: posições dos ônibus do DF para validar a LIA (SEMOB, só disco)
+After=network-online.target
+
+[Service]
+Type=oneshot
+DynamicUser=yes
+StateDirectory=routify-gps
+ExecStart=/usr/bin/python3 /opt/routify/services/collector/coletar_gps_onibus.py
+Nice=15
+MemoryMax=120M
+TimeoutStartSec=60
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+NoNewPrivileges=yes
