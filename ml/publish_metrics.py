@@ -136,7 +136,6 @@ def main():
         ('gate_lia_2_4', _json('gate_lia_2.4_330arvores.json')),
         ('baseline_estatico', _json('baseline_estatico.json')),
         ('avaliacao_fora_do_tempo', _json('avaliacao_fora_do_tempo.json')),
-        ('avaliacao_fora_do_tempo', _json('avaliacao_fora_do_tempo.json')),
         ('cobertura_dataset', _json('cobertura_dataset.json')),
         ('experimento_velocidade_livre', _json('experimento_velocidade_livre.json')),
         ('fase3_comparacao', fase3()),

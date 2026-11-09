@@ -6,7 +6,10 @@ como alvo de treino: ônibus para no ponto e usa faixa exclusiva, então a veloc
 Licença não declarada na API: confirmar com a SEMOB antes de citar em texto. Só stdlib; roda a cada 2 min pelo
 routify-gps.timer. Grava em disco, não no Supabase: ~50 MB/dia em bruto não cabem no plano grátis.
 
-    STATE_DIRECTORY=/tmp/gps python coletar_gps_onibus.py
+Os sites do GDF não respondem a IP da AWS (testado em 2026-11-09: dftrans e dados.df.gov.br dão timeout na EC2), então
+roda no PC do dono, numa tarefa agendada do Windows a cada 2 min, gravando em services/collector/dados/gps (gitignored).
+
+    python coletar_gps_onibus.py <pasta>        # ou STATE_DIRECTORY=<pasta>
 """
 import csv
 import gzip
@@ -58,7 +61,7 @@ def podar(pasta: str, agora_s: float) -> None:
 
 
 def main() -> int:
-    pasta = os.environ.get('STATE_DIRECTORY', '/var/lib/routify-gps')
+    pasta = sys.argv[1] if len(sys.argv) > 1 else os.environ.get('STATE_DIRECTORY', '/var/lib/routify-gps')
     os.makedirs(pasta, exist_ok=True)
     if shutil.disk_usage(pasta).free < DISCO_MIN_BYTES:
         print('disco abaixo do mínimo: nada gravado', file=sys.stderr)
