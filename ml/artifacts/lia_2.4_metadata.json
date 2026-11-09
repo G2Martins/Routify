@@ -1,0 +1,435 @@
+{
+  "versao": "LIA 2.4",
+  "alvo": "razao_congestionamento",
+  "alvo_descricao": "velocidade_atual / velocidade_livre (adimensional, 0.05–1.0)",
+  "features": [
+    "id_ponto_enc",
+    "hora",
+    "dia_semana",
+    "hora_sin",
+    "hora_cos",
+    "is_fim_semana",
+    "is_horario_pico",
+    "velocidade_livre",
+    "perfil_via_hora_dow",
+    "perfil_via_hora",
+    "perfil_via",
+    "perfil_hora_dow",
+    "perfil_via_hora_dow_std",
+    "perfil_via_hora_dow_n",
+    "razao_lag1",
+    "delta_min_lag1",
+    "vizinhos_razao",
+    "vizinhos_n",
+    "chuva_mm",
+    "chuva_3h_mm",
+    "is_feriado"
+  ],
+  "features_recencia": [
+    "razao_lag1",
+    "delta_min_lag1"
+  ],
+  "features_contexto": [
+    "vizinhos_razao",
+    "vizinhos_n",
+    "chuva_mm",
+    "chuva_3h_mm",
+    "is_feriado"
+  ],
+  "total_amostras": 1650877,
+  "registros_silver": 1651507,
+  "aproveitamento_pct": 100.0,
+  "pct_congestionado": 16.9,
+  "cv": {
+    "modelo_rmse_razao": 0.0425,
+    "modelo_rmse_razao_std": 0.0037,
+    "modelo_mae_razao": 0.0175,
+    "modelo_mae_razao_std": 0.0016,
+    "modelo_rmse_seg": 37.2248,
+    "modelo_rmse_seg_std": 2.4343,
+    "modelo_mae_seg": 14.4561,
+    "modelo_mae_seg_std": 1.17,
+    "modelo_rmse_razao_congestionado": 0.085,
+    "modelo_rmse_razao_congestionado_std": 0.0131,
+    "modelo_rmse_seg_congestionado": 80.3805,
+    "modelo_rmse_seg_congestionado_std": 11.249,
+    "baseline_rmse_razao": 0.0602,
+    "baseline_rmse_razao_std": 0.0033,
+    "baseline_mae_razao": 0.0192,
+    "baseline_mae_razao_std": 0.0026,
+    "baseline_rmse_seg": 59.3607,
+    "baseline_rmse_seg_std": 2.5631,
+    "baseline_mae_seg": 17.8075,
+    "baseline_mae_seg_std": 2.0579,
+    "baseline_rmse_razao_congestionado": 0.1227,
+    "baseline_rmse_razao_congestionado_std": 0.0089,
+    "baseline_rmse_seg_congestionado": 123.6621,
+    "baseline_rmse_seg_congestionado_std": 7.027,
+    "persistencia_rmse_razao": 0.0512,
+    "persistencia_rmse_razao_std": 0.004,
+    "persistencia_mae_razao": 0.015,
+    "persistencia_mae_razao_std": 0.002,
+    "persistencia_rmse_seg": 42.2354,
+    "persistencia_rmse_seg_std": 3.7219,
+    "persistencia_mae_seg": 12.6779,
+    "persistencia_mae_seg_std": 1.3692,
+    "persistencia_rmse_razao_congestionado": 0.0988,
+    "persistencia_rmse_razao_congestionado_std": 0.0206,
+    "persistencia_rmse_seg_congestionado": 85.93,
+    "persistencia_rmse_seg_congestionado_std": 22.8593
+  },
+  "periodo_inicio": "2026-03-07 19:26:09.540211-03:00",
+  "periodo_fim": "2026-11-08 23:34:18.436683-03:00",
+  "n_pontos_monitorados": 630,
+  "feature_importance": {
+    "id_ponto_enc": 0.0083,
+    "hora": 0.008,
+    "dia_semana": 0.026,
+    "hora_sin": 0.0062,
+    "hora_cos": 0.0177,
+    "is_fim_semana": 0.0601,
+    "is_horario_pico": 0.0119,
+    "velocidade_livre": 0.0106,
+    "perfil_via_hora_dow": 0.0763,
+    "perfil_via_hora": 0.498,
+    "perfil_via": 0.0061,
+    "perfil_hora_dow": 0.0046,
+    "perfil_via_hora_dow_std": 0.0167,
+    "perfil_via_hora_dow_n": 0.0054,
+    "razao_lag1": 0.1282,
+    "delta_min_lag1": 0.0178,
+    "vizinhos_razao": 0.0355,
+    "vizinhos_n": 0.0058,
+    "chuva_mm": 0.0043,
+    "chuva_3h_mm": 0.0048,
+    "is_feriado": 0.0476
+  },
+  "hiperparametros": {
+    "nome": "manual",
+    "n_estimators": 600,
+    "max_depth": 7,
+    "learning_rate": 0.05,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "min_child_weight": 10,
+    "reg_alpha": 0.1,
+    "reg_lambda": 1.0,
+    "objective": "reg:squarederror",
+    "eval_metric": "rmse",
+    "early_stopping_rounds": 40,
+    "tree_method": "hist",
+    "random_state": 42
+  },
+  "com_contexto": true,
+  "cv_folds": [
+    {
+      "rmse_seg": 39.747,
+      "mae_seg": 15.6094,
+      "baseline_rmse_seg": 61.5438,
+      "persistencia_rmse_seg": 39.6247,
+      "persistencia_mae_seg": 13.3829,
+      "arvores": 248
+    },
+    {
+      "rmse_seg": 34.5234,
+      "mae_seg": 12.7108,
+      "baseline_rmse_seg": 55.3762,
+      "persistencia_rmse_seg": 38.6089,
+      "persistencia_mae_seg": 10.1161,
+      "arvores": 63
+    },
+    {
+      "rmse_seg": 37.6828,
+      "mae_seg": 15.4331,
+      "baseline_rmse_seg": 59.1211,
+      "persistencia_rmse_seg": 42.4509,
+      "persistencia_mae_seg": 14.1527,
+      "arvores": 330
+    },
+    {
+      "rmse_seg": 34.2819,
+      "mae_seg": 13.415,
+      "baseline_rmse_seg": 58.1378,
+      "persistencia_rmse_seg": 41.302,
+      "persistencia_mae_seg": 13.0511,
+      "arvores": 418
+    },
+    {
+      "rmse_seg": 39.8891,
+      "mae_seg": 15.1119,
+      "baseline_rmse_seg": 62.6246,
+      "persistencia_rmse_seg": 49.1907,
+      "persistencia_mae_seg": 12.6869,
+      "arvores": 599
+    }
+  ],
+  "cv_por_idade_recencia_min": {
+    "15": {
+      "modelo_rmse_seg": 36.5627,
+      "modelo_mae_seg": 13.9502,
+      "baseline_rmse_seg": 52.7607,
+      "baseline_mae_seg": 15.8656,
+      "persistencia_rmse_seg": 44.3655,
+      "persistencia_mae_seg": 13.9355,
+      "folds": 5
+    },
+    "30": {
+      "modelo_rmse_seg": 40.6358,
+      "modelo_mae_seg": 15.5411,
+      "baseline_rmse_seg": 54.2936,
+      "baseline_mae_seg": 16.9,
+      "persistencia_rmse_seg": 59.8184,
+      "persistencia_mae_seg": 20.2852,
+      "folds": 5
+    },
+    "60": {
+      "modelo_rmse_seg": 43.262,
+      "modelo_mae_seg": 16.1566,
+      "baseline_rmse_seg": 54.7483,
+      "baseline_mae_seg": 17.0647,
+      "persistencia_rmse_seg": 78.6407,
+      "persistencia_mae_seg": 27.8036,
+      "folds": 5
+    },
+    "120": {
+      "modelo_rmse_seg": 60.5157,
+      "modelo_mae_seg": 24.8057,
+      "baseline_rmse_seg": 67.275,
+      "baseline_mae_seg": 22.0668,
+      "persistencia_rmse_seg": 125.6084,
+      "persistencia_mae_seg": 47.5218,
+      "folds": 5
+    }
+  },
+  "cv_por_periodo": {
+    "modelo": {
+      "dia_fim_de_semana": {
+        "n": 22539,
+        "vies_seg": 5.424,
+        "mae_seg": 17.392,
+        "rmse_seg": 41.605
+      },
+      "dia_util": {
+        "n": 304994,
+        "vies_seg": -2.94,
+        "mae_seg": 16.637,
+        "rmse_seg": 37.026
+      },
+      "madrugada": {
+        "n": 262767,
+        "vies_seg": 1.311,
+        "mae_seg": 2.007,
+        "rmse_seg": 9.525
+      },
+      "noite": {
+        "n": 490000,
+        "vies_seg": 0.912,
+        "mae_seg": 10.207,
+        "rmse_seg": 30.032
+      },
+      "pico_manha_util": {
+        "n": 169107,
+        "vies_seg": 0.242,
+        "mae_seg": 25.408,
+        "rmse_seg": 49.139
+      },
+      "pico_tarde_util": {
+        "n": 126323,
+        "vies_seg": -8.247,
+        "mae_seg": 36.384,
+        "rmse_seg": 67.948
+      }
+    },
+    "baseline": {
+      "dia_fim_de_semana": {
+        "n": 22539,
+        "vies_seg": 37.973,
+        "mae_seg": 45.846,
+        "rmse_seg": 118.683
+      },
+      "dia_util": {
+        "n": 304994,
+        "vies_seg": -3.94,
+        "mae_seg": 18.919,
+        "rmse_seg": 52.426
+      },
+      "madrugada": {
+        "n": 262767,
+        "vies_seg": -0.008,
+        "mae_seg": 0.674,
+        "rmse_seg": 10.601
+      },
+      "noite": {
+        "n": 490000,
+        "vies_seg": -5.443,
+        "mae_seg": 8.297,
+        "rmse_seg": 39.123
+      },
+      "pico_manha_util": {
+        "n": 169107,
+        "vies_seg": 2.889,
+        "mae_seg": 37.551,
+        "rmse_seg": 82.815
+      },
+      "pico_tarde_util": {
+        "n": 126323,
+        "vies_seg": -13.309,
+        "mae_seg": 56.22,
+        "rmse_seg": 118.09
+      }
+    },
+    "persistencia": {
+      "dia_fim_de_semana": {
+        "n": 22539,
+        "vies_seg": 0.018,
+        "mae_seg": 8.666,
+        "rmse_seg": 34.344
+      },
+      "dia_util": {
+        "n": 304994,
+        "vies_seg": -1.224,
+        "mae_seg": 15.153,
+        "rmse_seg": 42.491
+      },
+      "madrugada": {
+        "n": 262767,
+        "vies_seg": -0.153,
+        "mae_seg": 0.609,
+        "rmse_seg": 9.251
+      },
+      "noite": {
+        "n": 490000,
+        "vies_seg": 1.751,
+        "mae_seg": 9.121,
+        "rmse_seg": 41.623
+      },
+      "pico_manha_util": {
+        "n": 169107,
+        "vies_seg": -2.527,
+        "mae_seg": 24.148,
+        "rmse_seg": 57.051
+      },
+      "pico_tarde_util": {
+        "n": 126323,
+        "vies_seg": 0.226,
+        "mae_seg": 30.962,
+        "rmse_seg": 61.26
+      }
+    }
+  },
+  "cv_por_periodo_recencia_30min": {
+    "modelo": {
+      "dia_util": {
+        "n": 271894,
+        "vies_seg": -4.232,
+        "mae_seg": 17.575,
+        "rmse_seg": 40.621
+      },
+      "madrugada": {
+        "n": 219722,
+        "vies_seg": 0.714,
+        "mae_seg": 1.378,
+        "rmse_seg": 7.222
+      },
+      "noite": {
+        "n": 168930,
+        "vies_seg": -0.72,
+        "mae_seg": 10.491,
+        "rmse_seg": 31.729
+      },
+      "pico_manha_util": {
+        "n": 146776,
+        "vies_seg": -0.56,
+        "mae_seg": 29.913,
+        "rmse_seg": 57.916
+      },
+      "pico_tarde_util": {
+        "n": 113398,
+        "vies_seg": -10.971,
+        "mae_seg": 43.144,
+        "rmse_seg": 81.697
+      }
+    },
+    "baseline": {
+      "dia_util": {
+        "n": 271894,
+        "vies_seg": -4.658,
+        "mae_seg": 18.148,
+        "rmse_seg": 50.814
+      },
+      "madrugada": {
+        "n": 219722,
+        "vies_seg": 0.054,
+        "mae_seg": 0.597,
+        "rmse_seg": 10.052
+      },
+      "noite": {
+        "n": 168930,
+        "vies_seg": -6.491,
+        "mae_seg": 9.739,
+        "rmse_seg": 43.202
+      },
+      "pico_manha_util": {
+        "n": 146776,
+        "vies_seg": 0.724,
+        "mae_seg": 36.373,
+        "rmse_seg": 80.573
+      },
+      "pico_tarde_util": {
+        "n": 113398,
+        "vies_seg": -17.668,
+        "mae_seg": 53.941,
+        "rmse_seg": 113.422
+      }
+    },
+    "persistencia": {
+      "dia_util": {
+        "n": 271894,
+        "vies_seg": -2.254,
+        "mae_seg": 19.03,
+        "rmse_seg": 50.256
+      },
+      "madrugada": {
+        "n": 219722,
+        "vies_seg": -0.553,
+        "mae_seg": 0.906,
+        "rmse_seg": 13.713
+      },
+      "noite": {
+        "n": 168930,
+        "vies_seg": 11.013,
+        "mae_seg": 18.128,
+        "rmse_seg": 64.765
+      },
+      "pico_manha_util": {
+        "n": 146776,
+        "vies_seg": -7.435,
+        "mae_seg": 44.263,
+        "rmse_seg": 94.505
+      },
+      "pico_tarde_util": {
+        "n": 113398,
+        "vies_seg": -4.243,
+        "mae_seg": 56.147,
+        "rmse_seg": 102.884
+      }
+    }
+  },
+  "receita": {
+    "perfis_oof": true,
+    "recencia_envelhecida": true,
+    "idades_envelhecimento_min": [
+      15,
+      30,
+      60,
+      120,
+      240,
+      480
+    ],
+    "early_stopping": "interno (último 10% do treino)",
+    "arvores_modelo_final": 330,
+    "regra_arvores_final": "mediana das paradas da CV",
+    "pesos_periodo_alfa": 0.0
+  },
+  "formula_inferencia": "tempo_s = comprimento_m / (velocidade_livre_kmh * razao_prevista / 3.6)"
+}

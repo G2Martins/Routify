@@ -242,9 +242,85 @@ def fig4_erro_congestionamento():
     _salvar(fig, 'fig4_erro_congestionamento')
 
 
+# Figuras do artigo: no tamanho final da coluna (8 cm), fonte pequena e sem título (a legenda está no texto).
+ARTIGO = {'font.size': 6.3, 'axes.linewidth': 0.5, 'grid.linewidth': 0.4, 'xtick.major.width': 0.4,
+          'ytick.major.width': 0.4, 'xtick.major.size': 2, 'ytick.major.size': 2, 'xtick.major.pad': 1.5,
+          'ytick.major.pad': 1.5, 'axes.labelpad': 2, 'hatch.linewidth': 0.4}
+
+
+def artigo_calibracao():
+    c = _json('calibracao_transfer.json')
+    grade, bins = c['curva_isotonica_grade_10m'], c['curva_erro_distancia_bins']
+    antiga = list(c['constante_antiga'].values())  # [<200 m, 200–500 m, ≥500 m]
+    g = dict(zip(grade['distancias_m'], grade['confiancas']))
+    with plt.rc_context(ARTIGO):
+        fig, ax = plt.subplots(figsize=(3.15, 1.7))
+        ax.plot([0, 200, 200, 500, 500, 600], [antiga[0], antiga[0], antiga[1], antiga[1], antiga[2], antiga[2]],
+                color=LARANJA, linestyle=(0, (4, 2)), linewidth=1, label='escala antiga')
+        pontos = [b for b in bins if b['centro_m'] <= 600]
+        ax.scatter([b['centro_m'] for b in pontos], [b['confianca_calibrada'] for b in pontos], s=9, color=CINZA,
+                   edgecolor=FUNDO, linewidth=0.4, zorder=3, label='erro médio da faixa')
+        xs = [d for d in grade['distancias_m'] if d <= 600]
+        ax.plot(xs, [g[d] for d in xs], color=AZUL, linewidth=1.2, zorder=4, label='curva calibrada')
+        for d in (100, 200, 400, 500):
+            ax.plot(d, g[d], 'o', color=AZUL, markersize=3, markeredgecolor=FUNDO, markeredgewidth=0.4, zorder=5)
+            ax.annotate(_br(g[d], 3), (d, g[d]), xytext=(0, -7.5), textcoords='offset points', ha='center',
+                        fontsize=5.6, color=TINTA, bbox={'facecolor': FUNDO, 'edgecolor': 'none', 'pad': 0.3}, zorder=6)
+        ax.axvline(500, color=TINTA_MUDA, linestyle=':', linewidth=0.6)
+        ax.text(506, 0.13, 'raio máximo\n(500 m)', fontsize=5.6, color=TINTA_2, va='bottom')
+        ax.set(xlim=(0, 600), ylim=(0, 1.05), xlabel='distância até a via monitorada (m)', ylabel='confiança')
+        ax.yaxis.set_major_formatter(lambda v, _: _br(v))
+        ax.grid(axis='x', visible=False)
+        ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1.0), ncol=3, fontsize=5.8, handlelength=1.8,
+                  columnspacing=1.2, borderpad=0, borderaxespad=0.2)
+        fig.tight_layout(pad=0.25)
+        fig.savefig(os.path.join(SAIDA, 'artigo_calibracao.png'), dpi=400)
+        plt.close(fig)
+
+
+def artigo_erro_versoes():
+    cv23, est = _json('lia_2.3_metadata.json')['cv'], _json('baseline_estatico.json')['trecho']
+    cv22, cv21 = _json('lia_2.2_metadata.json')['cv'], _json('lia_2.1_metadata.json')['cv']
+    v10, x20 = _json('lia_1.0_supabase_metadata.json'), _json('benchmark_lstm_vs_xgboost.json')['xgboost']
+    linhas = [  # (rótulo, RMSE, MAE), de cima para baixo: referências, depois as versões
+        ('Estático (fluxo livre)', est['rmse_seg'], est['mae_seg']),
+        ('Baseline histórico', cv23['baseline_rmse_seg'], cv23['baseline_mae_seg']),
+        ('Persistência', cv23['persistencia_rmse_seg'], cv23['persistencia_mae_seg']),
+        ('LIA 1.0 (inválida)', v10['cv_rmse_medio_seg'], v10['cv_mae_medio_seg']),
+        ('LIA 2.0', x20['rmse_seg_media'], x20['mae_seg_media']),
+        ('LIA 2.1', cv21['modelo_rmse_seg'], cv21['modelo_mae_seg']),
+        ('LIA 2.2 (+ contexto)', cv22['modelo_rmse_seg'], cv22['modelo_mae_seg']),
+        ('LIA 2.3', cv23['modelo_rmse_seg'], cv23['modelo_mae_seg']),
+    ]
+    with plt.rc_context(ARTIGO):
+        fig, ax = plt.subplots(figsize=(3.15, 2.2))
+        alt = 0.36
+        for i, (nome, rmse, mae) in enumerate(linhas):
+            y = len(linhas) - 1 - i
+            invalida = 'inválida' in nome
+            for dy, v, cor, serie in ((alt / 2 + 0.01, rmse, AZUL, 'RMSE'), (-alt / 2 - 0.01, mae, LARANJA, 'MAE')):
+                ax.barh(y + dy, v, height=alt, color=cor, alpha=0.45 if invalida else 1, linewidth=0,
+                        hatch='////' if invalida else None, label=serie if i == 0 else None)
+                ax.text(v + 1.2, y + dy, _br(v), va='center', fontsize=5.6, color=TINTA)
+        ax.axhline(len(linhas) - 3.5, color=EIXO, linewidth=0.5)
+        ax.set_yticks(range(len(linhas)))
+        ax.set_yticklabels([n for n, _, _ in reversed(linhas)])
+        ax.get_yticklabels()[0].set_fontweight('bold')
+        ax.set(xlim=(0, 118), ylim=(-0.6, len(linhas) - 0.4), xlabel='erro por trecho (s)')
+        ax.grid(axis='y', visible=False)
+        ax.grid(axis='x', visible=True)
+        ax.tick_params(axis='y', length=0)
+        ax.legend(loc='lower right', fontsize=5.8, handlelength=1.2, borderaxespad=0.2)
+        fig.tight_layout(pad=0.25)
+        fig.savefig(os.path.join(SAIDA, 'artigo_erro_versoes.png'), dpi=400)
+        plt.close(fig)
+
+
 if __name__ == '__main__':
     print('Gerando figuras do TCC:')
     fig1_erro_versoes()
     fig2_calibracao_transfer()
     fig3_benchmark_lstm_xgboost()
     fig4_erro_congestionamento()
+    artigo_calibracao()
+    artigo_erro_versoes()

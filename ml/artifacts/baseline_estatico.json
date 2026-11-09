@@ -1,0 +1,189 @@
+{
+  "trecho": {
+    "silver": "silver_20260922.parquet",
+    "previsao": "razão = 1 (tempo = comprimento / velocidade livre da TomTom)",
+    "rmse_seg": 105.6623,
+    "rmse_seg_std": 15.9536,
+    "mae_seg": 34.8443,
+    "rmse_seg_congestionado": 257.1258,
+    "lia_2_3_rmse_seg": 35.4756,
+    "lia_2_3_mae_seg": 13.3133,
+    "ganho_rmse_lia_pct": 66.4,
+    "folds_lia_melhor_rmse": 5,
+    "folds": [
+      {
+        "rmse_seg": 123.8906,
+        "mae_seg": 44.2306
+      },
+      {
+        "rmse_seg": 109.0877,
+        "mae_seg": 35.4207
+      },
+      {
+        "rmse_seg": 120.7554,
+        "mae_seg": 41.8381
+      },
+      {
+        "rmse_seg": 90.8677,
+        "mae_seg": 29.8487
+      },
+      {
+        "rmse_seg": 83.71,
+        "mae_seg": 22.8834
+      }
+    ]
+  },
+  "rota": {
+    "fonte": "comparacao_provedores (viagens com os 5 provedores na mesma rodada)",
+    "periodo_inicio": "2026-11-02T05:24:19+00:00",
+    "periodo_fim": "2026-11-09T01:00:46+00:00",
+    "definicao": "MAPE e viés mediano do tempo total em %; ic95_ganho = MAPE(OSRM) − MAPE(LIA), positivo = LIA erra menos",
+    "grupos": {
+      "total": {
+        "n": 2289,
+        "rodadas": 86,
+        "corredores": 30,
+        "mape_lia_x_tomtom": 15.5,
+        "vies_lia_x_tomtom": -10.5,
+        "mape_osrm_x_tomtom": 16.1,
+        "vies_osrm_x_tomtom": -11.6,
+        "ic95_ganho_lia_x_tomtom": [
+          0.1,
+          1.2
+        ],
+        "mape_lia_x_mapbox": 15.6,
+        "vies_lia_x_mapbox": -9.9,
+        "mape_osrm_x_mapbox": 14.1,
+        "vies_osrm_x_mapbox": -8.6,
+        "ic95_ganho_lia_x_mapbox": [
+          -2.4,
+          -0.7
+        ],
+        "mape_lia_x_tomtom_mesmo_trajeto": 14.4,
+        "vies_lia_x_tomtom_mesmo_trajeto": -7.6,
+        "mape_tomtom_x_mapbox": 9.4
+      },
+      "pico_util": {
+        "n": 480,
+        "rodadas": 16,
+        "corredores": 30,
+        "mape_lia_x_tomtom": 21.0,
+        "vies_lia_x_tomtom": -20.4,
+        "mape_osrm_x_tomtom": 26.1,
+        "vies_osrm_x_tomtom": -26.8,
+        "ic95_ganho_lia_x_tomtom": [
+          4.3,
+          5.9
+        ],
+        "mape_lia_x_mapbox": 20.6,
+        "vies_lia_x_mapbox": -19.6,
+        "mape_osrm_x_mapbox": 25.4,
+        "vies_osrm_x_mapbox": -24.5,
+        "ic95_ganho_lia_x_mapbox": [
+          3.9,
+          5.7
+        ],
+        "mape_lia_x_tomtom_mesmo_trajeto": 23.9,
+        "vies_lia_x_tomtom_mesmo_trajeto": -22.6,
+        "mape_tomtom_x_mapbox": 9.2
+      },
+      "pico_manha_util": {
+        "n": 240,
+        "rodadas": 8,
+        "corredores": 30,
+        "mape_lia_x_tomtom": 23.2,
+        "vies_lia_x_tomtom": -22.7,
+        "mape_osrm_x_tomtom": 27.0,
+        "vies_osrm_x_tomtom": -29.2,
+        "ic95_ganho_lia_x_tomtom": [
+          3.2,
+          4.8
+        ],
+        "mape_lia_x_mapbox": 23.6,
+        "vies_lia_x_mapbox": -23.9,
+        "mape_osrm_x_mapbox": 27.1,
+        "vies_osrm_x_mapbox": -26.8,
+        "ic95_ganho_lia_x_mapbox": [
+          2.9,
+          4.2
+        ],
+        "mape_lia_x_tomtom_mesmo_trajeto": 25.9,
+        "vies_lia_x_tomtom_mesmo_trajeto": -26.3,
+        "mape_tomtom_x_mapbox": 8.5
+      },
+      "pico_tarde_util": {
+        "n": 240,
+        "rodadas": 8,
+        "corredores": 30,
+        "mape_lia_x_tomtom": 18.9,
+        "vies_lia_x_tomtom": -16.2,
+        "mape_osrm_x_tomtom": 25.2,
+        "vies_osrm_x_tomtom": -25.5,
+        "ic95_ganho_lia_x_tomtom": [
+          5.5,
+          7.1
+        ],
+        "mape_lia_x_mapbox": 17.6,
+        "vies_lia_x_mapbox": -13.9,
+        "mape_osrm_x_mapbox": 23.7,
+        "vies_osrm_x_mapbox": -22.0,
+        "ic95_ganho_lia_x_mapbox": [
+          4.8,
+          7.2
+        ],
+        "mape_lia_x_tomtom_mesmo_trajeto": 21.9,
+        "vies_lia_x_tomtom_mesmo_trajeto": -15.2,
+        "mape_tomtom_x_mapbox": 9.9
+      },
+      "fora_pico_util": {
+        "n": 480,
+        "rodadas": 16,
+        "corredores": 30,
+        "mape_lia_x_tomtom": 14.6,
+        "vies_lia_x_tomtom": -11.2,
+        "mape_osrm_x_tomtom": 14.5,
+        "vies_osrm_x_tomtom": -8.9,
+        "ic95_ganho_lia_x_tomtom": [
+          -0.4,
+          0.2
+        ],
+        "mape_lia_x_mapbox": 15.1,
+        "vies_lia_x_mapbox": -11.0,
+        "mape_osrm_x_mapbox": 12.5,
+        "vies_osrm_x_mapbox": -7.6,
+        "ic95_ganho_lia_x_mapbox": [
+          -3.3,
+          -2.0
+        ],
+        "mape_lia_x_tomtom_mesmo_trajeto": 12.2,
+        "vies_lia_x_tomtom_mesmo_trajeto": -5.9,
+        "mape_tomtom_x_mapbox": 9.6
+      },
+      "fds_feriado": {
+        "n": 1329,
+        "rodadas": 54,
+        "corredores": 30,
+        "mape_lia_x_tomtom": 13.8,
+        "vies_lia_x_tomtom": -6.9,
+        "mape_osrm_x_tomtom": 13.1,
+        "vies_osrm_x_tomtom": -6.1,
+        "ic95_ganho_lia_x_tomtom": [
+          -1.2,
+          -0.3
+        ],
+        "mape_lia_x_mapbox": 14.0,
+        "vies_lia_x_mapbox": -6.4,
+        "mape_osrm_x_mapbox": 10.5,
+        "vies_osrm_x_mapbox": -4.8,
+        "ic95_ganho_lia_x_mapbox": [
+          -4.1,
+          -3.0
+        ],
+        "mape_lia_x_tomtom_mesmo_trajeto": 11.8,
+        "vies_lia_x_tomtom_mesmo_trajeto": -5.0,
+        "mape_tomtom_x_mapbox": 9.4
+      }
+    }
+  },
+  "gerado_em": "2026-11-09T02:53:04+00:00"
+}

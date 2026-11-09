@@ -44,14 +44,16 @@ def get_client() -> Client:
 def fetch_all_historico(client: Client) -> pd.DataFrame:
     logging.info(f"Buscando historico_trafego do Supabase (chunks de {CHUNK_SIZE})...")
     chunks = []
-    offset = 0
+    total = 0
+    ultimo = 0  # paginação por chave: OFFSET fundo estoura o statement timeout do Supabase (visto em 2026-11-08)
 
     while True:
         response = (
             client.table('historico_trafego')
             .select('id_coleta, id_ponto, velocidade_atual, velocidade_livre, tempo_viagem_segundos, confianca, data_hora_coleta')
+            .gt('id_coleta', ultimo)
             .order('id_coleta')
-            .range(offset, offset + CHUNK_SIZE - 1)
+            .limit(CHUNK_SIZE)
             .execute()
         )
         data = response.data
@@ -59,9 +61,10 @@ def fetch_all_historico(client: Client) -> pd.DataFrame:
             break
 
         chunks.append(pd.DataFrame(data))
-        offset += len(data)
-        if offset % 10_000 == 0 or len(data) < CHUNK_SIZE:
-            logging.info(f"  Carregados {offset:,} registros")
+        total += len(data)
+        ultimo = data[-1]['id_coleta']
+        if total % 10_000 == 0 or len(data) < CHUNK_SIZE:
+            logging.info(f"  Carregados {total:,} registros")
 
         if len(data) < CHUNK_SIZE:
             break

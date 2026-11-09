@@ -1,0 +1,390 @@
+{
+ "gerado_em": "2026-11-09T03:25:54+00:00",
+ "silver_ate": "2026-11-08 23:34:18.436683-03:00",
+ "regra": "ganhar da 2.3 em RMSE e MAE nas janelas juntas e não perder RMSE em nenhuma",
+ "janelas": {
+  "dias_uteis": {
+   "de": "2026-11-05",
+   "ate": "2026-11-07",
+   "n_treino": 1573044,
+   "lia_2.3": {
+    "n": 39060,
+    "rmse_seg": 54.259,
+    "mae_seg": 25.128,
+    "vies_seg": 1.9,
+    "por_periodo": {
+     "dia_util": {
+      "n": 11340,
+      "rmse_seg": 61.2,
+      "mae_seg": 29.26
+     },
+     "madrugada": {
+      "n": 10080,
+      "rmse_seg": 23.07,
+      "mae_seg": 6.72
+     },
+     "noite": {
+      "n": 6300,
+      "rmse_seg": 42.36,
+      "mae_seg": 18.45
+     },
+     "pico_manha_util": {
+      "n": 6300,
+      "rmse_seg": 63.56,
+      "mae_seg": 36.0
+     },
+     "pico_tarde_util": {
+      "n": 5040,
+      "rmse_seg": 77.67,
+      "mae_seg": 47.4
+     }
+    }
+   },
+   "persistencia": {
+    "n": 39060,
+    "rmse_seg": 75.306,
+    "mae_seg": 29.165,
+    "vies_seg": 0.017,
+    "por_periodo": {
+     "dia_util": {
+      "n": 11340,
+      "rmse_seg": 78.09,
+      "mae_seg": 32.83
+     },
+     "madrugada": {
+      "n": 10080,
+      "rmse_seg": 23.43,
+      "mae_seg": 2.54
+     },
+     "noite": {
+      "n": 6300,
+      "rmse_seg": 77.95,
+      "mae_seg": 25.16
+     },
+     "pico_manha_util": {
+      "n": 6300,
+      "rmse_seg": 101.66,
+      "mae_seg": 51.54
+     },
+     "pico_tarde_util": {
+      "n": 5040,
+      "rmse_seg": 92.84,
+      "mae_seg": 51.22
+     }
+    }
+   },
+   "estatico": {
+    "n": 39060,
+    "rmse_seg": 121.759,
+    "mae_seg": 46.017,
+    "vies_seg": -46.017,
+    "por_periodo": {
+     "dia_util": {
+      "n": 11340,
+      "rmse_seg": 109.01,
+      "mae_seg": 49.57
+     },
+     "madrugada": {
+      "n": 10080,
+      "rmse_seg": 20.53,
+      "mae_seg": 1.53
+     },
+     "noite": {
+      "n": 6300,
+      "rmse_seg": 50.22,
+      "mae_seg": 11.35
+     },
+     "pico_manha_util": {
+      "n": 6300,
+      "rmse_seg": 152.9,
+      "mae_seg": 75.87
+     },
+     "pico_tarde_util": {
+      "n": 5040,
+      "rmse_seg": 234.39,
+      "mae_seg": 133.02
+     }
+    }
+   },
+   "mesmo peso": {
+    "n": 39060,
+    "rmse_seg": 52.954,
+    "mae_seg": 23.075,
+    "vies_seg": -2.687,
+    "por_periodo": {
+     "dia_util": {
+      "n": 11340,
+      "rmse_seg": 61.64,
+      "mae_seg": 28.59
+     },
+     "madrugada": {
+      "n": 10080,
+      "rmse_seg": 16.18,
+      "mae_seg": 3.38
+     },
+     "noite": {
+      "n": 6300,
+      "rmse_seg": 39.71,
+      "mae_seg": 15.78
+     },
+     "pico_manha_util": {
+      "n": 6300,
+      "rmse_seg": 60.5,
+      "mae_seg": 34.04
+     },
+     "pico_tarde_util": {
+      "n": 5040,
+      "rmse_seg": 78.19,
+      "mae_seg": 45.48
+     }
+    }
+   },
+   "novembro peso 2": {
+    "n": 39060,
+    "rmse_seg": 53.188,
+    "mae_seg": 22.865,
+    "vies_seg": -3.983,
+    "por_periodo": {
+     "dia_util": {
+      "n": 11340,
+      "rmse_seg": 62.63,
+      "mae_seg": 28.62
+     },
+     "madrugada": {
+      "n": 10080,
+      "rmse_seg": 15.96,
+      "mae_seg": 3.1
+     },
+     "noite": {
+      "n": 6300,
+      "rmse_seg": 39.04,
+      "mae_seg": 14.89
+     },
+     "pico_manha_util": {
+      "n": 6300,
+      "rmse_seg": 59.53,
+      "mae_seg": 33.52
+     },
+     "pico_tarde_util": {
+      "n": 5040,
+      "rmse_seg": 79.08,
+      "mae_seg": 46.09
+     }
+    }
+   },
+   "hora equilibrada": {
+    "n": 39060,
+    "rmse_seg": 52.823,
+    "mae_seg": 23.048,
+    "vies_seg": -2.876,
+    "por_periodo": {
+     "dia_util": {
+      "n": 11340,
+      "rmse_seg": 61.95,
+      "mae_seg": 28.88
+     },
+     "madrugada": {
+      "n": 10080,
+      "rmse_seg": 16.61,
+      "mae_seg": 3.35
+     },
+     "noite": {
+      "n": 6300,
+      "rmse_seg": 38.29,
+      "mae_seg": 15.06
+     },
+     "pico_manha_util": {
+      "n": 6300,
+      "rmse_seg": 59.98,
+      "mae_seg": 34.28
+     },
+     "pico_tarde_util": {
+      "n": 5040,
+      "rmse_seg": 78.15,
+      "mae_seg": 45.26
+     }
+    }
+   }
+  },
+  "fim_de_semana": {
+   "de": "2026-11-07",
+   "ate": "2026-11-09",
+   "n_treino": 1612104,
+   "lia_2.3": {
+    "n": 38712,
+    "rmse_seg": 38.037,
+    "mae_seg": 14.485,
+    "vies_seg": 6.752,
+    "por_periodo": {
+     "dia_fim_de_semana": {
+      "n": 22332,
+      "rmse_seg": 45.53,
+      "mae_seg": 18.95
+     },
+     "madrugada": {
+      "n": 10080,
+      "rmse_seg": 19.18,
+      "mae_seg": 7.64
+     },
+     "noite": {
+      "n": 6300,
+      "rmse_seg": 30.86,
+      "mae_seg": 9.6
+     }
+    }
+   },
+   "persistencia": {
+    "n": 38712,
+    "rmse_seg": 28.935,
+    "mae_seg": 6.045,
+    "vies_seg": 0.027,
+    "por_periodo": {
+     "dia_fim_de_semana": {
+      "n": 22332,
+      "rmse_seg": 34.22,
+      "mae_seg": 8.63
+     },
+     "madrugada": {
+      "n": 10080,
+      "rmse_seg": 9.12,
+      "mae_seg": 0.83
+     },
+     "noite": {
+      "n": 6300,
+      "rmse_seg": 29.32,
+      "mae_seg": 5.23
+     }
+    }
+   },
+   "estatico": {
+    "n": 38712,
+    "rmse_seg": 37.29,
+    "mae_seg": 7.283,
+    "vies_seg": -7.283,
+    "por_periodo": {
+     "dia_fim_de_semana": {
+      "n": 22332,
+      "rmse_seg": 46.09,
+      "mae_seg": 10.96
+     },
+     "madrugada": {
+      "n": 10080,
+      "rmse_seg": 8.84,
+      "mae_seg": 0.82
+     },
+     "noite": {
+      "n": 6300,
+      "rmse_seg": 29.8,
+      "mae_seg": 4.59
+     }
+    }
+   },
+   "mesmo peso": {
+    "n": 38712,
+    "rmse_seg": 31.721,
+    "mae_seg": 13.604,
+    "vies_seg": 5.715,
+    "por_periodo": {
+     "dia_fim_de_semana": {
+      "n": 22332,
+      "rmse_seg": 38.48,
+      "mae_seg": 19.45
+     },
+     "madrugada": {
+      "n": 10080,
+      "rmse_seg": 12.11,
+      "mae_seg": 5.03
+     },
+     "noite": {
+      "n": 6300,
+      "rmse_seg": 26.43,
+      "mae_seg": 6.59
+     }
+    }
+   },
+   "novembro peso 2": {
+    "n": 38712,
+    "rmse_seg": 33.452,
+    "mae_seg": 12.833,
+    "vies_seg": 4.865,
+    "por_periodo": {
+     "dia_fim_de_semana": {
+      "n": 22332,
+      "rmse_seg": 41.21,
+      "mae_seg": 18.89
+     },
+     "madrugada": {
+      "n": 10080,
+      "rmse_seg": 9.6,
+      "mae_seg": 3.35
+     },
+     "noite": {
+      "n": 6300,
+      "rmse_seg": 26.63,
+      "mae_seg": 6.55
+     }
+    }
+   },
+   "hora equilibrada": {
+    "n": 38712,
+    "rmse_seg": 39.947,
+    "mae_seg": 15.05,
+    "vies_seg": 6.655,
+    "por_periodo": {
+     "dia_fim_de_semana": {
+      "n": 22332,
+      "rmse_seg": 44.32,
+      "mae_seg": 19.34
+     },
+     "madrugada": {
+      "n": 10080,
+      "rmse_seg": 36.47,
+      "mae_seg": 10.98
+     },
+     "noite": {
+      "n": 6300,
+      "rmse_seg": 26.7,
+      "mae_seg": 6.37
+     }
+    }
+   }
+  }
+ },
+ "juntas": {
+  "lia_2.3": {
+   "n": 77772,
+   "rmse_seg": 46.891,
+   "mae_seg": 19.83
+  },
+  "persistencia": {
+   "n": 77772,
+   "rmse_seg": 57.14,
+   "mae_seg": 17.657
+  },
+  "estatico": {
+   "n": 77772,
+   "rmse_seg": 90.211,
+   "mae_seg": 26.737
+  },
+  "mesmo peso": {
+   "n": 77772,
+   "rmse_seg": 43.694,
+   "mae_seg": 18.361
+  },
+  "novembro peso 2": {
+   "n": 77772,
+   "rmse_seg": 44.473,
+   "mae_seg": 17.871
+  },
+  "hora equilibrada": {
+   "n": 77772,
+   "rmse_seg": 46.858,
+   "mae_seg": 19.067
+  }
+ },
+ "aprovadas": [
+  "mesmo peso",
+  "novembro peso 2"
+ ],
+ "escolhida": "mesmo peso"
+}

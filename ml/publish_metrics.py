@@ -79,6 +79,8 @@ def linhas_treinos():
     # Ablação do contexto: mesma receita no mesmo ambiente, com e sem as 5 features.
     for versao, nota in (('lia_2.1_repro', '2.1 refeita no pipeline atual — base justa da ablação.'),
                          ('lia_2.2', '2.1 + contexto (vizinhos, chuva, feriado).'),
+                         ('lia_2.4', 'Receita da 2.3 + as leituras de novembro de 2026. Adotada pelo portão fora do tempo '
+                                     '(gate_lia_2.4.json); o CV usa outros cortes e não se compara ao das anteriores.'),
                          ('lia_2.3', '2.2 + perfis fora da amostra + recência envelhecida + early stopping '
                                      'no próprio treino (ver ablation_lia_2.3.json). Padrão da API desde 2026-11-02.')):
         meta = _json(f'{versao}_metadata.json')
@@ -131,6 +133,9 @@ def main():
         ('estresse_lia22', _json('lia_2.2_estresse.json')),
         ('ablation_lia_2_3', _json('ablation_lia_2.3.json')),
         ('ablation_lia_2_4', _json('ablation_lia_2.4.json')),
+        ('gate_lia_2_4', _json('gate_lia_2.4_330arvores.json')),
+        ('baseline_estatico', _json('baseline_estatico.json')),
+        ('avaliacao_fora_do_tempo', _json('avaliacao_fora_do_tempo.json')),
         ('avaliacao_fora_do_tempo', _json('avaliacao_fora_do_tempo.json')),
         ('cobertura_dataset', _json('cobertura_dataset.json')),
         ('experimento_velocidade_livre', _json('experimento_velocidade_livre.json')),
