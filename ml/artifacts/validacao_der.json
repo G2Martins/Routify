@@ -1,0 +1,136 @@
+{
+ "gerado_em": "2026-11-09T03:43:54+00:00",
+ "fonte": "https://dados.df.gov.br/o/dados-abertos/v1.0/datasets/volume-diario-de-trafego-trechos-rodoviarios",
+ "licenca": "CC-BY",
+ "recursos": [
+  "Dados de Fluxo Veicular de julho/2026",
+  "Dados de Fluxo Veicular de junho/2026"
+ ],
+ "linhas_total": 628180,
+ "trechos": 93,
+ "dias_uteis": 45,
+ "r_fluxo_x_lentidao": 0.795,
+ "nota": "Dias úteis, cidade inteira por hora. Só rodovias distritais; a coleta TomTom da janela é enviesada para 21h.",
+ "por_hora": [
+  {
+   "hora": 0,
+   "fluxo_dia": 42682,
+   "lentidao": 0.0006
+  },
+  {
+   "hora": 1,
+   "fluxo_dia": 22418,
+   "lentidao": 0.0007
+  },
+  {
+   "hora": 2,
+   "fluxo_dia": 14888,
+   "lentidao": 0.0007
+  },
+  {
+   "hora": 3,
+   "fluxo_dia": 15403,
+   "lentidao": 0.0006
+  },
+  {
+   "hora": 4,
+   "fluxo_dia": 30498,
+   "lentidao": 0.0005
+  },
+  {
+   "hora": 5,
+   "fluxo_dia": 104147,
+   "lentidao": 0.0046
+  },
+  {
+   "hora": 6,
+   "fluxo_dia": 237382,
+   "lentidao": 0.0348
+  },
+  {
+   "hora": 7,
+   "fluxo_dia": 345214,
+   "lentidao": 0.117
+  },
+  {
+   "hora": 8,
+   "fluxo_dia": 331562,
+   "lentidao": 0.1139
+  },
+  {
+   "hora": 9,
+   "fluxo_dia": 310676,
+   "lentidao": 0.0642
+  },
+  {
+   "hora": 10,
+   "fluxo_dia": 294378,
+   "lentidao": 0.0355
+  },
+  {
+   "hora": 11,
+   "fluxo_dia": 292363,
+   "lentidao": 0.0341
+  },
+  {
+   "hora": 12,
+   "fluxo_dia": 313845,
+   "lentidao": 0.0521
+  },
+  {
+   "hora": 13,
+   "fluxo_dia": 316582,
+   "lentidao": 0.0554
+  },
+  {
+   "hora": 14,
+   "fluxo_dia": 300025,
+   "lentidao": 0.0436
+  },
+  {
+   "hora": 15,
+   "fluxo_dia": 306156,
+   "lentidao": 0.0389
+  },
+  {
+   "hora": 16,
+   "fluxo_dia": 334327,
+   "lentidao": 0.065
+  },
+  {
+   "hora": 17,
+   "fluxo_dia": 335903,
+   "lentidao": 0.1257
+  },
+  {
+   "hora": 18,
+   "fluxo_dia": 352793,
+   "lentidao": 0.1664
+  },
+  {
+   "hora": 19,
+   "fluxo_dia": 323505,
+   "lentidao": 0.1053
+  },
+  {
+   "hora": 20,
+   "fluxo_dia": 225398,
+   "lentidao": 0.0227
+  },
+  {
+   "hora": 21,
+   "fluxo_dia": 168997,
+   "lentidao": 0.007
+  },
+  {
+   "hora": 22,
+   "fluxo_dia": 140843,
+   "lentidao": 0.0079
+  },
+  {
+   "hora": 23,
+   "fluxo_dia": 88495,
+   "lentidao": 0.0028
+  }
+ ]
+}

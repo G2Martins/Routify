@@ -1,6 +1,6 @@
 # Resultados, calibração e limitações — rascunho para o texto final
 
-**Última revisão:** 2026-11-02
+**Última revisão:** 2026-11-08
 
 > **Status: rascunho.** Redigido com apoio de IA a partir dos artefatos versionados do repositório (`ml/artifacts/*.json`), para atender às recomendações do orientador sobre a seção de Resultados e Discussão. A equipe deve revisar, reescrever com a própria voz e declarar o uso de IA conforme as normas da instituição. Todo número abaixo aponta para a chave do JSON de origem; as figuras são geradas por `ml/thesis_figures.py` e se atualizam sozinhas quando os JSONs mudarem.
 
@@ -55,7 +55,7 @@ Reportar as duas métricas mostra se um ganho vem de reduzir erros típicos (MAE
 - **Efeito (RMSE em s, fresca / leitura de 30 min / 60 min):** 2.2 = 40,27 / 52,5 / 56,7; + perfis fora da amostra = 35,30 / 51,4 / 57,1; **2.3 = 35,48 / 43,8 / 47,2**; persistência = 39,96 / 64,8 / 88,0.
 - Leitura: os perfis fora da amostra explicam o ganho com leitura fresca; o envelhecimento explica o ganho com a leitura como ela chega na API. Em toda idade realista a 2.3 ganha da persistência. Com leitura de poucos minutos, a persistência ainda ganha no MAE (12,04 × 13,31 s): declarar.
 - **Velocidade livre:** a LIA aprende com a velocidade livre da TomTom, e a rota usava o limite do OSM, mais alto. Um fator único (0,883, mediana TomTom/OSM na via de cada sensor) leva o tempo da rota à escala da TomTom sem mudar a escolha de rota. Contra a TomTom no mesmo trajeto (14 corredores, madrugada): viés −11,9% → −0,2% e MAPE 16,1% → 10,2% (`experimento_velocidade_livre.json`).
-- **Pendente para o texto final:** a avaliação fora do tempo (`avaliacao_fora_do_tempo.json`), em leituras de novembro que nenhum modelo viu, é o número que deve fechar a comparação 2.2 × 2.3 × persistência.
+- **Avaliação fora do tempo** (`avaliacao_fora_do_tempo.json`, 136.992 leituras de 02 a 08/11/2026 que nenhum modelo viu, idade mediana 46 min): RMSE / MAE em s: 2.3 = 51,2 / 22,8; 2.2 = 65,8 / 23,7; persistência = 61,6 / 19,4; perfil = 83,9 / 27,8. A 2.3 ganha no RMSE, mas a persistência vence no MAE, sobretudo de madrugada. Refazer com mais dias antes da entrega.
 
 **Cuidados antes da versão final:**
 - Os números da LIA 2.0 vêm do benchmark (XGBoost sem recência, mesmos cortes temporais), porque o `lia_2.0_metadata.json` não persistiu o CV.
@@ -71,12 +71,12 @@ Reportar as duas métricas mostra se um ganho vem de reduzir erros típicos (MAE
 | Modelo | RMSE médio (s) | MAE médio (s) | Treino por fold (s) |
 |---|---|---|---|
 | XGBoost sem recência | 51,4 | 18,6 | 4,0 |
-| LSTM (janela de 6 passos, 10.833 parâmetros) | 41,5 | 17,2 | 9,4 |
+| LSTM (janela de 6 passos, 10.833 parâmetros) | 41,5 | 17,1 | 9,4 |
 | XGBoost + recência | 41,0 | 14,6 | 2,8 |
 
 Fonte: `benchmark_lstm_vs_xgboost.json` (`rmse_seg_media`, `mae_seg_media`, `tempo_treino_s_media`, `n_parametros_lstm`).
 
-A vantagem aparente do LSTM vinha do acesso à última observação real da via, não da captura de sazonalidade longa. Com a mesma informação (duas features de recência), o XGBoost empata no RMSE (41,0 × 41,5 s), vence no MAE (14,6 × 17,2 s) e treina em cerca de um terço do tempo. Pelo princípio da parcimônia, o XGBoost foi mantido em produção: não exige GPU nem runtime PyTorch no servidor. (Para registro honesto: o arquivo do LSTM é menor, 46 KB contra 1,35 MB do XGBoost.)
+A vantagem aparente do LSTM vinha do acesso à última observação real da via, não da captura de sazonalidade longa. Com a mesma informação (duas features de recência), o XGBoost empata no RMSE (41,0 × 41,5 s), vence no MAE (14,6 × 17,1 s) e treina em cerca de um terço do tempo. Pelo princípio da parcimônia, o XGBoost foi mantido em produção: não exige GPU nem runtime PyTorch no servidor. (Para registro honesto: o arquivo do LSTM é menor, 46 KB contra 1,35 MB do XGBoost.)
 
 ## 4. Estudo de caso — calibração da confiança do Knowledge Transfer (Figura 2)
 
@@ -123,6 +123,18 @@ A Fase 3 compara, para o mesmo par origem-destino e no mesmo instante:
 
 **Redesenho da comparação.** Por isso, a comparação passou a isolar o **atraso por congestionamento**: o tempo previsto no pico menos o tempo previsto em horário de referência sem tráfego. A primeira rodada em pico real mostrou concordância direcional, com os corredores mais congestionados apresentando mais atraso nas duas fontes. A magnitude, porém, é subestimada pelo sistema nos casos mais congestionados.
 
+**Números da rodada** (`ml/artifacts/fase3_comparacao.csv`, as 33 linhas com `lia_atraso_congestionamento_seg` e `tomtom_atraso_transito_seg`; LIA 2.1, 24/08 e 18/09 de 2026, 7h, 9h e 13h): r = 0,567, r² = 0,322, n = 33; soma do atraso previsto 642 s × 1.988 s da TomTom (32%). A TomTom é referência externa, mas não independente: a LIA aprende com a Flow dela. A rota de menor distância da mesma tabela (`menor_dist_tempo_seg`) é medida pelo relógio da LIA, então não serve de teste direto contra o roteamento estático: esse teste ainda falta.
+
+**Preditor estático × LIA** (`ml/artifacts/baseline_estatico.json`, gerado por `ml/baseline_estatico.py`):
+- *Trecho (mesmos 5 folds):* razão = 1 com a velocidade livre da TomTom tem RMSE 105,7 s e MAE 34,8 s, contra 35,5 s e 13,3 s da LIA 2.3 (−66,4%, melhor nos 5 folds; `trecho.*`).
+- *Rota (comparador, 2.289 viagens, 86 rodadas, 30 corredores, 02 a 08/11/2026; `rota.grupos.*`):* OSRM = roteador sem trânsito. MAPE contra a TomTom: pico de dia útil 21,0% (LIA) × 26,1% (OSRM), IC 95% do ganho 4,3 a 5,9 pontos; fora do pico 14,6% × 14,5% (empate); fim de semana e feriado 13,8% × 13,1%. Contra o Mapbox, que não alimenta o treino: 20,6% × 25,4%, 15,1% × 12,5% e 14,0% × 10,5%. A LIA ganha com congestionamento e empata ou perde em trânsito leve.
+
+**LIA 2.4** (`gate_lia_2.4_330arvores.json`; receita da 2.3 + leituras de novembro): em 77.772 leituras de 5 a 8/11, treinando só com o que existia antes de cada janela, RMSE 46,9 → 43,4 s e MAE 19,8 → 17,6 s contra a 2.3 de produção. Dias úteis 54,3 → 53,3 s; fim de semana 38,0 → 30,2 s.
+
+**DER-DF × lentidão** (`validacao_der.json`, CC-BY, 93 trechos, 45 dias úteis de mar a jul/2026): r = 0,80 entre o fluxo de veículos e a lentidão do dataset, por hora, na cidade inteira. Só checa coerência: o DER não traz velocidade nem coordenada.
+
+**Traçado** (`avaliacao_snap_aresta.json`, 300 viagens entre POIs reais): rotas com conversão proibida 70 → 0, retornos 0, conector mediano 164 → 124 m.
+
 **Continuidade após a parada do coletor.** O experimento rodava dentro do processo do coletor, que está sendo pausado. A API agora aceita `referencia_tomtom: true` no `POST /route` e devolve o ETA e o atraso da TomTom junto com a previsão da LIA. Assim, a comparação pode continuar acumulando amostras a partir do uso real.
 
 ## 6. Limitações conhecidas
@@ -144,7 +156,7 @@ A Fase 3 compara, para o mesmo par origem-destino e no mesmo instante:
      - Resultado (`fatores_velocidade_grupo`, `ajuste_por_grupo`): expressa 0,909, arterial 0,897, coletora 0,508, local 0,425 (sobre o limite de via do OSM); δ = 8,1 s por semáforo; MAPE do tempo livre na amostra de 20,5% para 10,4%.
      - Leitura: o viés estava nas ruas locais e coletoras, que levam ≈ 2× o tempo do limite de via (quebra-molas, rotatórias e cruzamentos embutidos). Expressas e arteriais quase não mudam. O atraso por cruzamento sem semáforo, colinear com o tempo das ruas locais, saiu ≈ 0.
      - Validação fora da amostra (`ab_calibracao_grafo_2026-11-02.json`, A/B/C no mesmo instante; feriado, ~12h): nos 16 corredores, LIA × TomTom ao vivo no mesmo trajeto foi de −9,1% de viés mediano e 12,7% de MAPE (produção) para −4,0% / 9,6% (grupos) e −2,3% / 8,7% (grupos + prior de congestionamento: aresta sem sensor parte da lentidão prevista agora nos trechos monitorados, não da mediana histórica do horário, que é 1,0 em 3 de cada 4 combinações hora × dia); em 40 rotas sorteadas com outra semente, de −14,7% / 18,7% para −6,4% / 10,7% e −3,3% / 9,5%. Amostra pequena (14–15 pares no mesmo trajeto) e um só horário.
-   - **Restrições de conversão:** o OSMnx ignora as relações `restriction` do OSM e o snap pega a pista mais próxima de uma via dupla. Em Plano → Taguatinga a rota da LIA termina com um retorno pela Avenida Comercial que a TomTom não aceita; ao reconstruir o trajeto ela dá uma volta de 4,8 km (×1,23 na distância, em todas as rodadas). É o único corredor com desvio sistemático. Correção possível: grafo por aresta (restrições) ou snap com vários candidatos.
+   - **Restrições de conversão:** o OSMnx ignora as relações `restriction` do OSM e o snap pega a pista mais próxima de uma via dupla. Em Plano → Taguatinga a rota da LIA termina com um retorno pela Avenida Comercial que a TomTom não aceita; ao reconstruir o trajeto ela dá uma volta de 4,8 km (×1,204 na distância, mediana de 36 rodadas; `.planning/research/2026-11-02-restricoes-conversao.md`). Outros dois corredores passam de 5% (×1,322 e ×1,059). Correção implementada: A* com estado só nos cruzamentos com restrição (`RESTRICOES_CONVERSAO=1`, desligado até o A/B de dia útil).
    - **Limitação da coleta:** a calibração foi feita de madrugada; repetir em horário comercial e estratificar por região.
 2. **Subestimação em congestionamento extremo** (Figura 4).
    - No subconjunto congestionado (razão < 0,95; 17,1% das amostras), o RMSE da LIA 2.1 sobe de 40,7 s para 87,5 s (2,1×).

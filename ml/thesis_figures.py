@@ -254,7 +254,7 @@ def artigo_calibracao():
     antiga = list(c['constante_antiga'].values())  # [<200 m, 200–500 m, ≥500 m]
     g = dict(zip(grade['distancias_m'], grade['confiancas']))
     with plt.rc_context(ARTIGO):
-        fig, ax = plt.subplots(figsize=(3.15, 1.7))
+        fig, ax = plt.subplots(figsize=(3.15, 1.55))
         ax.plot([0, 200, 200, 500, 500, 600], [antiga[0], antiga[0], antiga[1], antiga[1], antiga[2], antiga[2]],
                 color=LARANJA, linestyle=(0, (4, 2)), linewidth=1, label='escala antiga')
         pontos = [b for b in bins if b['centro_m'] <= 600]
@@ -293,7 +293,7 @@ def artigo_erro_versoes():
         ('LIA 2.3', cv23['modelo_rmse_seg'], cv23['modelo_mae_seg']),
     ]
     with plt.rc_context(ARTIGO):
-        fig, ax = plt.subplots(figsize=(3.15, 2.2))
+        fig, ax = plt.subplots(figsize=(3.15, 2.05))
         alt = 0.36
         for i, (nome, rmse, mae) in enumerate(linhas):
             y = len(linhas) - 1 - i
