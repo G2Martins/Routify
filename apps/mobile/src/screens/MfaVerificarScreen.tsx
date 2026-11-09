@@ -116,8 +116,8 @@ export default function MfaVerificarScreen() {
       <Surgir auth ordem={2} style={{ marginTop: 8 }}>
         <Text style={[theme.typography.body, { color: c.textMuted }]}>
           {recuperando
-            ? 'Digite um dos códigos de recuperação que você guardou. Ele desativa a verificação em duas etapas para você entrar de novo.'
-            : 'Digite o código de 6 dígitos do seu app autenticador (Google Authenticator, Microsoft Authenticator, 1Password).'}
+            ? 'Digite um dos códigos de recuperação que você guardou. Ele desativa a verificação para você entrar de novo.'
+            : 'Digite o código de 6 dígitos do seu app autenticador.'}
         </Text>
       </Surgir>
       {recuperando ? (

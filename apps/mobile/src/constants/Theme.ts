@@ -70,8 +70,8 @@ export const typography = {
 export const motion = {
   rapido: 160, // hover, press
   medio: 240, // troca de estado
-  entrada: 760, // revelação de tela/cartão
-  passo: 60, // atraso entre itens de uma lista escalonada
+  entrada: 320, // revelação de tela/cartão (com 760 a troca de aba parecia travada)
+  passo: 30, // atraso entre itens de uma lista escalonada
   easeOutExpo: Easing.bezier(0.16, 1, 0.3, 1),
   // Telas de auth (auth-rise do Valerium): mais curta e mais próxima que a entrada padrão.
   auth: { duracao: 480, passo: 70, deslocamento: 10 },

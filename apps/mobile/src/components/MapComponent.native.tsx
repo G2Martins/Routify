@@ -41,7 +41,9 @@ interface LatLon {
   longitude: number;
 }
 
-const MapComponent = forwardRef((_props, ref) => {
+type Margem = { top: number; left: number; right: number; bottom: number };
+
+const MapComponent = forwardRef(({ margem }: { margem?: Margem }, ref) => {
   const { mapStyle, theme } = useTheme();
   const mapRef = useRef<MapView>(null);
   const watchSubRef = useRef<Location.LocationSubscription | null>(null);
@@ -57,6 +59,8 @@ const MapComponent = forwardRef((_props, ref) => {
   );
 
   useImperativeHandle(ref, () => ({
+    atualizarTrafego: (t: (number | null)[] | null) => setTrafego(t),
+
     async centerOnUser(onError?: (msg: string) => void) {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
@@ -77,7 +81,7 @@ const MapComponent = forwardRef((_props, ref) => {
           1000
         );
       } catch (error: any) {
-        onError?.(error?.message ?? 'Erro ao obter localização');
+        onError?.(error?.message ?? 'Não deu para obter sua localização.');
       }
     },
 
@@ -100,7 +104,7 @@ const MapComponent = forwardRef((_props, ref) => {
         setDestinoCoord({ latitude: destinoLatLon[0], longitude: destinoLatLon[1] });
       if (coords.length > 0 && mapRef.current) {
         mapRef.current.fitToCoordinates(coords, {
-          edgePadding: { top: 260, right: 72, bottom: 260, left: 40 }, // painéis flutuantes
+          edgePadding: margem ?? { top: 48, right: 48, bottom: 48, left: 48 }, // painéis flutuantes
           animated: true,
         });
       }
@@ -146,7 +150,7 @@ const MapComponent = forwardRef((_props, ref) => {
           }
         );
       } catch (e: any) {
-        onError?.(e?.message ?? 'Erro ao iniciar follow.');
+        onError?.(e?.message ?? 'Não deu para acompanhar sua localização.');
       }
     },
 

@@ -1,6 +1,6 @@
 # Testes ponta a ponta (Playwright)
 
-**Última revisão:** 2026-11-03
+**Última revisão:** 2026-11-09
 
 Suíte que confere o produto **já implantado** (front na Hostinger + API na EC2). Não sobe nada local. Só Chromium. O repositório é público, então os domínios de produção **não** ficam aqui: vêm de variáveis de ambiente, e a suíte aborta com uma mensagem clara se faltarem.
 
@@ -29,6 +29,7 @@ cd tests/e2e && npm ci && npx playwright install chromium && BASE_URL=... API_UR
 | `search.spec.ts` | 5. "park shopping" → 1º resultado é o Park Shopping do Guará; "rodoviaria" → sugestão com "Rodoviária". Direto na API (sempre) e pela interface (com sessão) |
 | `route-api.spec.ts` | 6. `GET /health` = ok; `POST /route` Brasal → Park Shopping: 200, 3,5–7 km, < 10 s |
 | `login.spec.ts` | 7. tela de login com e-mail/senha; MFA inalcançável sem sessão (inclusive `?preview=mfa|mapa`, que só existem em build de desenvolvimento) |
+| `responsivo.spec.ts` | Login, cadastro e todas as telas em 360, 390, 768 e 1366 px: nada fora da largura, alvo de toque ≥ 44 px, nenhum travessão. Fluxos em 390 px: Planejar (saída troca, janela sem madrugada), detalhe do ponto no Trânsito e radares lembrados depois de recarregar. **Com a API simulada**: não gasta TomTom nem limite por IP, e bloqueia escrita em `route_history` |
 | `seo-files.spec.ts` | 8. `/robots.txt`, `/sitemap.xml`, `/llms.txt`: status, content-type e corpo |
 
 ## Leitura do resultado

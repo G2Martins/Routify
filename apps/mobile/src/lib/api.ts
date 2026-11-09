@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { Linking, Platform } from 'react-native';
 import { supabase } from './supabase';
 
 export const API_URL =
@@ -7,6 +7,12 @@ export const API_URL =
 /** Painel ADM (Next) no mesmo domínio em produção (`/admin`); em dev roda no :3000. */
 export const ADMIN_URL =
   (process.env.EXPO_PUBLIC_ADMIN_URL as string | undefined) ?? 'http://localhost:3000/admin';
+
+/** Só UI: quem garante o acesso ao painel é o banco (RLS + is_admin()) e a API. */
+export function abrirPainelAdm(): void {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') window.location.assign(ADMIN_URL);
+  else Linking.openURL(ADMIN_URL).catch(() => {});
+}
 
 /**
  * Cabeçalhos para a API com o JWT da sessão Supabase. A API valida o token no

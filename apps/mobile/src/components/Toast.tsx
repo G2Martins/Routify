@@ -5,9 +5,10 @@
  * avisar({ titulo: 'Rota pronta', texto: '16 min', tom: 'ok' }).
  */
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Animated, Platform, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { Animated, Platform, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
-import { useMenosMovimento } from './ui';
+import { BotaoIcone, useMenosMovimento } from './ui';
 import Icon from './Icon';
 
 export type TomAviso = 'ok' | 'info' | 'alerta' | 'erro';
@@ -34,6 +35,7 @@ const Contexto = createContext<(a: Aviso) => void>(() => {});
 export const useToast = () => useContext(Contexto);
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
+  const insets = useSafeAreaInsets();
   const [itens, setItens] = useState<ItemAviso[]>([]);
   const seq = useRef(0);
   const mostrar = useCallback((a: Aviso) => {
@@ -46,7 +48,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <Contexto.Provider value={mostrar}>
       {children}
-      <View pointerEvents="box-none" style={[styles.pilha, POSICAO]}>
+      <View pointerEvents="box-none" style={[styles.pilha, POSICAO, { top: insets.top + 16 }]}>
         {itens.map((a) => (
           <CartaoAviso key={a.id} aviso={a} onFechar={() => fechar(a.id)} />
         ))}
@@ -114,9 +116,7 @@ function CartaoAviso({ aviso, onFechar }: { aviso: ItemAviso; onFechar: () => vo
           <Text style={[theme.typography.caption, { color: c.textMuted, fontSize: 12, marginTop: 1 }]}>{aviso.texto}</Text>
         ) : null}
       </View>
-      <Pressable onPress={sair} accessibilityRole="button" accessibilityLabel="Fechar aviso" hitSlop={8} style={styles.fechar}>
-        <Icon name="ion:close" size={16} color={c.textSubtle} />
-      </Pressable>
+      <BotaoIcone icone="ion:close" rotulo="Fechar aviso" onPress={sair} cor={c.textSubtle} />
       <Animated.View
         style={[
           styles.tempo,
@@ -128,7 +128,7 @@ function CartaoAviso({ aviso, onFechar }: { aviso: ItemAviso; onFechar: () => vo
 }
 
 const styles = StyleSheet.create({
-  pilha: { top: 16, right: 16, left: 16, zIndex: 9999, alignItems: 'flex-end', gap: 10 },
+  pilha: { right: 16, left: 16, zIndex: 9999, alignItems: 'flex-end', gap: 10 },
   cartao: {
     width: '100%',
     maxWidth: 380,
@@ -144,6 +144,5 @@ const styles = StyleSheet.create({
   },
   faixa: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3 },
   icone: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  fechar: { padding: 4, borderRadius: 6 },
   tempo: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, opacity: 0.55 },
 });

@@ -8,12 +8,14 @@
  */
 import React, { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
-import type { ExpressionSpecification, GeoJSONSource, Map as MLMap, Marker as MLMarker, StyleSpecification } from 'maplibre-gl';
+import type { ExpressionSpecification, GeoJSONSource, Map as MLMap, Marker as MLMarker, Popup, StyleSpecification } from 'maplibre-gl';
 import { mapPalettes, trafficColors } from '../../constants/Theme';
 import { useTheme } from '../../context/ThemeContext';
 import { ATRIBUICAO, carregarBase, montarEstilo } from './estiloMapa';
 import { acompanhar, localizarUsuario } from './geolocalizacao';
 import { gruposTransito } from './transito';
+import type { Radar } from '../../lib/radares';
+import ICONES from '../../constants/icones.json';
 
 type ML = typeof import('maplibre-gl');
 type LatLon = [number, number];
@@ -48,6 +50,12 @@ const ANIM_CSS = `
 @keyframes rtCai{from{transform:translateY(-26px) scale(.55);opacity:0}to{transform:none;opacity:1}}
 .rt-vinheta{position:absolute;inset:0;pointer-events:none;background:radial-gradient(130% 95% at 50% 45%,transparent 58%,var(--rt-vinheta) 100%)}
 .maplibregl-ctrl-attrib,.maplibregl-ctrl-attrib a{font-family:Geist_500Medium,system-ui,sans-serif;font-size:10px}
+.maplibregl-ctrl-bottom-right{bottom:var(--rt-margem-baixo,0px)}
+.maplibregl-ctrl.maplibregl-ctrl-attrib{background:var(--rt-pop-fundo);color:var(--rt-pop-texto)}
+.maplibregl-ctrl-attrib a{color:inherit}
+.rt-popup .maplibregl-popup-content{background:var(--rt-pop-fundo);color:var(--rt-pop-texto);font:500 13px/18px Geist_500Medium,system-ui,sans-serif;border-radius:8px;padding:8px 12px;box-shadow:0 6px 20px var(--rt-sombra)}
+.rt-popup.maplibregl-popup-anchor-bottom .maplibregl-popup-tip{border-top-color:var(--rt-pop-fundo)}
+.rt-popup.maplibregl-popup-anchor-top .maplibregl-popup-tip{border-bottom-color:var(--rt-pop-fundo)}
 @media ${MEDIA_LEVE}{.rt-vinheta{display:none}.rt-ponto::before{animation-iteration-count:3}}
 @media (prefers-reduced-motion: reduce){.rt-mapa-entra,.rt-ponto::before,.rt-pino{animation:none}.rt-mapa-entra{opacity:1!important}}
 `;
@@ -121,6 +129,28 @@ function pontoEm(coords: LonLat[], acc: number[], f: number): LonLat {
   return [coords[lo][0] + (coords[hi][0] - coords[lo][0]) * t, coords[lo][1] + (coords[hi][1] - coords[lo][1]) * t];
 }
 
+/** Símbolo do radar desenhado no canvas com os tokens do tema: nada de sprite externo. */
+function imagemRadar(fundo: string, anel: string, tinta: string): ImageData | null {
+  const icone = (ICONES as unknown as { prefix: string; icons: Record<string, { body: string }> }[]).find((c) => c.prefix === 'mdi')?.icons.cctv;
+  const d = icone?.body.match(/ d="([^"]+)"/)?.[1];
+  const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+  if (!d || !ctx) return null;
+  const T = 56;
+  ctx.canvas.width = ctx.canvas.height = T;
+  ctx.beginPath();
+  ctx.arc(T / 2, T / 2, T / 2 - 3, 0, Math.PI * 2);
+  ctx.fillStyle = fundo;
+  ctx.fill();
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = anel;
+  ctx.stroke();
+  const k = 32 / 24;
+  ctx.setTransform(k, 0, 0, k, (T - 32) / 2, (T - 32) / 2);
+  ctx.fillStyle = tinta;
+  ctx.fill(new Path2D(d));
+  return ctx.getImageData(0, 0, T, T);
+}
+
 // Marcadores em DOM montado só com tokens do tema (nenhum dado do usuário entra no HTML).
 function elPonto(cor: string, borda: string, sombra: string, rotulo: string) {
   const el = document.createElement('div');
@@ -160,13 +190,20 @@ type Rota = {
 };
 
 /** Ponto de /trafego/agora (tela "Trânsito agora"). */
-export type PontoTransito = { lat: number; lon: number; nivel: number; nome?: string | null };
-const ROTULO_NIVEL = ['livre', 'moderado', 'lento', 'parado'];
+export type PontoTransito = { id: number; lat: number; lon: number; nivel: number };
+
+/** Folga da rota nas bordas do mapa: quem desenha painel por cima (MapScreen, Planejar) informa quanto cobre. */
+export type Margem = { top: number; left: number; right: number; bottom: number };
+const MARGEM_PADRAO: Margem = { top: 48, left: 48, right: 48, bottom: 48 };
+// Toque no mapa: o ponto é miúdo em zoom baixo, então o alvo é um quadrado de 44 px em volta do dedo.
+const RAIO_TOQUE = 22;
 
 const IDS_CAMADAS = ['rota-alt', 'rota-conector', 'rota-brilho', 'rota-contorno', 'rota-linha', 'rota-transito', 'rota-cometa-brilho', 'rota-cometa'];
 const IDS_FONTES = ['rota', 'rota-alt', 'rota-conector', 'rota-transito', 'rota-cometa'];
 
-const MapaVetorial = forwardRef(({ onFalha }: { onFalha?: () => void }, ref) => {
+type Props = { onFalha?: () => void; margem?: Margem; onPontoPress?: (id: number) => void };
+
+const MapaVetorial = forwardRef(({ onFalha, margem, onPontoPress }: Props, ref) => {
   const { mapStyle, theme } = useTheme();
   const c = theme.colors;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -180,6 +217,13 @@ const MapaVetorial = forwardRef(({ onFalha }: { onFalha?: () => void }, ref) => 
   const pendente = useRef(false);
   const rotaRef = useRef<Rota | null>(null);
   const pontosRef = useRef<PontoTransito[] | null>(null);
+  const selecionadoRef = useRef<number | null>(null);
+  const radaresRef = useRef<Radar[] | null>(null);
+  const popupRef = useRef<Popup | null>(null);
+  const margemRef = useRef<Margem>(MARGEM_PADRAO);
+  margemRef.current = margem ?? MARGEM_PADRAO;
+  const onPontoRef = useRef(onPontoPress);
+  onPontoRef.current = onPontoPress;
   const marcadores = useRef<{ origem?: MLMarker; destino?: MLMarker; usuario?: MLMarker }>({});
   const quadros = useRef<{ desenho?: number; cometa?: number; espera?: ReturnType<typeof setTimeout> }>({});
   const pararSeguir = useRef<(() => void) | null>(null);
@@ -208,6 +252,7 @@ const MapaVetorial = forwardRef(({ onFalha }: { onFalha?: () => void }, ref) => 
   function desenharPontos() {
     const map = mapRef.current;
     if (!map || !estiloPronto.current || !map.getStyle()) return;
+    if (map.getLayer('transito-selecionado')) map.removeLayer('transito-selecionado');
     if (map.getLayer('transito-agora')) map.removeLayer('transito-agora');
     if (map.getSource('transito-agora')) map.removeSource('transito-agora');
     const pontos = pontosRef.current;
@@ -219,7 +264,7 @@ const MapaVetorial = forwardRef(({ onFalha }: { onFalha?: () => void }, ref) => 
         type: 'FeatureCollection',
         features: pontos.map((p) => ({
           type: 'Feature',
-          properties: { nivel: p.nivel, rotulo: `${p.nome ?? 'Via monitorada'}: ${ROTULO_NIVEL[p.nivel] ?? '—'}` },
+          properties: { id: p.id, nivel: p.nivel },
           geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
         })),
       },
@@ -239,6 +284,64 @@ const MapaVetorial = forwardRef(({ onFalha }: { onFalha?: () => void }, ref) => 
       },
       map.getLayer('rota-alt') ? 'rota-alt' : undefined,
     );
+    // Anel no ponto aberto no painel: sabe-se de qual ponto são os dados.
+    map.addLayer({
+      id: 'transito-selecionado',
+      type: 'circle',
+      source: 'transito-agora',
+      filter: ['==', ['get', 'id'], selecionadoRef.current ?? -1],
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 9, 14, 16],
+        'circle-color': TRANSP,
+        'circle-stroke-width': 3,
+        'circle-stroke-color': temaRef.current.c.accent,
+      },
+    });
+  }
+
+  /** Radares (/radares_df.json) por cima de tudo, recriados depois de trocar o estilo. O texto só vai em popup como texto. */
+  function desenharRadares() {
+    const map = mapRef.current;
+    if (!map || !estiloPronto.current || !map.getStyle()) return;
+    if (map.getLayer('radares')) map.removeLayer('radares');
+    if (map.getSource('radares')) map.removeSource('radares');
+    const lista = radaresRef.current;
+    if (!lista?.length) return;
+    const { c: cores } = temaRef.current;
+    const img = imagemRadar(cores.surface, cores.warning, cores.text);
+    if (!img) return;
+    if (map.hasImage('radar')) map.removeImage('radar');
+    map.addImage('radar', img, { pixelRatio: 2 });
+    map.addSource('radares', {
+      type: 'geojson',
+      data: colecao(lista.map((r) => ({
+        type: 'Feature',
+        properties: { limite: r.limite_kmh, nome: r.nome },
+        geometry: { type: 'Point', coordinates: [r.lon, r.lat] },
+      }))),
+    });
+    map.addLayer({
+      id: 'radares',
+      type: 'symbol',
+      source: 'radares',
+      minzoom: 11,
+      layout: {
+        'icon-image': 'radar',
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+        // Discreto de longe: 273 radares não podem tapar a rota. De perto, 28 px.
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.4, 13, 0.6, 16, 1],
+      },
+    });
+  }
+
+  function popupRadar(coords: LonLat, props: { limite?: number | null; nome?: string | null }) {
+    const ml = mlRef.current;
+    const map = mapRef.current;
+    if (!ml || !map) return;
+    const texto = [props.nome || 'Radar', props.limite ? `${props.limite} km/h` : null].filter(Boolean).join(' · ');
+    popupRef.current?.remove();
+    popupRef.current = new ml.Popup({ closeButton: false, offset: 14, className: 'rt-popup' }).setLngLat(coords).setText(texto).addTo(map);
   }
 
   /** Cria (ou recria, depois de trocar o estilo) as camadas da rota. `animar`: desenha e solta o cometa. */
@@ -351,28 +454,37 @@ const MapaVetorial = forwardRef(({ onFalha }: { onFalha?: () => void }, ref) => 
       .addTo(map);
   }
 
-  /** Enquadra a rota guardada, desenha (animada) e põe os marcadores. */
-  function aplicarRota() {
+  /** Enquadra a rota no vão que os painéis deixam livre (`margem`). Vão apertado demais: encolhe a folga, nunca desiste. */
+  function enquadrar() {
     const map = mapRef.current;
     const ml = mlRef.current;
     const rota = rotaRef.current;
     if (!map || !ml || !rota) return;
-    const largo = typeof window !== 'undefined' && window.innerWidth >= 900;
     const limites = new ml.LngLatBounds(rota.coords[0], rota.coords[0]);
     rota.coords.forEach((p) => limites.extend(p));
     if (rota.origem) limites.extend(lonLat(rota.origem));
     if (rota.destino) limites.extend(lonLat(rota.destino));
+    const { clientWidth: L, clientHeight: A } = map.getContainer();
+    const m = margemRef.current;
+    const kx = Math.min(1, (L * 0.8) / Math.max(1, m.left + m.right));
+    const ky = Math.min(1, (A * 0.8) / Math.max(1, m.top + m.bottom));
     map.fitBounds(limites, {
-      // Celular: o painel da rota cobre ~metade de baixo da tela e a busca, o topo.
-      padding: largo
-        ? { top: 72, left: 470, right: 96, bottom: 72 }
-        : { top: 160, left: 36, right: 84, bottom: Math.round(window.innerHeight * 0.56) },
+      padding: { top: m.top * ky, bottom: m.bottom * ky, left: m.left * kx, right: m.right * kx },
       maxZoom: 16.5,
       pitch: 0,
       bearing: 0,
       duration: reduzirMovimento() ? 0 : 1200,
       easing: easeOutExpo,
     });
+  }
+
+  /** Enquadra a rota guardada, desenha (animada) e põe os marcadores. */
+  function aplicarRota() {
+    const map = mapRef.current;
+    const ml = mlRef.current;
+    const rota = rotaRef.current;
+    if (!map || !ml || !rota) return;
+    enquadrar();
     desenharRota(true);
     const { c: cores } = temaRef.current;
     marcadores.current.origem?.remove();
@@ -412,9 +524,16 @@ const MapaVetorial = forwardRef(({ onFalha }: { onFalha?: () => void }, ref) => 
           fadeDuration: 180,
         });
         map.addControl(new ml.AttributionControl({ compact: true, customAttribution: [ATRIBUICAO, 'Trânsito © TomTom · Tempo: Open-Meteo'] }), 'bottom-right');
+        // O controle compacto nasce aberto e só fecha no primeiro arrasto. Numa tela de celular ele tapa o mapa: começa no "i".
+        if (LEVE) {
+          const creditos = containerRef.current.querySelector('.maplibregl-ctrl-attrib');
+          creditos?.removeAttribute('open');
+          creditos?.classList.remove('maplibregl-compact-show');
+        }
         mapRef.current = map;
         const revelar = () => containerRef.current?.classList.add('rt-mapa-entra');
-        setTimeout(revelar, 4000); // tile lento ou fora do ar: o mapa aparece assim mesmo
+        setTimeout(revelar, 1500); // tile lento ou fora do ar: o mapa aparece assim mesmo
+        map.once('style.load', revelar);
         // O style.load inicial pode sair antes deste ouvinte existir: o load cobre.
         const pronto = () => {
           if (estiloPronto.current) return;
@@ -426,18 +545,32 @@ const MapaVetorial = forwardRef(({ onFalha }: { onFalha?: () => void }, ref) => 
             desenharRota(false); // trocar o estilo apaga as camadas da rota: recria sem animar
           }
           desenharPontos();
+          desenharRadares();
         };
         map.on('load', () => {
           revelar();
           pronto();
         });
         map.on('style.load', pronto);
-        // Toque num ponto do "Trânsito agora": via e nível, como texto (o nome vem do OSM).
-        map.on('click', 'transito-agora', (e) => {
-          const f = e.features?.[0];
-          const coords = (f?.geometry as { coordinates?: [number, number] } | undefined)?.coordinates;
-          if (!f || !coords) return;
-          new ml.Popup({ closeButton: false, offset: 8 }).setLngLat(coords).setText(String(f.properties?.rotulo ?? '')).addTo(map);
+        // Um clique só decide entre ponto e radar: o mais perto do dedo, num alvo de 44 px.
+        map.on('click', (e) => {
+          const camadas = ['radares', 'transito-agora'].filter((id) => map.getLayer(id));
+          if (!camadas.length) return;
+          const { x, y } = e.point;
+          const achados = map.queryRenderedFeatures([[x - RAIO_TOQUE, y - RAIO_TOQUE], [x + RAIO_TOQUE, y + RAIO_TOQUE]], { layers: camadas });
+          const coordsDe = (f: (typeof achados)[number]) => (f.geometry as unknown as { coordinates: LonLat }).coordinates;
+          const distancia = (f: (typeof achados)[number]) => {
+            const p = map.project(coordsDe(f));
+            return Math.hypot(p.x - x, p.y - y);
+          };
+          const perto = achados.sort((a, b) => distancia(a) - distancia(b))[0];
+          if (!perto) return;
+          if (perto.layer.id === 'radares') popupRadar(coordsDe(perto), perto.properties as { limite?: number; nome?: string });
+          else onPontoRef.current?.(Number(perto.properties?.id));
+        });
+        ['radares', 'transito-agora'].forEach((id) => {
+          map.on('mouseenter', id, () => { map.getCanvas().style.cursor = 'pointer'; });
+          map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });
         });
       } catch (e) {
         console.warn('[Routify] mapa vetorial indisponível, voltando ao Leaflet', e);
@@ -465,10 +598,22 @@ const MapaVetorial = forwardRef(({ onFalha }: { onFalha?: () => void }, ref) => 
   // Vinheta e cores da rota acompanham o tema.
   useEffect(() => {
     vinhetaRef.current?.style.setProperty('--rt-vinheta', mapPalettes[mapStyle === 'street' ? 'claro' : 'escuro'].vinheta);
+    containerRef.current?.style.setProperty('--rt-pop-fundo', c.surface);
+    containerRef.current?.style.setProperty('--rt-pop-texto', c.text);
+    containerRef.current?.style.setProperty('--rt-sombra', c.shadowMedium);
     if (rotaRef.current) desenharRota(false);
     desenharPontos();
+    desenharRadares();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [theme.mode, mapStyle]);
+
+  // Painel mudou de tamanho (rota aberta, detalhes expandidos): reenquadra. Navegando, quem manda é o GPS.
+  const { top: mTopo, left: mEsq, right: mDir, bottom: mBaixo } = margemRef.current;
+  useEffect(() => {
+    containerRef.current?.style.setProperty('--rt-margem-baixo', `${Math.max(0, mBaixo - 32)}px`);
+    if (rotaRef.current && estiloPronto.current && !pararSeguir.current) enquadrar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mTopo, mEsq, mDir, mBaixo]);
 
   useImperativeHandle(ref, () => ({
     centerOnUser(onError?: (msg: string) => void) {
@@ -523,9 +668,41 @@ const MapaVetorial = forwardRef(({ onFalha }: { onFalha?: () => void }, ref) => 
       }, onError);
     },
 
+    /** Troca só a pintura do trânsito, sem mexer na câmera nem redesenhar a rota (Planejar: outra saída). */
+    atualizarTrafego(trafego: (number | null)[] | null) {
+      const rota = rotaRef.current;
+      const map = mapRef.current;
+      if (!rota) return;
+      rota.trafego = trafego;
+      (map?.getSource('rota-transito') as GeoJSONSource | undefined)?.setData(trechosTransito(rota.coords, trafego));
+    },
+
     showTrafficPoints(pontos: PontoTransito[] | null) {
       pontosRef.current = pontos;
       desenharPontos();
+    },
+
+    /** Marca o ponto aberto no painel e leva a câmera até ele, no vão que os painéis deixam livre. */
+    selecionarPonto(id: number | null) {
+      selecionadoRef.current = id;
+      const map = mapRef.current;
+      if (!map || !estiloPronto.current) return;
+      if (map.getLayer('transito-selecionado')) map.setFilter('transito-selecionado', ['==', ['get', 'id'], id ?? -1]);
+      const ponto = id == null ? null : pontosRef.current?.find((p) => p.id === id);
+      if (!ponto) return;
+      const m = margemRef.current;
+      map.easeTo({
+        center: [ponto.lon, ponto.lat],
+        zoom: Math.max(map.getZoom(), 14),
+        offset: [(m.left - m.right) / 2, (m.top - m.bottom) / 2],
+        duration: reduzirMovimento() ? 0 : 700,
+      });
+    },
+
+    mostrarRadares(radares: Radar[] | null) {
+      radaresRef.current = radares;
+      if (!radares) popupRef.current?.remove();
+      desenharRadares();
     },
 
     stopFollow() {

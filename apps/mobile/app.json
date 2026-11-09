@@ -25,7 +25,7 @@
     },
     "web": {
       "favicon": "./assets/Logo_Routify_icon.png",
-      "name": "Routify — Roteamento preditivo para Brasília/DF (TCC 2026)",
+      "name": "Routify: roteamento preditivo para Brasília/DF (TCC 2026)",
       "shortName": "Routify",
       "lang": "pt-BR"
     },

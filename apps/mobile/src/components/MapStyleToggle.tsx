@@ -15,17 +15,20 @@ const TRANSICAO_WEB =
     ? ({ transitionProperty: 'background-color, border-color, box-shadow', transitionDuration: '160ms' } as ViewStyle)
     : null;
 
-/** Botão quadrado de controle do mapa (40 px, raio 12): superfície, borda fina, sombra; hover eleva. */
+/** Botão quadrado de controle do mapa (44 px, raio 12): superfície, borda fina, sombra; hover eleva. */
 export function BotaoMapa({
   icone,
   rotulo,
   onPress,
   ativo,
+  ligado,
 }: {
   icone: string;
   rotulo: string;
   onPress: () => void;
   ativo?: boolean;
+  /** Botão de alternância (camada ligada/desligada): vira aria-pressed. */
+  ligado?: boolean;
 }) {
   const { theme } = useTheme();
   const c = theme.colors;
@@ -34,10 +37,11 @@ export function BotaoMapa({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={rotulo}
-      accessibilityState={{ expanded: ativo }}
+      aria-expanded={ligado === undefined ? ativo : undefined}
+      aria-pressed={ligado}
       style={(estado) => {
         const { hovered, pressed } = estado as { hovered?: boolean; pressed: boolean };
-        const alto = hovered || ativo;
+        const alto = hovered || ativo || ligado;
         return [
           styles.botao,
           {
@@ -54,7 +58,7 @@ export function BotaoMapa({
     >
       {(estado) => {
         const { hovered } = estado as { hovered?: boolean };
-        return <Icon name={icone} size={18} color={hovered || ativo ? c.accent : c.text} />;
+        return <Icon name={icone} size={18} color={hovered || ativo || ligado ? c.accent : c.text} />;
       }}
     </Pressable>
   );
@@ -93,7 +97,7 @@ export default function MapStyleToggle() {
               <Pressable
                 key={s}
                 accessibilityRole="menuitem"
-                accessibilityState={{ selected: active }}
+                aria-selected={active}
                 onPress={() => {
                   setMapStyle(s);
                   setOpen(false);
@@ -121,8 +125,8 @@ export default function MapStyleToggle() {
 const styles = StyleSheet.create({
   container: { position: 'relative', zIndex: 2 },
   botao: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: 12,
     borderWidth: 1,
     alignItems: 'center',
@@ -132,7 +136,7 @@ const styles = StyleSheet.create({
   menu: {
     position: 'absolute',
     top: 0,
-    right: 48,
+    right: 52,
     width: 176,
     padding: 4,
     borderRadius: 12,
@@ -144,7 +148,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     paddingHorizontal: 10,
-    paddingVertical: 9,
+    minHeight: 44,
     borderRadius: 8,
   },
 });

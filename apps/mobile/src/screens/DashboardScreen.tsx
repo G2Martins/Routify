@@ -1,18 +1,17 @@
-import React, { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useRef, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useDesktopLayout } from '../lib/responsive';
-import { API_URL } from '../lib/api';
+import { abrirPainelAdm, API_URL } from '../lib/api';
 import { supabase, RouteHistoryRow } from '../lib/supabase';
 import { fonts } from '../constants/Theme';
 import Icon from '../components/Icon';
 import Button from '../components/Button';
 import {
   Cartao,
-  Container,
   FaixaMarca,
   GradeKpi,
   Kpi,
@@ -20,6 +19,7 @@ import {
   Selo,
   Skeleton,
   Surgir,
+  Tela,
   TituloPagina,
 } from '../components/ui';
 
@@ -56,21 +56,23 @@ const ROTULO_FEATURE: Record<string, string> = {
   chuva_3h_mm: 'Chuva nas últimas 3 horas',
   is_feriado: 'Feriado',
   delta_min_lag1: 'Minutos desde a última leitura',
-  perfil_via_hora_dow: 'Perfil da via por hora e dia',
-  perfil_via_hora: 'Perfil da via por hora',
-  perfil_via: 'Perfil médio da via',
-  perfil_hora_dow: 'Perfil da cidade por hora e dia',
-  perfil_via_hora_dow_std: 'Variação do perfil da via',
-  perfil_via_hora_dow_n: 'Amostras do perfil da via',
+  perfil_via_hora_dow: 'Histórico da via por hora e dia',
+  perfil_via_hora: 'Histórico da via por hora',
+  perfil_via: 'Média histórica da via',
+  perfil_hora_dow: 'Histórico da cidade por hora e dia',
+  perfil_via_hora_dow_std: 'Variação histórica da via',
+  perfil_via_hora_dow_n: 'Leituras no histórico da via',
   velocidade_livre: 'Velocidade livre',
   id_ponto_enc: 'Ponto monitorado',
   hora: 'Hora do dia',
-  hora_sin: 'Hora (ciclo, seno)',
-  hora_cos: 'Hora (ciclo, cosseno)',
+  hora_sin: 'Hora do dia',
+  hora_cos: 'Hora do dia',
   dia_semana: 'Dia da semana',
   is_fim_semana: 'Fim de semana',
   is_horario_pico: 'Horário de pico',
 };
+
+const SEM_DADO = 'n/d'; // valor que não veio: dito em texto, sem traço solto no lugar do número
 
 const fmt = (n: number, casas = 0) =>
   new Intl.NumberFormat('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas }).format(n);
@@ -107,8 +109,9 @@ function formatDate(): string {
 export default function DashboardScreen() {
   const { theme } = useTheme();
   const c = theme.colors;
-  const { user, profile } = useAuth();
+  const { user, profile, isAdmin } = useAuth();
   const desktop = useDesktopLayout();
+  const carregou = useRef(false);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [apiOnline, setApiOnline] = useState(false);
@@ -119,7 +122,8 @@ export default function DashboardScreen() {
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      setLoading(true);
+      // Esqueleto só na primeira vez: ao voltar para a aba, os números de antes ficam enquanto os novos chegam.
+      if (!carregou.current) setLoading(true);
       fetch(`${API_URL}/metrics`)
         .then((r) => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -131,7 +135,10 @@ export default function DashboardScreen() {
           setApiOnline(true);
         })
         .catch(() => !cancelled && setApiOnline(false))
-        .finally(() => !cancelled && setLoading(false));
+        .finally(() => {
+          carregou.current = true;
+          if (!cancelled) setLoading(false);
+        });
 
       // Agrega histórico do usuário: km, min, CO2 economizado vs baseline carro gasolina.
       if (user?.id) {
@@ -174,18 +181,18 @@ export default function DashboardScreen() {
     }, [user?.id, tentativa])
   );
 
-  const nome = (profile?.nome || user?.email?.split('@')[0] || 'piloto').trim().split(/\s+/)[0];
+  const nome = (profile?.nome || user?.email?.split('@')[0] || '').trim().split(/\s+/)[0];
   const online = apiOnline && metrics !== null;
   const combustivel = metrics?.combustivel ?? null;
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: c.background }}
-      contentContainerStyle={{ paddingTop: desktop ? 40 : 56, paddingBottom: 80 }}
-    >
-      <Container>
+    <Tela>
         <Surgir>
-          <TituloPagina titulo={`Olá, ${nome}`} sub={`${formatDate()} · o trânsito do DF previsto pela LIA`} />
+          <TituloPagina
+            titulo={nome ? `Olá, ${nome}` : 'Olá'}
+            sub={formatDate()}
+            direita={isAdmin && !desktop ? <Button label="Painel ADM" variant="secondary" size="sm" icon="ion:shield-checkmark-outline" onPress={abrirPainelAdm} /> : undefined}
+          />
         </Surgir>
 
         {loading ? (
@@ -200,51 +207,49 @@ export default function DashboardScreen() {
               )}
             </Surgir>
 
-            <RotuloSecao>Seu impacto</RotuloSecao>
+            <RotuloSecao>Sua economia</RotuloSecao>
             <GradeKpi>
               <Kpi
                 ordem={2}
                 destaque
                 icone="ion:time-outline"
-                valor={stats ? `${fmt(stats.minutos_economizados, 0)} min` : '—'}
-                rotulo="Tempo economizado"
+                valor={stats ? `${fmt(stats.minutos_economizados, 0)} min` : SEM_DADO}
+                rotulo="Tempo"
               />
               <Kpi
                 ordem={3}
                 icone="mdi:gas-station-outline"
-                valor={stats ? `${fmt(stats.litros_economizados, 2)} L` : '—'}
-                rotulo="Combustível economizado"
+                valor={stats ? `${fmt(stats.litros_economizados, 2)} L` : SEM_DADO}
+                rotulo="Combustível"
               />
               <Kpi
                 ordem={4}
                 icone="ion:cash-outline"
-                valor={stats && combustivel ? `R$ ${fmt(stats.litros_economizados * combustivel.preco_litro_reais, 2)}` : '—'}
-                rotulo="Economia em gasolina"
+                valor={stats && combustivel ? `R$ ${fmt(stats.litros_economizados * combustivel.preco_litro_reais, 2)}` : SEM_DADO}
+                rotulo="Em gasolina"
               />
               <Kpi
                 ordem={5}
                 icone="ion:leaf-outline"
-                valor={stats && combustivel ? `${fmt(stats.litros_economizados * combustivel.co2_kg_por_litro, 1)} kg` : '—'}
+                valor={stats && combustivel ? `${fmt(stats.litros_economizados * combustivel.co2_kg_por_litro, 1)} kg` : SEM_DADO}
                 rotulo="CO₂ evitado"
               />
             </GradeKpi>
             {stats?.rotas === 0 ? (
               <Text style={[theme.typography.caption, { color: c.textMuted, marginTop: 8 }]}>
-                Calcule sua primeira rota na aba Mapa para ver seu impacto aqui.
+                Trace sua primeira rota na aba Mapa para ver sua economia aqui.
               </Text>
             ) : (
-              <Text style={[theme.typography.caption, { color: c.textSubtle, marginTop: 8, fontSize: 12 }]}>
+              <Text style={[theme.typography.caption, { color: c.textMuted, marginTop: 8, fontSize: 12 }]}>
                 {stats ? `${fmt(stats.rotas_com_economia)} de ${fmt(stats.rotas_com_estimativa)} rotas economizaram combustível. ` : ''}
-                Estimativa por rota: o caminho da LIA contra o caminho mais curto no mesmo horário (modelo de
-                Evans–Herman–Lam). A LIA escolhe o mais rápido; quando ele é bem mais longo, pode gastar um pouco mais
-                de gasolina — essas rotas contam no tempo, não no combustível
-                {combustivel ? ` · gasolina a R$ ${fmt(combustivel.preco_litro_reais, 2)}/L (ANP, DF)` : ''}.
+                Estimativa contra o caminho mais curto no mesmo horário
+                {combustivel ? `, com gasolina a R$ ${fmt(combustivel.preco_litro_reais, 2)}/L (ANP, DF)` : ''}.
               </Text>
             )}
 
             {online ? (
               <>
-                <RotuloSecao>Motor preditivo</RotuloSecao>
+                <RotuloSecao>O modelo</RotuloSecao>
                 <View style={styles.duas}>
                   <Surgir ordem={6} style={styles.meia}>
                     <CartaoModelo m={metrics} />
@@ -259,8 +264,7 @@ export default function DashboardScreen() {
             ) : null}
           </>
         )}
-      </Container>
-    </ScrollView>
+    </Tela>
   );
 }
 
@@ -319,10 +323,10 @@ function HeroLia({ rmse, base }: { rmse: number | null; base: number | null }) {
       <View style={styles.heroCorpo}>
         <View style={styles.heroCol}>
           <Text style={[theme.typography.num, styles.heroNum, { color: fg }]} numberOfLines={1}>
-            {rmse != null ? `±${fmt(rmse, 1)} s` : '—'}
+            {rmse != null ? `±${fmt(rmse, 1)} s` : SEM_DADO}
           </Text>
           <Text style={[theme.typography.caption, { color: fg, opacity: 0.72, marginTop: 6 }]}>
-            Erro médio de previsão (RMSE) · meta abaixo de 120 s
+            Erro típico da previsão por trecho. Meta: abaixo de 120 s.
           </Text>
         </View>
 
@@ -330,7 +334,7 @@ function HeroLia({ rmse, base }: { rmse: number | null; base: number | null }) {
           <View style={[styles.heroCol, { justifyContent: 'flex-end' }]}>
             {[
               { rotulo: 'LIA', valor: rmse, cor: c.teal },
-              { rotulo: 'Baseline', valor: base, cor: c.textSubtle },
+              { rotulo: 'Só o histórico', valor: base, cor: c.textSubtle },
             ].map((b) => (
               <View key={b.rotulo} style={{ marginBottom: 12 }}>
                 <View style={styles.barraLinha}>
@@ -342,7 +346,7 @@ function HeroLia({ rmse, base }: { rmse: number | null; base: number | null }) {
             ))}
             <Text style={[theme.typography.captionMd, { color: fg }]}>
               <Text style={{ fontFamily: theme.fonts.monoBold }}>{`${fmt((1 - rmse / base) * 100, 1)}%`}</Text>
-              {' menos erro que o baseline'}
+              {' menos erro que usar só o histórico'}
             </Text>
           </View>
         ) : null}
@@ -357,10 +361,10 @@ function CartaoModelo({ m }: { m: Metrics }) {
   const amostras = m.total_amostras_treino ?? 0;
   const periodo = rotuloPeriodo(m.periodo_dados);
   const stats = [
-    { valor: m.n_pontos_monitorados ? fmt(m.n_pontos_monitorados) : '—', rotulo: 'pontos monitorados' },
-    { valor: amostras > 0 ? compacto(amostras) : '—', rotulo: 'amostras de treino' },
-    { valor: m.cv_mae_seg != null ? `±${fmt(m.cv_mae_seg, 1)} s` : '—', rotulo: 'erro absoluto (MAE)' },
-  ];
+    { valor: m.n_pontos_monitorados ? fmt(m.n_pontos_monitorados) : null, rotulo: 'pontos monitorados' },
+    { valor: amostras > 0 ? compacto(amostras) : null, rotulo: 'leituras no treino' },
+    { valor: m.cv_mae_seg != null ? `±${fmt(m.cv_mae_seg, 1)} s` : null, rotulo: 'erro médio' },
+  ].filter((e): e is { valor: string; rotulo: string } => e.valor !== null);
 
   return (
     <Cartao style={{ flex: 1 }}>
@@ -375,8 +379,8 @@ function CartaoModelo({ m }: { m: Metrics }) {
       </View>
 
       <Text style={[theme.typography.body, { color: c.textMuted, marginTop: 12 }]}>
-        {amostras > 0 ? `Treinada com ${compacto(amostras)} de amostras do trânsito de Brasília. ` : ''}
-        O XGBoost prevê o congestionamento de cada trecho e o A* usa essa previsão para escolher a rota mais rápida.
+        {amostras > 0 ? `A LIA aprendeu com ${compacto(amostras)} de leituras do trânsito de Brasília. ` : ''}
+        Ela prevê o congestionamento de cada trecho, e a rota mais rápida sai dessa previsão.
       </Text>
 
       {periodo ? (
@@ -413,7 +417,7 @@ function CartaoFeatures({ fi }: { fi: Record<string, number> }) {
     <Cartao style={{ flex: 1 }}>
       <Text style={[theme.typography.h3, { color: c.text }]}>O que mais pesa</Text>
       <Text style={[theme.typography.caption, { color: c.textMuted, marginTop: 2 }]}>
-        Importância relativa das variáveis na previsão · top 5
+        As 5 informações que mais influenciam a previsão.
       </Text>
       {top.map(([chave, v]) => (
         <View key={chave} style={{ marginTop: 14 }}>
@@ -439,22 +443,16 @@ function CartaoOffline({ onRetry }: { onRetry: () => void }) {
         <View style={[styles.iconeCirculo, { backgroundColor: c.surfaceAlt }]}>
           <Icon name="ion:server-outline" size={18} color={c.danger} />
         </View>
-        <View style={{ flex: 1, minWidth: 220 }}>
+        <View style={{ flexGrow: 1, flexShrink: 1, flexBasis: 220, minWidth: 0 }}>
           <View style={styles.offlineTitulo}>
-            <Text style={[theme.typography.h4, { color: c.text }]}>Motor preditivo indisponível</Text>
+            <Text style={[theme.typography.h4, { color: c.text }]}>Previsão fora do ar</Text>
             <Selo tom="erro" ponto>
               Offline
             </Selo>
           </View>
           <Text style={[theme.typography.body, { color: c.textMuted, marginTop: 4 }]}>
-            Não conseguimos falar com a API da LIA agora. Seu impacto continua abaixo; as métricas do modelo voltam
-            assim que a API responder.
+            Sua economia continua abaixo. Os números do modelo voltam quando o servidor responder.
           </Text>
-          {__DEV__ ? (
-            <Text style={[styles.mono, { color: c.textSubtle, marginTop: 8 }]}>
-              dev: uvicorn main:app --reload (em apps/api)
-            </Text>
-          ) : null}
         </View>
         <Button label="Tentar de novo" variant="secondary" size="sm" onPress={onRetry} />
       </View>
@@ -465,11 +463,11 @@ function CartaoOffline({ onRetry }: { onRetry: () => void }) {
 /** Esqueleto com o mesmo desenho da tela carregada (hero, 4 KPIs, 2 cartões). */
 function EsqueletoPainel() {
   return (
-    <View accessibilityLabel="Carregando métricas">
+    <View accessibilityRole="progressbar" accessibilityLabel="Carregando os números">
       <View style={{ marginTop: 24 }}>
         <Skeleton altura={176} raio={12} />
       </View>
-      <RotuloSecao>Seu impacto</RotuloSecao>
+      <RotuloSecao>Sua economia</RotuloSecao>
       <GradeKpi>
         {[0, 1, 2, 3].map((i) => (
           <View key={i} style={styles.kpiEsqueleto}>
@@ -477,7 +475,7 @@ function EsqueletoPainel() {
           </View>
         ))}
       </GradeKpi>
-      <RotuloSecao>Motor preditivo</RotuloSecao>
+      <RotuloSecao>O modelo</RotuloSecao>
       <View style={styles.duas}>
         {[0, 1].map((i) => (
           <View key={i} style={styles.meia}>
@@ -490,17 +488,17 @@ function EsqueletoPainel() {
 }
 
 const styles = StyleSheet.create({
-  hero: { borderRadius: 12, borderWidth: 1, padding: 24, paddingTop: 22, overflow: 'hidden' },
+  hero: { borderRadius: 12, borderWidth: 1, padding: 20, overflow: 'hidden' },
   heroFaixa: { position: 'absolute', top: 0, left: 0, right: 0, borderRadius: 0 },
   heroTopo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   heroCorpo: { flexDirection: 'row', flexWrap: 'wrap', gap: 24, marginTop: 16 },
-  heroCol: { flexGrow: 1, flexShrink: 1, flexBasis: 260 },
-  heroNum: { fontSize: 52, lineHeight: 60, letterSpacing: -1.5 },
+  heroCol: { flexGrow: 1, flexShrink: 1, flexBasis: 240, minWidth: 0 },
+  heroNum: { fontSize: 44, lineHeight: 52, letterSpacing: -1.5 },
   barra: { height: 6, marginTop: 6, justifyContent: 'center' },
   barraLinha: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 },
   mono: { fontFamily: fonts.mono, fontSize: 12, lineHeight: 16, fontVariant: ['tabular-nums'] },
   duas: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  meia: { flexGrow: 1, flexShrink: 1, flexBasis: 320 },
+  meia: { flexGrow: 1, flexShrink: 1, flexBasis: 300, minWidth: 0 },
   cartaoTopo: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconeCirculo: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   chip: {
@@ -519,5 +517,5 @@ const styles = StyleSheet.create({
   offline: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 16 },
   offlineTitulo: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
   // Espelha a célula do Kpi em ui.tsx para o esqueleto ocupar o mesmo lugar.
-  kpiEsqueleto: { flexGrow: 1, flexBasis: 220, padding: 6, minWidth: 150 },
+  kpiEsqueleto: { flexGrow: 1, flexBasis: 160, padding: 6, minWidth: 150 },
 });

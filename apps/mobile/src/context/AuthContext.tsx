@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase, ProfileRow } from '../lib/supabase';
 
@@ -31,7 +31,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Lê do próprio JWT e dos fatores da sessão (sem rede). Em erro, não trava a interface: o
   // banco e a API seguem exigindo aal2 de quem tem o 2º fator.
-  const atualizarAal = async () => {
+  const atualizarAal = useCallback(async () => {
     try {
       const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
       setMfaPendente(!!data && data.nextLevel === 'aal2' && data.currentLevel !== 'aal2');
@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setAalPronto(true);
     }
-  };
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -55,14 +55,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = useCallback(async (userId: string) => {
     const { data } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .maybeSingle();
     setProfile((data as ProfileRow) || null);
-  };
+  }, []);
 
   useEffect(() => {
     if (!session) {
@@ -82,41 +82,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [session?.user?.id]);
 
-  const signIn: AuthContextValue['signIn'] = async (email, password) => {
+  const signIn: AuthContextValue['signIn'] = useCallback(async (email, password) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error: error?.message ?? null };
-  };
+  }, []);
 
-  const signUp: AuthContextValue['signUp'] = async (email, password, nome) => {
+  const signUp: AuthContextValue['signUp'] = useCallback(async (email, password, nome) => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { nome } },
     });
     return { error: error?.message ?? null };
-  };
+  }, []);
 
-  const signOut: AuthContextValue['signOut'] = async () => {
+  const signOut: AuthContextValue['signOut'] = useCallback(async () => {
     await supabase.auth.signOut();
-  };
+  }, []);
 
-  const refreshProfile = async () => {
-    if (session?.user?.id) await fetchProfile(session.user.id);
-  };
+  // Estável de propósito: o Perfil relê o perfil ao ganhar foco. Com uma função nova a cada render, cada leitura
+  // disparava outra (78 pedidos ao Supabase em 6 s com a aba aberta) e refazia a árvore inteira que usa useAuth.
+  const userId = session?.user?.id;
+  const refreshProfile = useCallback(async () => {
+    if (userId) await fetchProfile(userId);
+  }, [userId, fetchProfile]);
 
-  const value: AuthContextValue = {
-    session,
-    user: session?.user ?? null,
-    profile,
-    loading: loading || (!!session && !aalPronto),
-    isAdmin: session?.user?.app_metadata?.role === 'admin',
-    signIn,
-    signUp,
-    signOut,
-    refreshProfile,
-    mfaPendente,
-    atualizarAal,
-  };
+  const value: AuthContextValue = useMemo(
+    () => ({
+      session,
+      user: session?.user ?? null,
+      profile,
+      loading: loading || (!!session && !aalPronto),
+      isAdmin: session?.user?.app_metadata?.role === 'admin',
+      signIn,
+      signUp,
+      signOut,
+      refreshProfile,
+      mfaPendente,
+      atualizarAal,
+    }),
+    [session, profile, loading, aalPronto, signIn, signUp, signOut, refreshProfile, mfaPendente, atualizarAal]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

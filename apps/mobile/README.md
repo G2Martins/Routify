@@ -13,20 +13,25 @@
 
 ## 📖 Sobre o App
 
-**Última revisão:** 2026-11-03
+**Última revisão:** 2026-11-09
 
 Cliente do **Routify** rodando em **iOS, Android e Web** via Expo + React Native. Consome a `apps/api` para roteamento A\* com pesos da LIA, fundido com a TomTom. Tem:
 - mapa interativo: vetorial (MapLibre GL + OpenFreeMap) na web, com o Leaflet de reserva sem WebGL; react-native-maps no celular;
-- **Planejar saída** (aba Planejar, `PlanejarScreen`): origem e destino pelo mesmo autocomplete do mapa e, depois de
-  "Planejar", um gráfico de barras com o tempo do mesmo trajeto em cada horário de partida (12 saídas a cada 30 min,
-  a partir de agora; `POST /route/horarios`). A mais rápida fica em destaque, com a frase "Saindo às 07:30 você gasta
-  ~12 min a menos que às 08:30". É previsão da LIA pelo histórico, sem trânsito ao vivo. Barras em `View` puro (sem
-  biblioteca de gráfico); cada linha traz hora e minutos, e serve de tabela para o leitor de tela. Recalculando, o
-  gráfico anterior fica esmaecido no lugar; 429 e erros da API viram aviso. Textos e contrato em `src/lib/planejar.ts`
-  (`tests/planejar.test.mjs`);
+- **Planejar saída** (aba Planejar, `PlanejarScreen`): origem e destino pelo mesmo autocomplete do mapa, dia (hoje a +6)
+  e período (manhã 6–12 h, tarde 12–18 h, noite 18–23 h). Abre numa janela útil (`escolhaPadrao` em `src/lib/planejar.ts`),
+  nunca na madrugada, e o pedido sai sozinho (`POST /route/horarios`, espera 300 ms e guarda as respostas). O trajeto aparece
+  no mapa pintado pelo `trafego` da saída escolhida; trocar de saída só refaz a pintura (`atualizarTrafego`). Colunas em
+  `View` puro (`Colunas.tsx`): base = tempo sem trânsito, a melhor em destaque; clique, arrasto ou setas do teclado trocam
+  a saída, com setas de 44 px para o dedo. Abaixo de 2 min de diferença a tela diz "Tanto faz o horário" em uma linha, sem
+  gráfico. Desktop: painel e mapa lado a lado. Celular: o mapa só monta quando há resultado e fica fixo no topo;
 - **Trânsito agora** (aba Trânsito, `TransitoScreen`): a previsão da LIA para este instante em cada ponto monitorado
-  (`GET /trafego/agora`, atualiza a cada minuto com a tela aberta), pontos coloridos no mapa vetorial, faixa
-  livre/moderado/lento/parado com texto e as vias mais lentas;
+  (`GET /trafego/agora`, atualiza a cada minuto com a tela aberta), pontos no mapa vetorial, faixa livre/moderado/lento/parado
+  e as vias mais lentas. Tocar num ponto (alvo de 44 px em volta do dedo) ou numa linha abre `DetalhePonto`
+  (`GET /trafego/ponto/{id}`): visão geral e, abaixo, histórico por hora, por dia da semana, últimos dias e últimas leituras.
+  Painel lateral no desktop, folha de baixo no celular; Esc fecha;
+- **Radares** (`BotaoRadares.tsx`, `src/lib/radares.ts`): camada nos três mapas, de `/radares_df.json` (OpenStreetMap), baixada
+  quando o primeiro mapa abre. Ligar e desligar fica em `localStorage`, por conta. Sem o arquivo, ou no nativo, o botão não
+  aparece. Nome e limite só entram como texto (`Popup.setText`);
 - histórico de rotas, perfil e dashboard de métricas.
 
 **Ícones:** na web, `@iconify/react/offline` só desenha o que está em `src/constants/icones.json` (nada vai à rede;
@@ -35,7 +40,18 @@ o modo online punha SVG de terceiro no `innerHTML`). Usou ícone novo: `node scr
 
 **Design:** paleta da logo + linguagem Valerium. Tokens em `src/constants/Theme.ts`, peças prontas em `src/components/ui.tsx`, regras em [docs/core/design-system.md](../../docs/core/design-system.md).
 
-**Sessão:** na web, a sessão Supabase fica em **cookie** (`@supabase/ssr`; Secure em https, 30 dias), a mesma que o painel ADM (`/admin`) lê. O login é único, e o item "Painel ADM" aparece só para `app_metadata.role = admin`. No celular, a sessão fica no AsyncStorage.
+**Navegação:** `BarraAbas` (celular) e o `SideRail` (desktop) acendem o item e a barra de progresso (`BarraNavegacao.tsx`) antes de
+a tela nova montar. A barra anda por CSS, no compositor: não trava enquanto o mapa inicia. O atraso ao trocar de aba vinha de
+(medido em 2026-11-09, CPU 4×): um laço em `AuthContext` que relia o perfil sem parar com a aba Perfil aberta (78 pedidos em 6 s),
+`Surgir` em `Animated` (refazia o componente a cada quadro), entrada de 760 ms e esqueleto a cada volta ao Painel.
+
+**Responsivo:** `useDesktopLayout` (≥ 900 px), `useTelaLarga` (≥ 600 px), `useAlvo` (44 px em toque, 34 no desktop com mouse),
+`useFonteCampo` (16 px em toque: abaixo disso o Safari dá zoom ao focar). `Tela` (`ui.tsx`) é a casca das telas de conteúdo: rolagem,
+área segura, teclado e voltar. `MapComponent` recebe `margem`: o vão que os painéis deixam livre, medido, é onde a rota enquadra. A
+meta `interactive-widget=resizes-content` faz a janela encolher com o teclado no Android. `tests/e2e/tests/responsivo.spec.ts`
+confere 360, 390, 768 e 1366 px. Acessibilidade: `aria-*`, porque o RN-web 0.21 ignora `accessibilityState`.
+
+**Sessão:** na web, a sessão Supabase fica em **cookie** (`@supabase/ssr`; Secure em https, 30 dias), a mesma que o painel ADM (`/admin`) lê. O login é único, e o acesso ao "Painel ADM" (rail no desktop; Perfil e Painel no celular) aparece só para `app_metadata.role = admin`; a proteção real é no servidor. No celular, a sessão fica no AsyncStorage.
 
 **Busca:**
 - destinos recentes ao focar o campo, e os que casam com o texto vêm antes dos resultados;

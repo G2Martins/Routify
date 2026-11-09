@@ -23,13 +23,13 @@ function injetarCssWeb() {
   const style = document.createElement('style');
   style.id = 'routify-css';
   style.textContent = `
-    html, body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+    html, body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; touch-action: manipulation; }
     :focus { outline: none; }
     :focus-visible { outline: 2px solid rgba(2,107,248,.55); outline-offset: 2px; border-radius: 8px; }
     ::selection { background: rgba(2,107,248,.22); }
     * { scrollbar-width: thin; scrollbar-color: rgba(127,140,165,.35) transparent; }
     @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+      *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; transition-duration: .01ms !important; }
     }
   `;
   document.head.appendChild(style);

@@ -10,6 +10,7 @@
 import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
+import { useAlvo } from '../lib/responsive';
 import Icon from './Icon';
 
 type Variant = 'primary' | 'secondary' | 'chip' | 'ghost' | 'danger';
@@ -42,7 +43,8 @@ export default function Button({
   const { theme, mode } = useTheme();
   const c = theme.colors;
 
-  const altura = { sm: 34, md: 42, lg: 50 }[size];
+  const alvo = useAlvo();
+  const altura = { sm: alvo, md: Math.max(42, alvo), lg: 50 }[size];
   const padH = { sm: 12, md: 16, lg: 22 }[size];
   const fonte = { sm: 13, md: 14, lg: 15 }[size];
 
@@ -61,7 +63,8 @@ export default function Button({
       onPress={onPress}
       disabled={disabled || loading}
       accessibilityRole="button"
-      accessibilityState={{ disabled: !!(disabled || loading), busy: !!loading }}
+      aria-disabled={!!(disabled || loading)}
+      aria-busy={!!loading}
       style={(estado) => {
         const { hovered, pressed } = estado as { hovered?: boolean; pressed: boolean };
         const ativo = hovered && !disabled;
@@ -89,7 +92,7 @@ export default function Button({
           <View style={styles.row}>
             {icon ? <Icon name={icon} size={fonte + 3} color={fg} /> : null}
             {label ? (
-              <Text style={[theme.typography.bodyMd, { color: fg, fontSize: fonte }]} numberOfLines={1}>
+              <Text style={[theme.typography.bodyMd, { color: fg, fontSize: fonte, flexShrink: 1 }]} numberOfLines={1}>
                 {label}
               </Text>
             ) : null}
@@ -113,5 +116,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    maxWidth: '100%',
   },
 });

@@ -6,6 +6,7 @@
 import React, { forwardRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, TextInput, TextInputProps, View } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
+import { useFonteCampo } from '../lib/responsive';
 import Icon from './Icon';
 
 interface Props extends TextInputProps {
@@ -25,6 +26,7 @@ const Input = forwardRef<TextInput, Props>(function Input(
 ) {
   const { theme } = useTheme();
   const c = theme.colors;
+  const fonteCampo = useFonteCampo();
   const [secure, setSecure] = useState(!!password);
   const [focused, setFocused] = useState(false);
   const desabilitado = editable === false;
@@ -64,7 +66,7 @@ const Input = forwardRef<TextInput, Props>(function Input(
           style={[
             theme.typography.body,
             styles.campo,
-            { color: c.text, marginLeft: iconLeft ? 10 : 0 },
+            { color: c.text, marginLeft: iconLeft ? 10 : 0, fontSize: fonteCampo },
             WEB_SEM_OUTLINE,
             style,
           ]}
@@ -77,7 +79,6 @@ const Input = forwardRef<TextInput, Props>(function Input(
             onPress={() => setSecure((s) => !s)}
             accessibilityRole="button"
             accessibilityLabel={secure ? 'Mostrar senha' : 'Ocultar senha'}
-            hitSlop={8}
             style={styles.olho}
           >
             <Icon name={secure ? 'ion:eye-outline' : 'ion:eye-off-outline'} size={18} color={c.textSubtle} />
@@ -99,6 +100,8 @@ export default Input;
 const styles = StyleSheet.create({
   bloco: { marginBottom: 16 },
   caixa: { flexDirection: 'row', alignItems: 'center', height: 44, paddingHorizontal: 12, borderWidth: 1 },
-  campo: { flex: 1, height: '100%', paddingVertical: 0 },
-  olho: { marginLeft: 8, padding: 2 },
+  // 44 de alvo por cima da borda de 1 px da caixa.
+  campo: { flex: 1, minWidth: 0, height: 44, marginVertical: -1, paddingVertical: 0 },
+  // 44 px de alvo dentro da caixa de 44, encostado na borda direita.
+  olho: { width: 44, height: 44, marginVertical: -1, marginRight: -12, alignItems: 'center', justifyContent: 'center' },
 });

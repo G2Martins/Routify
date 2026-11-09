@@ -12,8 +12,10 @@ import React, {
 } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
-import { MAP_TILE_URLS } from '../constants/Theme';
+import { MAP_TILE_URLS, trafficColors } from '../constants/Theme';
+import type { Radar } from '../lib/radares';
 import { acompanhar, localizarUsuario } from './mapa/geolocalizacao';
+import { gruposTransito } from './mapa/transito';
 
 let L: any = null;
 
@@ -85,8 +87,18 @@ function iconePino(c: Cores) {
   });
 }
 
-const MapaLeaflet = forwardRef((_props: { onFalha?: () => void }, ref) => {
+type Margem = { top: number; left: number; right: number; bottom: number };
+
+const MapaLeaflet = forwardRef(({ margem }: { margem?: Margem }, ref) => {
   const { mapStyle, theme } = useTheme();
+  const margemRef = useRef<Margem>({ top: 48, left: 48, right: 48, bottom: 48 });
+  if (margem) margemRef.current = margem;
+  const transitoRef = useRef<any[]>([]);
+  const radaresRef = useRef<any[]>([]);
+  const coordsRef = useRef<[number, number][]>([]);
+  // Pedido feito antes do chunk do Leaflet chegar: aplica assim que o mapa existir.
+  const pendentes = useRef<(() => void)[]>([]);
+  const apiRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const tileLayerRef = useRef<any>(null);
@@ -125,6 +137,7 @@ const MapaLeaflet = forwardRef((_props: { onFalha?: () => void }, ref) => {
       map.attributionControl.addAttribution('Trânsito © TomTom · Tempo: Open-Meteo');
       mapInstanceRef.current = map;
       setMapLoaded(true);
+      pendentes.current.splice(0).forEach((f) => f());
     }
 
     initMap();
@@ -145,7 +158,42 @@ const MapaLeaflet = forwardRef((_props: { onFalha?: () => void }, ref) => {
     tileLayerRef.current = criarTiles(mapInstanceRef.current, mapStyle);
   }, [mapStyle]);
 
-  useImperativeHandle(ref, () => ({
+  const pintarTransito = (trafego?: (number | null)[] | null) => {
+    transitoRef.current.forEach((l) => l.remove());
+    transitoRef.current = [];
+    const coords = coordsRef.current;
+    if (!mapInstanceRef.current || !L || coords.length < 2) return;
+    const alerta = trafficColors[mapStyle === 'street' ? 'light' : 'dark'];
+    for (const [a, b, nivel] of gruposTransito(coords.length, trafego)) {
+      transitoRef.current.push(
+        L.polyline(coords.slice(a, b + 1), { color: alerta[nivel - 1], weight: 5, lineCap: 'round', lineJoin: 'round' }).addTo(mapInstanceRef.current)
+      );
+    }
+  };
+
+  useImperativeHandle(ref, () => (apiRef.current = {
+    atualizarTrafego: pintarTransito,
+
+    mostrarRadares(radares: Radar[] | null) {
+      if (!mapInstanceRef.current) {
+        pendentes.current.push(() => apiRef.current?.mostrarRadares(radares));
+        return;
+      }
+      radaresRef.current.forEach((m) => m.remove());
+      radaresRef.current = [];
+      if (!radares) return;
+      for (const r of radares) {
+        // Texto em nó DOM: o Leaflet trata string como HTML, e o nome vem do OSM.
+        const rotulo = document.createElement('span');
+        rotulo.textContent = [r.nome || 'Radar', r.limite_kmh ? `${r.limite_kmh} km/h` : null].filter(Boolean).join(' · ');
+        radaresRef.current.push(
+          L.circleMarker([r.lat, r.lon], { radius: 6, color: theme.colors.warning, weight: 2, fillColor: theme.colors.surface, fillOpacity: 1 })
+            .bindPopup(rotulo)
+            .addTo(mapInstanceRef.current)
+        );
+      }
+    },
+
     centerOnUser(onError?: (msg: string) => void) {
       if (!mapInstanceRef.current) return;
       localizarUsuario((lat, lon, zoom) => {
@@ -163,9 +211,14 @@ const MapaLeaflet = forwardRef((_props: { onFalha?: () => void }, ref) => {
       polyline: [number, number][],
       origemCoord?: [number, number],
       destinoCoord?: [number, number],
-      alternativa?: [number, number][] | null
+      alternativa?: [number, number][] | null,
+      trafego?: (number | null)[] | null
     ) {
-      if (!mapInstanceRef.current || !L) return;
+      if (!mapInstanceRef.current) {
+        pendentes.current.push(() => apiRef.current?.showRoute(polyline, origemCoord, destinoCoord, alternativa, trafego));
+        return;
+      }
+      coordsRef.current = polyline ?? [];
 
       [polylineRef, contornoRef, alternativaRef].forEach((r) => {
         if (r.current) r.current.remove();
@@ -211,14 +264,13 @@ const MapaLeaflet = forwardRef((_props: { onFalha?: () => void }, ref) => {
         opacity: 1,
       }).addTo(mapInstanceRef.current);
 
-      // Folga para os painéis flutuantes (mesmo breakpoint de useDesktopLayout: 900 px).
-      const largo = typeof window !== 'undefined' && window.innerWidth >= 900;
-      mapInstanceRef.current.fitBounds(
-        polylineRef.current.getBounds(),
-        largo
-          ? { paddingTopLeft: [448, 48], paddingBottomRight: [72, 48] }
-          : { paddingTopLeft: [32, 240], paddingBottomRight: [72, 260] }
-      );
+      pintarTransito(trafego);
+
+      const m = margemRef.current;
+      mapInstanceRef.current.fitBounds(polylineRef.current.getBounds(), {
+        paddingTopLeft: [m.left, m.top],
+        paddingBottomRight: [m.right, m.bottom],
+      });
       // Desenha depois do enquadramento (o zoom recalcula o caminho); fallback se o mapa não se mover.
       let desenhou = false;
       const animarLinha = () => {
@@ -247,6 +299,8 @@ const MapaLeaflet = forwardRef((_props: { onFalha?: () => void }, ref) => {
     },
 
     clearRoute() {
+      coordsRef.current = [];
+      pintarTransito(null);
       [polylineRef, contornoRef, alternativaRef].forEach((r) => {
         if (r.current) r.current.remove();
         r.current = null;

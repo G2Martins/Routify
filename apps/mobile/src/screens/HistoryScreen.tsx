@@ -1,7 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { Alert, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Alert, Platform, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useDesktopLayout } from '../lib/responsive';
@@ -10,7 +9,7 @@ import { enviarEvento } from '../lib/api';
 import Icon from '../components/Icon';
 import Button from '../components/Button';
 import Input from '../components/Input';
-import { Cartao, Container, GradeKpi, Kpi, RotuloSecao, Selo, Skeleton, Surgir, TituloPagina } from '../components/ui';
+import { BotaoIcone, Cartao, GradeKpi, Kpi, RotuloSecao, Selo, Skeleton, Surgir, Tela, TituloPagina } from '../components/ui';
 
 const DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
@@ -49,7 +48,6 @@ export default function HistoryScreen({ navigation }: any) {
   const c = theme.colors;
   const { user } = useAuth();
   const desktop = useDesktopLayout();
-  const insets = useSafeAreaInsets();
   const [items, setItems] = useState<RouteHistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -178,15 +176,7 @@ export default function HistoryScreen({ navigation }: any) {
             <Text style={[theme.typography.caption, { color: c.textSubtle, fontFamily: theme.fonts.mono }]}>{hora(item.created_at)}</Text>
             {item.rotas_diferentes ? <Selo tom="marca" ponto>LIA escolheu outra rota</Selo> : null}
             <View style={{ flex: 1 }} />
-            <Pressable
-              onPress={() => handleDelete(item.id)}
-              accessibilityRole="button"
-              accessibilityLabel="Excluir rota do histórico"
-              hitSlop={6}
-              style={({ pressed }) => [styles.excluir, { borderRadius: theme.radius.sm, opacity: pressed ? 0.6 : 1 }]}
-            >
-              <Icon name="ion:trash-outline" size={16} color={c.textSubtle} />
-            </Pressable>
+            <BotaoIcone icone="ion:trash-outline" rotulo="Excluir rota do histórico" onPress={() => handleDelete(item.id)} />
           </View>
 
           {/* origem (anel) → destino (pin) */}
@@ -219,13 +209,9 @@ export default function HistoryScreen({ navigation }: any) {
               <View style={styles.metrica}>
                 <Icon name="ion:flash-outline" size={14} color={c.success} />
                 <Text style={[styles.num, { color: c.success, fontFamily: theme.fonts.mono }]}>−{min(deltaSeg)} min</Text>
-                <Text style={[theme.typography.caption, { color: c.textMuted }]}>vs. mais curta</Text>
+                <Text style={[theme.typography.caption, { color: c.textMuted }]}>que a mais curta</Text>
               </View>
             ) : null}
-            <View style={{ flex: 1 }} />
-            <Text style={[theme.typography.micro, { color: c.textSubtle, fontFamily: theme.fonts.mono }]}>
-              {(item.modelo_versao || 'lia').toUpperCase()}
-            </Text>
           </View>
 
           {/* Predição × realidade. Sem tempo real, oferece o campo que o coleta. */}
@@ -240,7 +226,7 @@ export default function HistoryScreen({ navigation }: any) {
                     Real <Text style={{ color: c.text, fontFamily: theme.fonts.mono }}>{min(item.tempo_real_seg)} min</Text>
                   </Text>
                   <Text style={[theme.typography.captionMd, { color: acertou ? c.success : c.textMuted, fontFamily: theme.fonts.mono }]}>
-                    {erroMin === 0 ? 'previsão exata' : `${erroSeg > 0 ? '+' : '−'}${erroMin} min vs. previsto`}
+                    {erroMin === 0 ? 'previsão exata' : `${erroSeg > 0 ? '+' : '−'}${erroMin} min do previsto`}
                   </Text>
                 </View>
               );
@@ -249,7 +235,7 @@ export default function HistoryScreen({ navigation }: any) {
             <View style={[styles.feedback, { borderTopColor: c.border }]}>
               <Text style={[theme.typography.captionMd, { color: c.text }]}>Quanto demorou de verdade?</Text>
               <Text style={[theme.typography.caption, { color: c.textMuted, marginTop: 2, marginBottom: 10 }]}>
-                A LIA previu {min(item.tempo_total_seg)} min. O tempo real mede a precisão do modelo.
+                A previsão foi de {min(item.tempo_total_seg)} min.
               </Text>
               <View style={styles.feedbackLinha}>
                 <View style={{ flex: 1, minWidth: 120 }}>
@@ -268,8 +254,8 @@ export default function HistoryScreen({ navigation }: any) {
                     style={{ fontFamily: theme.fonts.monoBold }}
                   />
                 </View>
-                <Button label="Salvar" loading={salvandoFeedback} onPress={salvarTempoReal} style={{ height: 44 }} />
-                <Button label="Agora não" variant="ghost" onPress={fecharFeedback} style={{ height: 44 }} />
+                <Button label="Salvar" loading={salvandoFeedback} onPress={salvarTempoReal} />
+                <Button label="Agora não" variant="ghost" onPress={fecharFeedback} />
               </View>
             </View>
           ) : (
@@ -290,15 +276,9 @@ export default function HistoryScreen({ navigation }: any) {
 
   let ordem = 0;
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: c.background }}
-      contentContainerStyle={{ paddingTop: desktop ? 32 : insets.top + 16, paddingBottom: 100 }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}
-      keyboardShouldPersistTaps="handled"
-    >
-      <Container>
+    <Tela refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}>
         <Surgir>
-          <TituloPagina titulo="Histórico" sub="Rotas que a LIA calculou para você." />
+          <TituloPagina titulo="Histórico" sub="As rotas que você traçou." />
         </Surgir>
 
         {loading ? (
@@ -325,7 +305,7 @@ export default function HistoryScreen({ navigation }: any) {
               </View>
               <Text style={[theme.typography.h4, { color: c.text, marginTop: 16 }]}>Nenhuma rota ainda</Text>
               <Text style={[theme.typography.body, { color: c.textMuted, marginTop: 4, textAlign: 'center' }]}>
-                Calcule uma rota no mapa e ela aparece aqui, com a previsão da LIA.
+                Trace uma rota no mapa e ela aparece aqui.
               </Text>
               <Button label="Ir para o mapa" icon="ion:map-outline" onPress={() => navigation?.navigate('Mapa')} style={{ marginTop: 20, alignSelf: 'center' }} />
             </Cartao>
@@ -334,15 +314,11 @@ export default function HistoryScreen({ navigation }: any) {
           <>
             <View style={{ marginTop: 24 }}>
               <GradeKpi>
-                <Kpi icone="ion:navigate-outline" valor={String(total)} rotulo={total === 1 ? 'Rota calculada' : 'Rotas calculadas'} ordem={1} />
-                <Kpi icone="ion:time-outline" valor={`${tempoMedio} min`} rotulo="Tempo médio previsto" ordem={2} />
-                <Kpi
-                  icone="ion:analytics-outline"
-                  valor={pctDiferente == null ? '—' : `${pctDiferente}%`}
-                  rotulo="Vezes em que a LIA escolheu outra rota"
-                  destaque={pctDiferente != null}
-                  ordem={3}
-                />
+                <Kpi icone="ion:navigate-outline" valor={String(total)} rotulo={total === 1 ? 'Rota' : 'Rotas'} ordem={1} />
+                <Kpi icone="ion:time-outline" valor={`${tempoMedio} min`} rotulo="Tempo médio" ordem={2} />
+                {pctDiferente != null ? (
+                  <Kpi icone="ion:analytics-outline" valor={`${pctDiferente}%`} rotulo="Rotas diferentes da mais curta" destaque ordem={3} />
+                ) : null}
               </GradeKpi>
             </View>
 
@@ -354,15 +330,13 @@ export default function HistoryScreen({ navigation }: any) {
             ))}
           </>
         )}
-      </Container>
-    </ScrollView>
+    </Tela>
   );
 }
 
 const styles = StyleSheet.create({
   grade: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -6 },
-  topo: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  excluir: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  topo: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   trajeto: { flexDirection: 'row', gap: 12, marginTop: 10 },
   trilho: { alignItems: 'center', paddingTop: 5, width: 16 },
   origem: { width: 12, height: 12, borderRadius: 6, borderWidth: 2 },

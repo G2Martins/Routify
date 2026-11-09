@@ -2,11 +2,14 @@
  * NavigationPanel — a rota que a LIA escolheu: tempo e distância (Geist Mono,
  * contando até o valor), via principal, tempo em Brasília na partida, economia de
  * combustível contra o caminho mais curto, avisos do trajeto e ações.
+ *
+ * `compacto` (celular): só o essencial e as ações; o resto abre no chevron, para o painel não tapar a rota.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useDesktopLayout } from '../lib/responsive';
 import { useTheme } from '../context/ThemeContext';
-import { Selo, Surgir, useMenosMovimento } from './ui';
+import { BotaoIcone, Selo, Surgir, useMenosMovimento } from './ui';
 import Icon from './Icon';
 import Button from './Button';
 
@@ -51,6 +54,7 @@ interface RouteSummary {
 interface Props {
   route: RouteSummary;
   navigating: boolean;
+  compacto?: boolean;
   onStart: () => void;
   onCancel: () => void;
 }
@@ -79,7 +83,8 @@ function iconeClima(codigo: number | null, dia: boolean): string {
 
 /** Número que conta até o valor quando a rota muda (desliga com menos movimento). */
 function useContagem(alvo: number, duracao = 700): number {
-  const reduzir = useMenosMovimento();
+  // No celular não conta: cada quadro refaz o painel inteiro enquanto o mapa ainda enquadra a rota.
+  const reduzir = useMenosMovimento() || !useDesktopLayout();
   const [valor, setValor] = useState(alvo);
   const anim = useRef(new Animated.Value(alvo)).current;
   useEffect(() => {
@@ -95,14 +100,15 @@ function useContagem(alvo: number, duracao = 700): number {
   return valor;
 }
 
-export default function NavigationPanel({ route, navigating, onStart, onCancel }: Props) {
+export default function NavigationPanel({ route, navigating, compacto, onStart, onCancel }: Props) {
   const { theme } = useTheme();
   const c = theme.colors;
   const mono = { fontFamily: theme.fonts.monoBold, fontVariant: ['tabular-nums' as const] };
 
+  const [aberto, setAberto] = useState(false);
+  const detalhes = !compacto || aberto;
   const segContados = useContagem(route.tempo_total_seg);
   const [valor, unidade] = tempo(segContados);
-  const modelo = route.modelo_utilizado.replace('_', ' ').toUpperCase();
   const tt = route.tomtom;
   const nIncidentes = tt?.incidentes?.length ?? 0;
   const eco = route.economia;
@@ -122,16 +128,17 @@ export default function NavigationPanel({ route, navigating, onStart, onCancel }
         },
       ]}
     >
-      <View style={styles.selos}>
-        <Selo tom="marca" ponto>{modelo}</Selo>
-        {route.fora_da_malha ? (
-          <Selo tom="neutro">Fora da área da LIA</Selo>
-        ) : route.fonte_rota === 'tomtom' ? (
-          <Selo tom="ok">Trânsito ao vivo</Selo>
-        ) : null}
-        {tt?.degradado ? <Selo tom="alerta">Modo só LIA</Selo> : null}
-        {navigating ? <Selo tom="ok" ponto>Em navegação</Selo> : null}
-      </View>
+      {detalhes && (route.fora_da_malha || route.fonte_rota === 'tomtom' || tt?.degradado || navigating) ? (
+        <View style={styles.selos}>
+          {route.fora_da_malha ? (
+            <Selo tom="neutro">Fora da área coberta</Selo>
+          ) : route.fonte_rota === 'tomtom' ? (
+            <Selo tom="ok">Trânsito ao vivo</Selo>
+          ) : null}
+          {tt?.degradado ? <Selo tom="alerta">Sem trânsito ao vivo</Selo> : null}
+          {navigating ? <Selo tom="ok" ponto>Em navegação</Selo> : null}
+        </View>
+      ) : null}
 
       <View style={styles.resumo}>
         <View style={[styles.badge, { backgroundColor: c.accentSoft }]}>
@@ -153,9 +160,18 @@ export default function NavigationPanel({ route, navigating, onStart, onCancel }
             via {route.via_principal}
           </Text>
         </View>
+        {compacto ? (
+          <BotaoIcone
+            icone={aberto ? 'ion:chevron-down' : 'ion:chevron-up'}
+            rotulo={aberto ? 'Ocultar detalhes' : 'Ver detalhes da rota'}
+            tamanho={20}
+            onPress={() => setAberto((v) => !v)}
+            style={{ margin: 0 }}
+          />
+        ) : null}
       </View>
 
-      {clima ? (
+      {detalhes && clima ? (
         <Surgir ordem={1}>
           <View style={styles.clima}>
             <Icon name={iconeClima(clima.codigo_wmo, clima.de_dia)} size={18} color={c.cyan} />
@@ -164,17 +180,17 @@ export default function NavigationPanel({ route, navigating, onStart, onCancel }
                 <Text style={[mono, { color: c.text }]}>{Math.round(clima.temperatura_c)}°</Text>
               ) : null}
               {clima.temperatura_c != null ? '  ' : ''}
-              {clima.condicao} em Brasília agora
+              {clima.condicao} em Brasília
             </Text>
             {clima.chuva_3h_mm > 0 || clima.chuva_agora_mm > 0 ? (
-              <Selo tom="alerta">Chuva considerada pela LIA</Selo>
+              <Selo tom="alerta">Chuva já na previsão</Selo>
             ) : null}
             {clima.feriado ? <Selo tom="neutro">Feriado</Selo> : null}
           </View>
         </Surgir>
       ) : null}
 
-      {eco ? (
+      {detalhes && eco ? (
         <Surgir ordem={2}>
           <View style={[styles.eco, { backgroundColor: economizou ? `${c.teal}14` : c.surfaceAlt, borderColor: economizou ? `${c.teal}40` : c.border }]}>
             <Icon name="ion:leaf-outline" size={16} color={economizou ? c.teal : c.textMuted} />
@@ -197,14 +213,14 @@ export default function NavigationPanel({ route, navigating, onStart, onCancel }
                 <Text style={[theme.typography.captionMd, { color: c.text, fontSize: 12 }]}>Já é o caminho mais curto</Text>
               )}
               <Text style={[theme.typography.caption, { color: c.textMuted, fontSize: 11 }]}>
-                ≈ {litros(eco.litros_rota)} L nesta viagem · contra o caminho mais curto
+                Contra o caminho mais curto · esta viagem usa ~{litros(eco.litros_rota)} L
               </Text>
             </View>
           </View>
         </Surgir>
       ) : null}
 
-      {temAvisos ? (
+      {detalhes && temAvisos ? (
         <View style={[styles.avisos, { backgroundColor: c.surfaceAlt, borderColor: c.border }]}>
           <View style={styles.avisoItem}>
             <Icon
@@ -220,7 +236,7 @@ export default function NavigationPanel({ route, navigating, onStart, onCancel }
                   {tt && tt.interdicoes_na_rota > 0 ? ` · ${plural(tt.interdicoes_na_rota, 'interdição', 'interdições')}` : ''}
                 </>
               ) : (
-                'Sem incidentes perto da rota'
+                'Sem incidentes na rota'
               )}
             </Text>
           </View>
@@ -232,7 +248,7 @@ export default function NavigationPanel({ route, navigating, onStart, onCancel }
           ) : null}
           {route.alternativa ? (
             <Text style={[theme.typography.caption, { color: c.textMuted, fontSize: 12 }]}>
-              Alternativa tracejada{'  '}
+              Alternativa (tracejada){'  '}
               <Text style={[mono, { color: c.text }]}>{tempo(route.alternativa.tempo_seg).join(' ')}</Text>
             </Text>
           ) : null}
@@ -299,8 +315,8 @@ const styles = StyleSheet.create({
   avisoItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   acoes: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   fechar: {
-    width: 42,
-    height: 42,
+    width: 44,
+    height: 44,
     borderRadius: 8,
     borderWidth: 1,
     alignItems: 'center',

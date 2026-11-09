@@ -13,7 +13,9 @@ for (const c of colecoes as unknown as IconifyJSON[]) addCollection(c);
 
 export default function Icon({ name, size = 24, color = '#000', style }: IconProps) {
   return (
-    <View style={[{ width: size, height: size }, style]}>
+    // pointerEvents none: trocar a cor (hover) refaz o <path> do SVG. Com o clique começando nele, o navegador não dispara
+    // o click, porque o alvo do mousedown sumiu: um clique rápido em botão com ícone se perdia.
+    <View pointerEvents="none" style={[{ width: size, height: size }, style]}>
       <Iconify icon={name} width={size} height={size} color={color} />
     </View>
   );

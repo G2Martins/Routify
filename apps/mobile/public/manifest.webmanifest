@@ -1,6 +1,6 @@
 {
   "id": "/",
-  "name": "Routify — Roteamento preditivo para Brasília/DF",
+  "name": "Routify: roteamento preditivo para Brasília/DF",
   "short_name": "Routify",
   "description": "O modelo LIA prevê o congestionamento de cada via e as rotas usam o tempo de viagem previsto, com trânsito ao vivo e mapa. Projeto de TCC 2026 para o DF.",
   "lang": "pt-BR",

@@ -11,11 +11,11 @@
  */
 export function localizarUsuario(colocar: (lat: number, lon: number, zoom: number) => void, onError?: (msg: string) => void) {
   if (typeof window === 'undefined' || !navigator.geolocation) {
-    onError?.('Geolocalização não suportada neste navegador.');
+    onError?.('Este navegador não informa a localização.');
     return;
   }
   if (!window.isSecureContext) {
-    onError?.('Geolocalização requer HTTPS ou localhost. Acesse via https:// ou http://localhost:8081');
+    onError?.('A localização só funciona em site seguro (https).');
     return;
   }
 
@@ -58,15 +58,15 @@ export function localizarUsuario(colocar: (lat: number, lon: number, zoom: numbe
     } catch (err) {
       const codigo = (err as GeolocationPositionError).code;
       if (codigo === 1) {
-        onError?.('Permissão negada. Cadeado da URL → permitir localização.');
+        onError?.('Localização bloqueada. Libere no cadeado da barra de endereço.');
         return;
       }
       if (edge && codigo === 2) {
         const ok = await porIp();
         onError?.(
           ok
-            ? 'Edge sem acesso à Localização do Windows. Usando IP. Ative o serviço lfsvc ou use Chrome.'
-            : 'Edge não tem acesso ao serviço de Localização do Windows. Ative em Configurações → Privacidade → Localização, ou abra no Chrome.'
+            ? 'Posição aproximada: o Edge não acessa a localização do Windows.'
+            : 'O Edge não acessa a localização do Windows. Ative em Configurações, Privacidade, Localização, ou use outro navegador.'
         );
         return;
       }
@@ -79,10 +79,10 @@ export function localizarUsuario(colocar: (lat: number, lon: number, zoom: numbe
       // segue para o IP
     }
     if (await porIp()) {
-      onError?.('Localização aproximada por IP (PC sem GPS).');
+      onError?.('Posição aproximada pela sua conexão.');
       return;
     }
-    onError?.('Localização indisponível em todos os métodos.');
+    onError?.('Não deu para obter sua localização.');
   })();
 }
 
@@ -92,11 +92,11 @@ export function acompanhar(
   onError?: (msg: string) => void
 ): (() => void) | null {
   if (typeof window === 'undefined' || !navigator.geolocation) {
-    onError?.('Geolocalização indisponível.');
+    onError?.('Este navegador não informa a localização.');
     return null;
   }
   if (!window.isSecureContext) {
-    onError?.('Geolocalização requer HTTPS ou localhost.');
+    onError?.('A localização só funciona em site seguro (https).');
     return null;
   }
   const id = navigator.geolocation.watchPosition(

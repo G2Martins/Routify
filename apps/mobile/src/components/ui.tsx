@@ -6,9 +6,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Animated,
+  KeyboardAvoidingView,
   LayoutChangeEvent,
   Platform,
   Pressable,
+  RefreshControlProps,
+  ScrollView,
   StyleProp,
   StyleSheet,
   Text,
@@ -16,12 +19,15 @@ import {
   ViewStyle,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { CONTEUDO_MAX } from '../constants/Theme';
-import { useDesktopLayout } from '../lib/responsive';
+import { useAlvo, useDesktopLayout } from '../lib/responsive';
+import Button from './Button';
 import Icon from './Icon';
 
 const NATIVO = Platform.OS !== 'web';
+const EASE_WEB = 'cubic-bezier(0.16, 1, 0.3, 1)';
 
 export function useMenosMovimento(): boolean {
   const [reduzir, setReduzir] = useState(false);
@@ -33,38 +39,50 @@ export function useMenosMovimento(): boolean {
   return reduzir;
 }
 
-/** Entrada: sobe 12 px e aparece, ease-out-expo. `ordem` escalona listas. `auth`: 480 ms, 10 px e
- * 70 ms por item (auth-rise do Valerium), para login, cadastro e verificação. */
-export function Surgir({
-  children,
-  ordem = 0,
-  style,
-  auth = false,
-}: {
+type PropsSurgir = {
   children: React.ReactNode;
   ordem?: number;
   style?: StyleProp<ViewStyle>;
   auth?: boolean;
-}) {
+};
+
+/**
+ * Entrada: sobe 12 px e aparece, ease-out-expo. `ordem` escalona listas. `auth`: 480 ms, 10 px e 70 ms por item
+ * (auth-rise do Valerium), para login, cadastro e verificação.
+ *
+ * Na web é CSS: o Animated do RN-web refaz o componente a cada quadro, e dez deles juntos tiravam 100 ms por quadro no
+ * celular (CPU 4×). O repouso é visível: sem animação, o conteúdo aparece igual.
+ */
+function SurgirWeb({ children, ordem = 0, style, auth = false }: PropsSurgir) {
+  const { theme } = useTheme();
+  const atraso = ordem * (auth ? theme.motion.auth.passo : theme.motion.passo);
+  return (
+    <View style={[auth ? anim.surgirAuth : anim.surgir, { animationDelay: `${atraso}ms` } as ViewStyle, style]}>{children}</View>
+  );
+}
+
+function SurgirNativo({ children, ordem = 0, style, auth = false }: PropsSurgir) {
   const { theme } = useTheme();
   const reduzir = useMenosMovimento();
   const v = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const anim = Animated.timing(v, {
+    const animacao = Animated.timing(v, {
       toValue: 1,
       duration: reduzir ? 0 : auth ? theme.motion.auth.duracao : theme.motion.entrada,
       delay: reduzir ? 0 : ordem * (auth ? theme.motion.auth.passo : theme.motion.passo),
       easing: theme.motion.easeOutExpo,
-      useNativeDriver: NATIVO,
+      useNativeDriver: true,
     });
-    anim.start();
-    return () => anim.stop();
+    animacao.start();
+    return () => animacao.stop();
   }, [reduzir]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const translateY = v.interpolate({ inputRange: [0, 1], outputRange: [auth ? theme.motion.auth.deslocamento : 12, 0] });
   return <Animated.View style={[{ opacity: v, transform: [{ translateY }] }, style]}>{children}</Animated.View>;
 }
+
+export const Surgir = NATIVO ? SurgirNativo : SurgirWeb;
 
 /** Área de conteúdo centralizada com largura máxima e respiro lateral. */
 export function Container({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
@@ -73,6 +91,73 @@ export function Container({ children, style }: { children: React.ReactNode; styl
     <View style={[{ width: '100%', maxWidth: CONTEUDO_MAX, alignSelf: 'center', paddingHorizontal: desktop ? 32 : 16 }, style]}>
       {children}
     </View>
+  );
+}
+
+/**
+ * Casca das telas de conteúdo: rolagem, respiro do topo (área segura no celular), teclado que não cobre campo e, nas
+ * telas empilhadas, o botão de voltar. O respiro de baixo é pequeno porque a barra de abas já fica fora da rolagem.
+ */
+export function Tela({
+  children,
+  voltar,
+  refreshControl,
+}: {
+  children: React.ReactNode;
+  voltar?: () => void;
+  refreshControl?: React.ReactElement<RefreshControlProps>;
+}) {
+  const { theme } = useTheme();
+  const desktop = useDesktopLayout();
+  const insets = useSafeAreaInsets();
+  return (
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.colors.background }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingTop: desktop ? 32 : insets.top + 16, paddingBottom: 32 }}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={refreshControl}
+      >
+        <Container>
+          {voltar ? <Button variant="ghost" size="sm" icon="ion:arrow-back" label="Voltar" onPress={voltar} style={styles.voltar} /> : null}
+          {children}
+        </Container>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
+/** Ícone clicável com alvo de 44 px sem aumentar o desenho: a margem negativa devolve o espaço ao layout. */
+export function BotaoIcone({
+  icone,
+  rotulo,
+  onPress,
+  cor,
+  tamanho = 16,
+  style,
+}: {
+  icone: string;
+  rotulo: string;
+  onPress: () => void;
+  cor?: string;
+  tamanho?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const { theme } = useTheme();
+  const alvo = useAlvo();
+  const folga = -(alvo - tamanho - 8) / 2;
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={rotulo}
+      style={({ pressed }) => [
+        { width: alvo, height: alvo, margin: folga, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 },
+        style,
+      ]}
+    >
+      <Icon name={icone} size={tamanho} color={cor ?? theme.colors.textMuted} />
+    </Pressable>
   );
 }
 
@@ -180,13 +265,14 @@ export function Kpi({
 }) {
   const { theme } = useTheme();
   const c = theme.colors;
+  const desktop = useDesktopLayout();
   return (
     <Surgir ordem={ordem} style={styles.kpiCelula}>
-      <Cartao style={{ flex: 1 }}>
+      <Cartao style={{ flex: 1 }} padding={desktop ? 20 : 16}>
         <View style={[styles.kpiIcone, { backgroundColor: destaque ? c.accentSoft : c.surfaceAlt }]}>
           <Icon name={icone} size={18} color={destaque ? c.accent : c.textMuted} />
         </View>
-        <Text style={[theme.typography.num, { color: destaque ? c.success : c.text, marginTop: 16 }]} numberOfLines={1}>
+        <Text style={[theme.typography.num, { color: destaque ? c.success : c.text, marginTop: 16 }, !desktop && { fontSize: 24, lineHeight: 28 }]} numberOfLines={1}>
           {valor}
         </Text>
         <Text style={[theme.typography.caption, { color: c.textMuted, marginTop: 4 }]}>{rotulo}</Text>
@@ -206,12 +292,13 @@ export function Segmentado<T extends string>({
   valor,
   onChange,
 }: {
-  opcoes: { valor: T; rotulo: string; icone?: string }[];
+  opcoes: { valor: T; rotulo: string; icone?: string; desabilitado?: boolean }[];
   valor: T;
   onChange: (v: T) => void;
 }) {
   const { theme } = useTheme();
   const c = theme.colors;
+  const alvo = useAlvo();
   const [largura, setLargura] = useState(0);
   const idx = Math.max(0, opcoes.findIndex((o) => o.valor === valor));
   const pos = useRef(new Animated.Value(idx)).current;
@@ -251,12 +338,14 @@ export function Segmentado<T extends string>({
           <Pressable
             key={o.valor}
             accessibilityRole="tab"
-            accessibilityState={{ selected: ativo }}
+            aria-selected={ativo}
+            aria-disabled={!!o.desabilitado}
+            disabled={o.desabilitado}
             onPress={() => onChange(o.valor)}
-            style={styles.segOpcao}
+            style={[styles.segOpcao, { minHeight: alvo, opacity: o.desabilitado ? 0.4 : 1 }]}
           >
             {o.icone ? <Icon name={o.icone} size={15} color={ativo ? c.accent : c.textMuted} /> : null}
-            <Text style={[theme.typography.captionMd, { color: ativo ? c.text : c.textMuted }]}>{o.rotulo}</Text>
+            <Text numberOfLines={1} style={[theme.typography.captionMd, { color: ativo ? c.text : c.textMuted }]}>{o.rotulo}</Text>
           </Pressable>
         );
       })}
@@ -264,7 +353,7 @@ export function Segmentado<T extends string>({
   );
 }
 
-/** Placeholder de carregamento com brilho deslizante. */
+/** Placeholder de carregamento com brilho deslizante (CSS na web: não toma quadro do resto da tela). */
 export function Skeleton({ altura = 16, largura = '100%', raio = 8 }: { altura?: number; largura?: number | `${number}%`; raio?: number }) {
   const { theme } = useTheme();
   const c = theme.colors;
@@ -273,29 +362,25 @@ export function Skeleton({ altura = 16, largura = '100%', raio = 8 }: { altura?:
   const [w, setW] = useState(0);
 
   useEffect(() => {
-    if (reduzir) return;
+    if (reduzir || !NATIVO) return;
     const loop = Animated.loop(
-      Animated.timing(x, { toValue: 1, duration: 1400, easing: theme.motion.easeOutExpo, useNativeDriver: NATIVO }),
+      Animated.timing(x, { toValue: 1, duration: 1400, easing: theme.motion.easeOutExpo, useNativeDriver: true }),
     );
     loop.start();
     return () => loop.stop();
   }, [reduzir]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const brilho = <LinearGradient colors={['transparent', c.surfaceAlt, 'transparent']} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={StyleSheet.absoluteFill} />;
   return (
     <View
-      onLayout={(e) => setW(e.nativeEvent.layout.width)}
+      onLayout={NATIVO ? (e) => setW(e.nativeEvent.layout.width) : undefined}
       style={{ height: altura, width: largura, borderRadius: raio, backgroundColor: c.surfaceMuted, overflow: 'hidden' }}
     >
-      {w > 0 && !reduzir ? (
-        <Animated.View
-          style={{ ...StyleSheet.absoluteFillObject, width: w, transform: [{ translateX: x.interpolate({ inputRange: [0, 1], outputRange: [-w, w] }) }] }}
-        >
-          <LinearGradient
-            colors={['transparent', c.surfaceAlt, 'transparent']}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            style={StyleSheet.absoluteFill}
-          />
+      {reduzir ? null : !NATIVO ? (
+        <View style={[StyleSheet.absoluteFill, anim.brilho]}>{brilho}</View>
+      ) : w > 0 ? (
+        <Animated.View style={{ ...StyleSheet.absoluteFillObject, width: w, transform: [{ translateX: x.interpolate({ inputRange: [0, 1], outputRange: [-w, w] }) }] }}>
+          {brilho}
         </Animated.View>
       ) : null}
     </View>
@@ -315,6 +400,28 @@ export function FaixaMarca({ altura = 3, style }: { altura?: number; style?: Sty
   );
 }
 
+// Estilos só da web (keyframes em CSS). No nativo o Animated cobre e estes nunca são usados.
+const anim = StyleSheet.create({
+  surgir: {
+    animationKeyframes: { from: { opacity: 0, transform: 'translateY(12px)' }, to: { opacity: 1, transform: 'translateY(0px)' } },
+    animationDuration: '320ms',
+    animationTimingFunction: EASE_WEB,
+    animationFillMode: 'backwards',
+  },
+  surgirAuth: {
+    animationKeyframes: { from: { opacity: 0, transform: 'translateY(10px)' }, to: { opacity: 1, transform: 'translateY(0px)' } },
+    animationDuration: '480ms',
+    animationTimingFunction: EASE_WEB,
+    animationFillMode: 'backwards',
+  },
+  brilho: {
+    animationKeyframes: { from: { transform: 'translateX(-100%)' }, to: { transform: 'translateX(100%)' } },
+    animationDuration: '1400ms',
+    animationTimingFunction: EASE_WEB,
+    animationIterationCount: 'infinite',
+  },
+} as never) as unknown as Record<'surgir' | 'surgirAuth' | 'brilho', ViewStyle>;
+
 const styles = StyleSheet.create({
   tituloLinha: { flexDirection: 'row', alignItems: 'flex-end', gap: 16, marginTop: 8 },
   selo: {
@@ -333,5 +440,7 @@ const styles = StyleSheet.create({
   kpiIcone: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   seg: { flexDirection: 'row', borderRadius: 10, borderWidth: 1, padding: 3, position: 'relative' },
   segIndicador: { position: 'absolute', top: 3, bottom: 3, left: 4, borderRadius: 8 },
-  segOpcao: { flex: 1, height: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  segOpcao: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  // ghost tem 12 de respiro lateral: puxa para o ícone alinhar com o título.
+  voltar: { marginLeft: -12, marginBottom: 8 },
 });

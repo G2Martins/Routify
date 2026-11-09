@@ -1,4 +1,4 @@
-# Routify — conteúdo completo para LLMs
+# Routify: conteúdo completo para LLMs
 
 > Routify é um sistema de roteamento preditivo para Brasília/DF, desenvolvido como Trabalho de Conclusão de Curso (TCC 2026, IESB, Engenharia da Computação). O modelo LIA, baseado em XGBoost, prevê a razão de congestionamento de cada via por horário e dia da semana; as rotas são calculadas com A* sobre o grafo viário do OpenStreetMap pelo tempo de viagem previsto e combinadas com o trânsito ao vivo da TomTom. (English: Routify is an academic predictive-routing system for Brasília, Brazil. An XGBoost model called LIA forecasts per-road congestion and drives A* routing over an OpenStreetMap graph, blended with live TomTom traffic.)
 

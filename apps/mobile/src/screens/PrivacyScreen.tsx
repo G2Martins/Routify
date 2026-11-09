@@ -1,11 +1,9 @@
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { fonts } from '../constants/Theme';
-import { useDesktopLayout } from '../lib/responsive';
 import Icon from '../components/Icon';
-import Button from '../components/Button';
-import { Cartao, Container, FaixaMarca, RotuloSecao, Selo, Surgir, TituloPagina } from '../components/ui';
+import { Cartao, FaixaMarca, RotuloSecao, Selo, Surgir, Tela, TituloPagina } from '../components/ui';
 
 /** Destaque dentro do texto (herda a cor do parágrafo). */
 const B = ({ children }: { children: React.ReactNode }) => (
@@ -27,11 +25,10 @@ const COLETA: Item[] = [
   },
   {
     icone: 'ion:server-outline',
-    titulo: 'Requisições à API',
+    titulo: 'Uso do servidor',
     texto: (
       <>
-        De cada chamada guardamos <B>a rota da API, o status e a latência</B>. Serve para medir erros e o desempenho do
-        motor preditivo.
+        De cada chamada guardamos <B>o endereço, o resultado e o tempo de resposta</B>, para medir erros e desempenho.
       </>
     ),
   },
@@ -40,8 +37,7 @@ const COLETA: Item[] = [
     titulo: 'Rotas calculadas',
     texto: (
       <>
-        Origem e destino <B>arredondados em ~110 m</B> (3 casas decimais), com distância, tempo previsto e horário.
-        Nunca o ponto exato.
+        Origem e destino <B>arredondados em ~110 m</B>, com distância, tempo previsto e horário. Nunca o ponto exato.
       </>
     ),
   },
@@ -59,8 +55,8 @@ const COLETA: Item[] = [
     titulo: 'Busca de lugares',
     texto: (
       <>
-        O <B>texto digitado na busca não é guardado</B>. Ele só é enviado ao provedor de mapas (TomTom ou
-        OpenStreetMap) para sugerir lugares naquele momento.
+        O <B>texto digitado não é guardado</B>. Ele só vai ao provedor de mapas (TomTom ou OpenStreetMap) para sugerir
+        lugares naquele momento.
       </>
     ),
   },
@@ -68,7 +64,7 @@ const COLETA: Item[] = [
     icone: 'ion:locate',
     titulo: 'Localização do aparelho',
     texto:
-      'Usada para centralizar o mapa e sugerir a origem. A coordenada só sai do aparelho quando você pede uma rota: ela vai à API do Routify, que pergunta o trânsito do trajeto à TomTom. Sem GPS no navegador, o mapa centraliza na cidade do seu IP (serviço ipapi.co). Os provedores do mapa (na web, OpenFreeMap e Esri) recebem o IP e a área vista, como em qualquer site de mapas.',
+      'Usada para centralizar o mapa e sugerir a origem. A coordenada só sai do aparelho quando você pede uma rota: vai ao servidor do Routify, que consulta o trânsito do trajeto na TomTom. Sem GPS no navegador, o mapa centraliza na cidade do seu IP (ipapi.co). Os provedores do mapa (na web, OpenFreeMap e Esri) recebem o IP e a área vista, como em qualquer site de mapas.',
   },
 ];
 
@@ -87,8 +83,7 @@ const GUARDA: Item[] = [
     titulo: 'Histórico só seu',
     texto: (
       <>
-        As rotas da aba Histórico ficam protegidas por RLS no banco: <B>só você vê o seu histórico</B>. Você pode
-        excluir qualquer rota quando quiser.
+        As rotas da aba Histórico ficam protegidas no banco: <B>só você vê</B>, e pode excluir qualquer uma.
       </>
     ),
   },
@@ -96,7 +91,7 @@ const GUARDA: Item[] = [
     icone: 'ion:layers-outline',
     titulo: 'Equipe vê só agregados',
     texto:
-      'O painel da equipe mostra números agregados e coordenadas arredondadas, nunca a trilha de uma pessoa. Nada é vendido nem cedido para outros fins.',
+      'O painel da equipe mostra totais e coordenadas arredondadas, nunca a trilha de uma pessoa. Nada é vendido nem cedido.',
   },
   {
     icone: 'ion:flash-outline',
@@ -112,8 +107,8 @@ const DIREITOS: Item[] = [
     titulo: 'Seus direitos (LGPD)',
     texto: (
       <>
-        Você pode pedir <B>acesso, correção, exportação ou exclusão</B> dos seus dados e da conta. O pedido é feito pelo
-        contato da equipe do TCC (e-mail institucional).
+        Você pode pedir <B>acesso, correção, exportação ou exclusão</B> dos seus dados e da conta, pelo e-mail
+        institucional da equipe do TCC.
       </>
     ),
   },
@@ -121,14 +116,13 @@ const DIREITOS: Item[] = [
     icone: 'ion:checkmark-circle',
     titulo: 'Segurança',
     texto:
-      'Login pelo Supabase Auth, conexão criptografada (TLS) e senha guardada só como hash, nunca em texto puro.',
+      'Conexão criptografada e senha guardada só como hash, nunca em texto puro.',
   },
 ];
 
 export default function PrivacyScreen({ navigation }: any) {
   const { theme } = useTheme();
   const c = theme.colors;
-  const desktop = useDesktopLayout();
 
   // `inicio` continua o escalonamento de onde a seção anterior parou.
   const grade = (itens: Item[], inicio: number) => (
@@ -148,22 +142,9 @@ export default function PrivacyScreen({ navigation }: any) {
   );
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: c.background }}
-      contentContainerStyle={{ paddingTop: desktop ? 32 : 48, paddingBottom: 80 }}
-    >
-      <Container>
-        <Button
-          variant="ghost"
-          size="sm"
-          icon="ion:arrow-back"
-          label="Perfil"
-          onPress={() => navigation.goBack()}
-          style={styles.voltar}
-        />
-
+    <Tela voltar={() => navigation.goBack()}>
         <Surgir>
-          <TituloPagina titulo="Privacidade" sub="Como o Routify trata seus dados, conforme a LGPD." />
+          <TituloPagina titulo="Privacidade" sub="Como tratamos seus dados, conforme a LGPD." />
         </Surgir>
 
         <Surgir ordem={1} style={{ marginTop: 24 }}>
@@ -173,11 +154,10 @@ export default function PrivacyScreen({ navigation }: any) {
               <View style={[styles.iconeCirculo, { backgroundColor: c.accentSoft }]}>
                 <Icon name="ion:lock-closed-outline" size={18} color={c.accent} />
               </View>
-              <View style={{ flex: 1, minWidth: 240 }}>
+              <View style={{ flexGrow: 1, flexShrink: 1, flexBasis: 240, minWidth: 0 }}>
                 <Text style={[theme.typography.h3, { color: c.text }]}>Seus dados ficam com você</Text>
                 <Text style={[theme.typography.body, styles.texto, { color: c.textMuted }]}>
-                  O Routify é um trabalho acadêmico (TCC). Não vendemos seus dados e não usamos suas rotas para treinar
-                  o modelo. Abaixo está tudo o que guardamos, por quanto tempo e quem vê.
+                  O Routify é um trabalho acadêmico (TCC). Não vendemos seus dados e suas rotas não treinam o modelo.
                 </Text>
                 <View style={styles.selos}>
                   <Selo tom="marca">Retenção de 90 dias</Selo>
@@ -200,20 +180,17 @@ export default function PrivacyScreen({ navigation }: any) {
         {grade(DIREITOS, 2 + COLETA.length + GUARDA.length)}
 
         <Text style={[theme.typography.caption, styles.rodape, { color: c.textSubtle }]}>
-          Última revisão: 3 de novembro de 2026 · Routify · TCC
+          Última revisão: 9 de novembro de 2026
         </Text>
-      </Container>
-    </ScrollView>
+    </Tela>
   );
 }
 
 const styles = StyleSheet.create({
-  // ghost tem 12 de respiro lateral: puxa para o ícone alinhar com o título.
-  voltar: { marginLeft: -12, marginBottom: 12 },
-  resumo: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, padding: 20 },
+  resumo: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, padding: 16 },
   selos: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
   grade: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -6 },
-  celula: { flexGrow: 1, flexShrink: 1, flexBasis: 380, padding: 6 },
+  celula: { flexGrow: 1, flexShrink: 1, flexBasis: 320, minWidth: 0, padding: 6 },
   iconeCirculo: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   texto: { fontSize: 14, lineHeight: 21, marginTop: 6 },
   rodape: { textAlign: 'center', marginTop: 40 },

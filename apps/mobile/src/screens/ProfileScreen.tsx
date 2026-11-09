@@ -1,14 +1,15 @@
 import React, { useCallback } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { MAP_STYLES, MapStyle } from '../constants/Theme';
+import { abrirPainelAdm } from '../lib/api';
 import { useDesktopLayout } from '../lib/responsive';
 import Icon from '../components/Icon';
 import Button from '../components/Button';
-import { Cartao, Container, RotuloSecao, Segmentado, Surgir, TituloPagina } from '../components/ui';
+import { Cartao, RotuloSecao, Segmentado, Surgir, Tela, TituloPagina } from '../components/ui';
 
 const ESTILO_MAPA: Record<MapStyle, { rotulo: string; icone: string }> = {
   dark: { rotulo: 'Escuro', icone: 'ion:moon-outline' },
@@ -40,7 +41,7 @@ export function AvatarAnel({ letra, tamanho = 72 }: { letra: string; tamanho?: n
 export default function ProfileScreen({ navigation }: any) {
   const { theme, mode, preference, setPreference, mapStyle, setMapStyle } = useTheme();
   const c = theme.colors;
-  const { user, profile, signOut, refreshProfile } = useAuth();
+  const { user, profile, signOut, refreshProfile, isAdmin } = useAuth();
   const desktop = useDesktopLayout();
 
   // Refresh profile ao focar tab Perfil.
@@ -54,13 +55,9 @@ export default function ProfileScreen({ navigation }: any) {
   const initial = nome[0]?.toUpperCase() || 'U';
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: c.background }}
-      contentContainerStyle={{ paddingTop: desktop ? 40 : 56, paddingBottom: 80 }}
-    >
-      <Container>
+    <Tela>
         <Surgir>
-          <TituloPagina titulo="Perfil" sub="Sua conta e as preferências do app." />
+          <TituloPagina titulo="Perfil" />
         </Surgir>
 
         <Surgir ordem={1} style={{ marginTop: 24 }}>
@@ -85,7 +82,7 @@ export default function ProfileScreen({ navigation }: any) {
             <Preferencia
               icone={mode === 'dark' ? 'ion:moon-outline' : 'ion:sunny-outline'}
               titulo="Tema"
-              sub="Claro, escuro ou igual ao sistema."
+              sub="Claro, escuro ou como o sistema."
             >
               <Segmentado
                 valor={preference}
@@ -103,7 +100,7 @@ export default function ProfileScreen({ navigation }: any) {
         <Surgir ordem={3}>
           <RotuloSecao>Mapa</RotuloSecao>
           <Cartao>
-            <Preferencia icone="ion:layers-outline" titulo="Estilo do mapa" sub="Fundo usado na aba Mapa.">
+            <Preferencia icone="ion:layers-outline" titulo="Estilo do mapa" sub="Fundo dos mapas.">
               <Segmentado
                 valor={mapStyle}
                 onChange={setMapStyle}
@@ -119,14 +116,14 @@ export default function ProfileScreen({ navigation }: any) {
             <LinhaConta
               icone="ion:person-outline"
               titulo="Editar perfil"
-              sub="Nome de exibição e avatar"
+              sub="Nome e avatar"
               onPress={() => navigation?.navigate('EditProfile')}
             />
             <View style={[styles.divisor, { backgroundColor: c.border }]} />
             <LinhaConta
               icone="ion:lock-closed-outline"
               titulo="Privacidade"
-              sub="O que coletamos e seus direitos (LGPD)"
+              sub="O que guardamos e seus direitos"
               onPress={() => navigation?.navigate('Privacy')}
             />
             <View style={[styles.divisor, { backgroundColor: c.border }]} />
@@ -136,6 +133,13 @@ export default function ProfileScreen({ navigation }: any) {
               sub="Verificação em duas etapas"
               onPress={() => navigation?.navigate('Seguranca')}
             />
+            {/* Só esconde o botão: quem garante o acesso é o banco (RLS + is_admin()) e a API. */}
+            {isAdmin ? (
+              <>
+                <View style={[styles.divisor, { backgroundColor: c.border }]} />
+                <LinhaConta icone="ion:speedometer-outline" titulo="Painel ADM" sub="Dados, uso e modelo" onPress={abrirPainelAdm} />
+              </>
+            ) : null}
           </Cartao>
         </Surgir>
 
@@ -144,10 +148,9 @@ export default function ProfileScreen({ navigation }: any) {
         </Surgir>
 
         <Text style={[theme.typography.micro, styles.rodape, { color: c.textSubtle }]}>
-          Routify · TCC 2026 · motor LIA
+          Routify · TCC 2026
         </Text>
-      </Container>
-    </ScrollView>
+    </Tela>
   );
 }
 
@@ -214,10 +217,10 @@ const styles = StyleSheet.create({
   avatarDisco: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   identidade: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   pref: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 16 },
-  prefTexto: { flexDirection: 'row', alignItems: 'center', gap: 12, flexGrow: 1, flexShrink: 1, flexBasis: 240 },
-  prefControle: { flexGrow: 1, flexShrink: 1, flexBasis: 280, maxWidth: 380 },
+  prefTexto: { flexDirection: 'row', alignItems: 'center', gap: 12, flexGrow: 1, flexShrink: 1, flexBasis: 240, minWidth: 0 },
+  prefControle: { flexGrow: 1, flexShrink: 1, flexBasis: 240, minWidth: 0, maxWidth: 380 },
   iconeCirculo: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  linha: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingVertical: 14 },
-  divisor: { height: 1, marginLeft: 68 },
+  linha: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14, minHeight: 44 },
+  divisor: { height: 1, marginLeft: 64 },
   rodape: { textAlign: 'center', textTransform: 'uppercase', marginTop: 40 },
 });

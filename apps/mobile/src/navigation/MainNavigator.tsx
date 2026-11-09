@@ -1,13 +1,14 @@
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
+  CommonActions,
   NavigationContainer,
   DefaultTheme,
   DarkTheme,
   createNavigationContainerRef,
 } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { BottomTabBarProps, createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { useTheme } from '../context/ThemeContext';
@@ -15,6 +16,7 @@ import { useAuth } from '../context/AuthContext';
 import { useDesktopLayout } from '../lib/responsive';
 import Icon from '../components/Icon';
 import SideRail from '../components/SideRail';
+import BarraNavegacao, { iniciarNavegacao } from '../components/BarraNavegacao';
 
 import MapScreen from '../screens/MapScreen';
 import PlanejarScreen from '../screens/PlanejarScreen';
@@ -71,53 +73,65 @@ function tabsCommonScreens() {
   );
 }
 
+/** Depois que o navegador pintar o que já mudou (destaque e barra de progresso): a tela nova monta em seguida. */
+function depoisDePintar(acao: () => void) {
+  requestAnimationFrame(() => setTimeout(acao, 0));
+}
+
 // --------------------------------------------------------------------- MOBILE
-/** Ícone da aba: pílula `accentSoft` atrás do ícone ativo (sem glow). */
-function TabIcon({ focused, routeName }: { focused: boolean; routeName: string }) {
+/**
+ * Barra de abas própria (no lugar da BottomTabBar): o toque acende a aba e a barra de progresso no quadro seguinte, mesmo
+ * que a tela nova demore a montar. Cada aba tem pelo menos 44 px de largura e 62 de altura, com a área segura embaixo.
+ */
+function BarraAbas({ state, navigation }: BottomTabBarProps) {
   const { theme } = useTheme();
   const c = theme.colors;
-  const map = TAB_ICONS[routeName] || TAB_ICONS.Mapa;
+  const insets = useSafeAreaInsets();
+  const atual = state.routes[state.index].name;
+  const [pendente, setPendente] = useState<string | null>(null);
+  useEffect(() => setPendente(null), [atual]);
+  const acesa = pendente ?? atual;
+
   return (
     <View
-      style={{
-        width: 48,
-        height: 28,
-        borderRadius: theme.radius.pill,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: focused ? c.accentSoft : 'transparent',
-      }}
+      accessibilityRole="tablist"
+      style={{ flexDirection: 'row', backgroundColor: c.surface, borderTopColor: c.border, borderTopWidth: 1, paddingBottom: insets.bottom }}
     >
-      <Icon name={focused ? map.active : map.inactive} size={20} color={focused ? c.accent : c.textSubtle} />
+      {state.routes.map((route) => {
+        const ativa = route.name === acesa;
+        const icones = TAB_ICONS[route.name] || TAB_ICONS.Mapa;
+        const aoTocar = () => {
+          const evento = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+          if (route.name === atual || evento.defaultPrevented) return;
+          setPendente(route.name);
+          iniciarNavegacao();
+          depoisDePintar(() => navigation.dispatch({ ...CommonActions.navigate(route), target: state.key }));
+        };
+        return (
+          <Pressable
+            key={route.key}
+            onPress={aoTocar}
+            accessibilityRole="tab"
+            accessibilityLabel={route.name}
+            aria-selected={ativa}
+            style={{ flex: 1, minWidth: 0, minHeight: 62, alignItems: 'center', justifyContent: 'center', gap: 2 }}
+          >
+            <View style={{ width: 44, height: 28, borderRadius: theme.radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: ativa ? c.accentSoft : 'transparent' }}>
+              <Icon name={ativa ? icones.active : icones.inactive} size={20} color={ativa ? c.accent : c.textMuted} />
+            </View>
+            <Text numberOfLines={1} style={{ fontFamily: ativa ? theme.fonts.sansSemi : theme.fonts.sansMedium, fontSize: 11, lineHeight: 14, color: ativa ? c.accent : c.textMuted }}>
+              {route.name}
+            </Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
 
 function MainTabsMobile() {
-  const { theme } = useTheme();
-  const c = theme.colors;
-  const insets = useSafeAreaInsets();
   return (
-    <Tab.Navigator
-      screenOptions={({ route }: { route: { name: string } }) => ({
-        headerShown: false,
-        tabBarIcon: ({ focused }: { focused: boolean }) => <TabIcon focused={focused} routeName={route.name} />,
-        tabBarActiveTintColor: c.accent,
-        tabBarInactiveTintColor: c.textSubtle,
-        tabBarStyle: {
-          backgroundColor: c.surface,
-          borderTopColor: c.border,
-          borderTopWidth: 1,
-          // O item da biblioteca tem 5 px de respiro fixo por lado: 10 + ícone 28 + 2 + rótulo 14 = 54 px úteis. Com 50,
-          // o rótulo ficava com 9 px e saía cortado ao meio no celular (2026-11-03). 66 - 4 - 6 = 56.
-          height: 66 + insets.bottom,
-          paddingTop: 4,
-          paddingBottom: 6 + insets.bottom,
-        },
-        tabBarIconStyle: { height: 28 },
-        tabBarLabelStyle: { fontFamily: theme.fonts.sansMedium, fontSize: 11, lineHeight: 14, marginTop: 2 },
-      })}
-    >
+    <Tab.Navigator tabBar={(props: BottomTabBarProps) => <BarraAbas {...props} />} screenOptions={{ headerShown: false }}>
       {tabsCommonScreens()}
     </Tab.Navigator>
   );
@@ -152,9 +166,10 @@ function MainTabsDesktop() {
   }, []);
 
   const handleSelect = (name: string) => {
-    if (navigationRef.isReady()) {
-      navigationRef.navigate(name as never);
-    }
+    if (!navigationRef.isReady() || name === activeName) return;
+    setActiveName(name); // o rail acende já; a tela nova monta depois de pintar
+    iniciarNavegacao();
+    depoisDePintar(() => navigationRef.navigate(name as never));
   };
 
   return (
@@ -205,6 +220,7 @@ export default function RootNavigator() {
   const { theme, mode } = useTheme();
   const { session, loading, mfaPendente } = useAuth();
   const c = theme.colors;
+  const assinarNavegacao = useCallback((ouvinte: () => void) => navigationRef.addListener('state', ouvinte), []);
 
   if (loading) {
     return (
@@ -238,6 +254,7 @@ export default function RootNavigator() {
   return (
     <NavigationContainer ref={navigationRef} theme={navTheme} documentTitle={{ enabled: false }}>
       {PREVIEW_MFA || (session && mfaPendente) ? <MfaVerificarScreen /> : session || PREVIEW ? <MainTabs /> : <AuthStack />}
+      <BarraNavegacao assinar={assinarNavegacao} />
     </NavigationContainer>
   );
 }

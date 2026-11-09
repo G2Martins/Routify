@@ -4,7 +4,7 @@
  * Os dois expõem a mesma API imperativa: centerOnUser, showRoute, clearRoute, startFollow, stopFollow.
  */
 import React, { forwardRef, useState } from 'react';
-import MapaVetorial from './mapa/MapaVetorial.web';
+import MapaVetorial, { Margem } from './mapa/MapaVetorial.web';
 import MapaLeaflet from './MapaLeaflet.web';
 
 function temWebGL(): boolean {
@@ -17,9 +17,9 @@ function temWebGL(): boolean {
   }
 }
 
-const MapComponent = forwardRef((_props, ref) => {
+const MapComponent = forwardRef((props: { margem?: Margem; onPontoPress?: (id: number) => void }, ref) => {
   const [vetorial, setVetorial] = useState(temWebGL);
-  return vetorial ? <MapaVetorial ref={ref} onFalha={() => setVetorial(false)} /> : <MapaLeaflet ref={ref} />;
+  return vetorial ? <MapaVetorial {...props} ref={ref} onFalha={() => setVetorial(false)} /> : <MapaLeaflet margem={props.margem} ref={ref} />;
 });
 
 MapComponent.displayName = 'MapComponent';

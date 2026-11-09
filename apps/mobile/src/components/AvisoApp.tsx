@@ -4,11 +4,12 @@
  * Some ao fechar (até o próximo aviso) e relê a cada 5 min.
  */
 import React, { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../lib/supabase';
 import Icon from './Icon';
+import { BotaoIcone } from './ui';
 
 interface Aviso {
   id: string;
@@ -64,14 +65,7 @@ export default function AvisoApp() {
       >
         <Icon name={icone} size={18} color={cor} />
         <Text style={[theme.typography.caption, { color: c.text, flex: 1 }]}>{aviso.mensagem}</Text>
-        <Pressable
-          onPress={() => setFechados((f) => [...f, aviso.id])}
-          accessibilityRole="button"
-          accessibilityLabel="Fechar aviso"
-          hitSlop={8}
-        >
-          <Icon name="ion:close" size={16} color={c.textMuted} />
-        </Pressable>
+        <BotaoIcone icone="ion:close" rotulo="Fechar aviso" onPress={() => setFechados((f) => [...f, aviso.id])} />
       </View>
     </View>
   );

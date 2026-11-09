@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -7,7 +7,7 @@ import { useDesktopLayout } from '../lib/responsive';
 import Input from '../components/Input';
 import Button from '../components/Button';
 import Icon from '../components/Icon';
-import { Cartao, Container, Surgir, TituloPagina } from '../components/ui';
+import { Cartao, Surgir, Tela, TituloPagina } from '../components/ui';
 import { AvatarAnel } from './ProfileScreen';
 
 export default function EditProfileScreen({ navigation }: any) {
@@ -31,7 +31,7 @@ export default function EditProfileScreen({ navigation }: any) {
   const handleSave = async () => {
     if (!user?.id) return;
     if (!nome.trim()) {
-      setFeedback({ type: 'error', msg: 'Nome não pode ficar vazio.' });
+      setFeedback({ type: 'error', msg: 'Informe um nome.' });
       return;
     }
     setSaving(true);
@@ -56,34 +56,17 @@ export default function EditProfileScreen({ navigation }: any) {
       return;
     }
     await refreshProfile();
-    setFeedback({ type: 'success', msg: 'Perfil atualizado com sucesso.' });
+    setFeedback({ type: 'success', msg: 'Perfil salvo.' });
   };
 
   const initial = (nome || user?.email || 'U')[0]?.toUpperCase();
   const corAviso = feedback?.type === 'success' ? c.success : c.danger;
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: c.background }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView
-        contentContainerStyle={{ paddingTop: desktop ? 32 : 48, paddingBottom: 100 }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Container>
+    <Tela voltar={() => navigation.goBack()}>
           <View style={styles.coluna}>
-            <Button
-              variant="ghost"
-              size="sm"
-              icon="ion:arrow-back"
-              label="Perfil"
-              onPress={() => navigation.goBack()}
-              style={styles.voltar}
-            />
-
             <Surgir>
-              <TituloPagina titulo="Editar perfil" sub="Atualize como você aparece no Routify." />
+              <TituloPagina titulo="Editar perfil" />
             </Surgir>
 
             <Surgir ordem={1} style={{ marginTop: 24 }}>
@@ -103,9 +86,9 @@ export default function EditProfileScreen({ navigation }: any) {
                 <View style={[styles.divisor, { backgroundColor: c.border }]} />
 
                 <Input
-                  label="Nome de exibição"
+                  label="Nome"
                   iconLeft="ion:person-outline"
-                  placeholder="Como devemos te chamar"
+                  placeholder="Seu nome"
                   value={nome}
                   onChangeText={setNome}
                 />
@@ -134,7 +117,7 @@ export default function EditProfileScreen({ navigation }: any) {
                 ) : null}
 
                 <Button
-                  label="Salvar alterações"
+                  label="Salvar"
                   variant="primary"
                   fullWidth={!desktop}
                   size="lg"
@@ -145,16 +128,12 @@ export default function EditProfileScreen({ navigation }: any) {
               </Cartao>
             </Surgir>
           </View>
-        </Container>
-      </ScrollView>
-    </KeyboardAvoidingView>
+    </Tela>
   );
 }
 
 const styles = StyleSheet.create({
   coluna: { width: '100%', maxWidth: 640 },
-  // ghost tem 12 de respiro lateral: puxa para o ícone alinhar com o título.
-  voltar: { marginLeft: -12, marginBottom: 12 },
   identidade: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   divisor: { height: 1, marginVertical: 20 },
   aviso: {

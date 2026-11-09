@@ -26,7 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { useDesktopLayout } from '../lib/responsive';
+import { useAlvo, useDesktopLayout } from '../lib/responsive';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import Icon from '../components/Icon';
@@ -41,8 +41,8 @@ const LOGO_ICONE = require('../../assets/Logo_Routify_icon.png'); // eslint-disa
 
 const PROVAS = [
   { icone: 'ion:analytics-outline', titulo: 'LIA prevê o congestionamento', texto: 'Modelo treinado com o histórico de tráfego do DF.' },
-  { icone: 'ion:navigate-outline', titulo: 'TomTom ao vivo no seu trajeto', texto: 'Leitura em tempo real só no corredor da rota.' },
-  { icone: 'ion:shield-checkmark-outline', titulo: 'Seus dados arredondados e protegidos', texto: 'Análises agregadas; o histórico é só seu.' },
+  { icone: 'ion:navigate-outline', titulo: 'TomTom ao vivo no seu trajeto', texto: 'Leitura em tempo real no seu caminho.' },
+  { icone: 'ion:shield-checkmark-outline', titulo: 'Seus dados protegidos', texto: 'Só você vê o seu histórico.' },
 ];
 
 // ------------------------------------------------------------ motivo de rota
@@ -209,7 +209,7 @@ function PainelMarca() {
             Rotas que aprendem com o trânsito de Brasília
           </Text>
           <Text style={[theme.typography.body, { color: c.railText, marginTop: 12 }]}>
-            Previsão de congestionamento por IA, trânsito ao vivo e privacidade por padrão.
+            Previsão de congestionamento e trânsito ao vivo, com privacidade.
           </Text>
         </Surgir>
         <View style={{ marginTop: 32, gap: 16 }}>
@@ -301,8 +301,9 @@ export function Aviso({ tom, children, detalhe }: { tom: 'erro' | 'info'; childr
 /** Link de texto (sublinha no hover da web). */
 export function LinkTexto({ children, onPress, disabled }: { children: string; onPress: () => void; disabled?: boolean }) {
   const { theme } = useTheme();
+  const alvo = useAlvo();
   return (
-    <Pressable onPress={onPress} disabled={disabled} accessibilityRole="link" hitSlop={6}>
+    <Pressable onPress={onPress} disabled={disabled} accessibilityRole="link" style={{ minHeight: alvo, minWidth: alvo, justifyContent: 'center', alignItems: 'center' }}>
       {(estado) => {
         const { hovered } = estado as { hovered?: boolean };
         return (
@@ -377,9 +378,7 @@ export default function LoginScreen({ navigation }: any) {
   return (
     <AuthShell>
       <Surgir auth ordem={1}>
-        <Text style={[theme.typography.eyebrow, { color: c.textSubtle }]}>Rotas previstas pela LIA</Text>
-        <Text style={[theme.typography.h2, { color: c.text, marginTop: 8 }]}>Bem-vindo de volta</Text>
-        <Text style={[theme.typography.body, { color: c.textMuted, marginTop: 4 }]}>Entre para ver suas rotas e o histórico.</Text>
+        <Text style={[theme.typography.h2, { color: c.text }]}>Entre na sua conta</Text>
       </Surgir>
 
       <Surgir auth ordem={2} style={{ marginTop: 24 }}>
@@ -444,7 +443,7 @@ export default function LoginScreen({ navigation }: any) {
       </Surgir>
 
       <Surgir auth ordem={4} style={[styles.rodape, { borderTopColor: c.border }]}>
-        <Text style={[theme.typography.caption, { color: c.textMuted }]}>Não tem conta?</Text>
+        <Text style={[theme.typography.caption, { color: c.textMuted }]}>Sem conta?</Text>
         <LinkTexto onPress={() => navigation.navigate('Register')}>Criar conta</LinkTexto>
       </Surgir>
     </AuthShell>
@@ -465,12 +464,12 @@ const styles = StyleSheet.create({
   pulso: { position: 'absolute', width: 20, height: 20, borderRadius: 10 },
   carro: { position: 'absolute', left: 0, top: 0, width: 12, height: 12, borderRadius: 6, borderWidth: 3 },
   rotulo: { position: 'absolute' },
-  scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24 },
+  scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 16 },
   formCol: { width: '100%', maxWidth: 400, alignSelf: 'center' },
   logoMobile: { alignItems: 'center', marginBottom: 32 },
-  rotuloLinha: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  rotuloLinha: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   ouLinha: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   ouTraco: { flex: 1, height: 1 },
   aviso: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, borderWidth: 1 },
-  rodape: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 24, paddingTop: 20, borderTopWidth: 1 },
+  rodape: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 24, paddingTop: 12, borderTopWidth: 1 },
 });

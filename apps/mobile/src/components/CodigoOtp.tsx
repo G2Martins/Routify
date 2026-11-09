@@ -257,9 +257,12 @@ export default function CodigoOtp({
 
 const styles = StyleSheet.create({
   raiz: { alignItems: 'center', width: '100%' },
-  linha: { flexDirection: 'row', alignItems: 'center', gap: 8, position: 'relative' },
+  linha: { flexDirection: 'row', alignItems: 'center', gap: 6, position: 'relative', maxWidth: '100%' },
+  // Encolhe em tela estreita: 6 de 44 + separador não cabem nos 312 px úteis de um celular de 360.
   tile: {
+    flexShrink: 1,
     width: 44,
+    minWidth: 36,
     height: 56,
     borderRadius: 8,
     borderWidth: 1,
@@ -270,7 +273,7 @@ const styles = StyleSheet.create({
   tileLargo: { width: 48, height: 64 },
   digito: { fontSize: 24, fontVariant: ['tabular-nums'] },
   caret: { width: 1.5, height: 24, borderRadius: 1 },
-  separador: { fontSize: 20, marginHorizontal: 2 },
+  separador: { fontSize: 20 },
   // Cobre os tiles: recebe toque, colar e autopreenchimento; invisível (cor e seleção transparentes).
   entrada: { ...StyleSheet.absoluteFillObject, opacity: 0.011, color: 'transparent', fontSize: 1 },
   trilho: { height: 2, width: '100%', maxWidth: 288, marginTop: 14, borderRadius: 1, overflow: 'hidden' },

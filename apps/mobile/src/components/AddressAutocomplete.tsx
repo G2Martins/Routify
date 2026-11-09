@@ -30,6 +30,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { supabase, RouteHistoryRow } from '../lib/supabase';
 import { API_URL, apiHeaders, enviarEvento } from '../lib/api';
+import { useFonteCampo } from '../lib/responsive';
 import { Selo, Skeleton, useMenosMovimento } from './ui';
 import Icon from './Icon';
 import { aplicarConferencia, combinar, palavras, PlaceSuggestion, RecenteConferido, rotuloParaSalvar, semAcento } from '../lib/sugestoes';
@@ -190,6 +191,7 @@ export default function AddressAutocomplete({ placeholder, value, onChangeText, 
   const c = theme.colors;
   const { user } = useAuth();
   const reduzir = useMenosMovimento();
+  const fonteCampo = useFonteCampo();
   const uid = useId();
   const listaId = `${uid}-lista`;
   const opcaoId = (i: number) => `${uid}-op-${i}`;
@@ -513,7 +515,7 @@ export default function AddressAutocomplete({ placeholder, value, onChangeText, 
                 onPress={() => escolher(item, i)}
                 onHoverIn={() => setAtivo(i)}
                 accessibilityRole={WEB ? undefined : 'button'}
-                accessibilityState={{ selected: selecionado }}
+                aria-selected={selecionado}
                 accessibilityLabel={[item.label, item.sublabel, tag].filter(Boolean).join(', ')}
                 {...ariaOpcao(i, selecionado)}
                 style={({ pressed }) => [
@@ -601,7 +603,7 @@ export default function AddressAutocomplete({ placeholder, value, onChangeText, 
           }}
           onKeyPress={onKeyPress}
           onSubmitEditing={confirmar}
-          style={[theme.typography.body, styles.input, { color: c.text }, SEM_OUTLINE_WEB]}
+          style={[theme.typography.body, styles.input, { color: c.text, fontSize: fonteCampo }, SEM_OUTLINE_WEB]}
         />
         {value && focado ? (
           <Pressable
@@ -612,7 +614,6 @@ export default function AddressAutocomplete({ placeholder, value, onChangeText, 
               if (recentes === null) void carregarRecentes();
               inputRef.current?.focus();
             }}
-            hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Limpar campo"
             style={styles.limpar}
@@ -656,10 +657,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     paddingLeft: 12,
-    paddingRight: 8,
   },
-  input: { flex: 1, height: '100%', fontSize: 15 },
-  limpar: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  // 44 de alvo por cima da borda de 1 px do campo.
+  input: { flex: 1, minWidth: 0, height: 44, marginVertical: -1 },
+  limpar: { width: 44, height: 44, marginVertical: -1, alignItems: 'center', justifyContent: 'center' },
   lista: {
     position: 'absolute',
     top: '100%',
@@ -676,12 +677,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingVertical: 8,
+    minHeight: 48,
+    paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 8,
   },
   iconeCaixa: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   estado: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12 },
-  tentar: { alignSelf: 'flex-start', paddingVertical: 6 },
+  tentar: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
   soLeitor: { position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden' },
 });

@@ -71,7 +71,7 @@ export default function RegisterScreen({ navigation }: any) {
           </View>
           <Text style={[theme.typography.h2, { color: c.text, marginTop: 16, textAlign: 'center' }]}>Confira seu e-mail</Text>
           <Text style={[theme.typography.body, { color: c.textMuted, marginTop: 8, textAlign: 'center' }]}>
-            Enviamos o link de confirmação para {email.trim()}. Confirme e depois entre.
+            Enviamos um link de confirmação para {email.trim()}.
           </Text>
           <Button label="Voltar para o login" size="lg" fullWidth style={{ marginTop: 24 }} onPress={() => navigation.replace('Login')} />
         </Surgir>
@@ -83,14 +83,13 @@ export default function RegisterScreen({ navigation }: any) {
     <AuthShell>
       <Surgir ordem={1}>
         <Text style={[theme.typography.h2, { color: c.text }]}>Criar conta</Text>
-        <Text style={[theme.typography.body, { color: c.textMuted, marginTop: 4 }]}>Leva menos de um minuto.</Text>
       </Surgir>
 
       <Surgir ordem={2} style={{ marginTop: 24 }}>
         <Input
           label="Nome"
           iconLeft="ion:person-outline"
-          placeholder="Como devemos te chamar"
+          placeholder="Seu nome"
           autoComplete="name"
           textContentType="name"
           returnKeyType="next"
@@ -161,7 +160,7 @@ export default function RegisterScreen({ navigation }: any) {
         <Pressable
           onPress={() => setAceite((v) => !v)}
           accessibilityRole="checkbox"
-          accessibilityState={{ checked: aceite }}
+          aria-checked={aceite}
           accessibilityLabel="Li e aceito o aviso de privacidade"
           style={styles.aceite}
         >
@@ -182,7 +181,7 @@ export default function RegisterScreen({ navigation }: any) {
 
       <Surgir ordem={3} style={{ gap: 16, marginTop: 20 }}>
         {erro ? <Aviso tom="erro">{erro}</Aviso> : null}
-        <Button label="Criar minha conta" size="lg" fullWidth loading={loading} onPress={criar} iconRight="ion:arrow-forward" />
+        <Button label="Criar conta" size="lg" fullWidth loading={loading} onPress={criar} iconRight="ion:arrow-forward" />
       </Surgir>
 
       <Surgir ordem={4} style={[styles.rodape, { borderTopColor: c.border }]}>
@@ -196,9 +195,9 @@ export default function RegisterScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   regras: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginTop: -8, marginBottom: 16 },
   regra: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  aceite: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
+  aceite: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 },
   caixa: { width: 20, height: 20, borderRadius: 6, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   aceiteTexto: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4, flex: 1 },
   okIcone: { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  rodape: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 24, paddingTop: 20, borderTopWidth: 1 },
+  rodape: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 24, paddingTop: 12, borderTopWidth: 1 },
 });

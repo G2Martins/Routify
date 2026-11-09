@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
@@ -12,15 +12,15 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
-import { useDesktopLayout } from '../lib/responsive';
+import { useDesktopLayout, useTelaLarga } from '../lib/responsive';
 import { supabase } from '../lib/supabase';
 import { API_URL, apiHeaders, enviarEvento } from '../lib/api';
 import AddressAutocomplete, { PlaceSuggestion } from '../components/AddressAutocomplete';
 import NavigationPanel, { Clima, Economia } from '../components/NavigationPanel';
 import { useToast } from '../components/Toast';
 import MapStyleToggle, { BotaoMapa } from '../components/MapStyleToggle';
-import LIAIndicator, { LIAStatus } from '../components/LIAIndicator';
-import { FaixaMarca, Surgir, useMenosMovimento } from '../components/ui';
+import BotaoRadares from '../components/BotaoRadares';
+import { BotaoIcone, FaixaMarca, Surgir, useMenosMovimento } from '../components/ui';
 import Icon from '../components/Icon';
 import Button from '../components/Button';
 
@@ -78,8 +78,6 @@ interface RouteResult {
   clima?: Clima | null;
   economia?: Economia | null;
 }
-
-const litrosTxt = (v: number) => v.toFixed(2).replace('.', ',');
 
 /** POST /route com o JWT da sessão; erro da API vira Error com a mensagem dela. */
 async function pedirRota(origem: { lat: number; lon: number }, destino: { lat: number; lon: number }): Promise<RouteResult> {
@@ -139,14 +137,16 @@ export default function MapScreen() {
   const avisar = useToast();
   const desktop = useDesktopLayout();
   const insets = useSafeAreaInsets();
+  const telaLarga = useTelaLarga();
   const [alturaPainel, setAlturaPainel] = useState(200);
+  const [alturaDock, setAlturaDock] = useState(150);
+  const [editando, setEditando] = useState(false); // celular: com rota, a busca recolhe numa linha
 
   const [origemText, setOrigemText] = useState('');
   const [destinoText, setDestinoText] = useState('');
   const [origemPlace, setOrigemPlace] = useState<PlaceSuggestion | null>(null);
   const [destinoPlace, setDestinoPlace] = useState<PlaceSuggestion | null>(null);
 
-  const [liaStatus, setLiaStatus] = useState<LIAStatus>('idle');
   const [calculating, setCalculating] = useState(false);
   const [route, setRoute] = useState<RouteResult | null>(null);
   const [navigating, setNavigating] = useState(false);
@@ -207,7 +207,7 @@ export default function MapScreen() {
     }
     setError(null);
     setCalculating(true);
-    setLiaStatus('thinking');
+    setEditando(false);
     setRoute(null);
     mapRef.current?.clearRoute?.();
 
@@ -224,23 +224,7 @@ export default function MapScreen() {
         data.alternativa?.polyline ?? null,
         data.trafego ?? null
       );
-      setRoute(data);
-      setLiaStatus('done');
-      setTimeout(() => setLiaStatus('idle'), 2500);
-      const min = Math.max(1, Math.round(data.tempo_total_seg / 60));
-      const eco = data.economia;
-      avisar({
-        titulo: `Rota pronta · ${min} min`,
-        texto:
-          eco && eco.litros >= 0.01
-            ? `Economiza ${litrosTxt(eco.litros)} L contra o caminho mais curto`
-            : `via ${data.via_principal}`,
-        tom: 'ok',
-        icone: 'ion:navigate',
-      });
-      if (data.clima && (data.clima.chuva_agora_mm > 0 || data.clima.chuva_3h_mm > 0)) {
-        avisar({ titulo: 'Chuva em Brasília', texto: 'A LIA já considerou a chuva no tempo da rota.', tom: 'alerta', icone: 'ion:rainy-outline' });
-      }
+      setRoute(data); // o painel da rota já diz o tempo, a economia e a chuva: sem aviso repetindo por cima do mapa
 
       // Salva no histórico (Supabase)
       if (user?.id) {
@@ -275,11 +259,9 @@ export default function MapScreen() {
           });
       }
     } catch (e: any) {
-      const msg = e?.message || 'Falha ao calcular rota.';
-      avisar({ titulo: 'Não deu para calcular a rota', texto: msg, tom: 'erro' });
+      const msg = e?.message || 'Não deu para traçar a rota.';
       if (Platform.OS === 'web') setError(msg);
-      else Alert.alert('Erro ao calcular rota', msg);
-      setLiaStatus('idle');
+      else Alert.alert('Não deu para traçar a rota', msg);
     } finally {
       setCalculating(false);
     }
@@ -290,6 +272,7 @@ export default function MapScreen() {
       enviarEvento('navegacao_concluida', { modelo: route?.modelo_utilizado ?? null });
     }
     setRoute(null);
+    setEditando(false);
     setNavigating(false);
     setOrigemPlace(null);
     setDestinoPlace(null);
@@ -376,11 +359,32 @@ export default function MapScreen() {
     setDestinoText(origemText);
     setOrigemPlace(destinoPlace);
     setDestinoPlace(origemPlace);
-    if (route) {
-      setRoute(null);
-      mapRef.current?.clearRoute?.();
-    }
+    limparRota();
   };
+
+  // Outro ponto = outra viagem: a rota na tela deixa de valer.
+  const limparRota = () => {
+    if (!route) return;
+    setRoute(null);
+    mapRef.current?.clearRoute?.();
+  };
+
+  // Celular com rota traçada: a busca vira uma linha e a tela fica para o mapa. Tocar reabre os campos.
+  const buscaRecolhida = !desktop && !!route && !editando;
+  const resumoBusca = (
+    <Pressable
+      onPress={() => setEditando(true)}
+      accessibilityRole="button"
+      accessibilityLabel={`De ${origemText} para ${destinoText}. Editar`}
+      style={[styles.painel, styles.resumoBusca, { backgroundColor: c.surface, borderColor: c.border, boxShadow: sombraFlutuante }]}
+    >
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text numberOfLines={1} style={[theme.typography.captionMd, { color: c.text }]}>{origemText}</Text>
+        <Text numberOfLines={1} style={[theme.typography.captionMd, { color: c.text }]}>{destinoText}</Text>
+      </View>
+      <Text style={[theme.typography.captionMd, { color: c.accent }]}>Editar</Text>
+    </Pressable>
+  );
 
   const painelBusca = (
     <View style={[styles.painel, { backgroundColor: c.surface, borderColor: c.border, boxShadow: sombraFlutuante }]}>
@@ -405,6 +409,7 @@ export default function MapScreen() {
             onChangeText={(v: string) => {
               setOrigemText(v);
               if (origemPlace) setOrigemPlace(null);
+              limparRota();
             }}
             onSelect={(p: PlaceSuggestion) => {
               setOrigemPlace(p);
@@ -420,6 +425,7 @@ export default function MapScreen() {
             onChangeText={(v: string) => {
               setDestinoText(v);
               if (destinoPlace) setDestinoPlace(null);
+              limparRota();
             }}
             onSelect={(p: PlaceSuggestion) => {
               setDestinoPlace(p);
@@ -460,15 +466,13 @@ export default function MapScreen() {
           <Text style={[theme.typography.caption, { flex: 1, color: c.text }]} numberOfLines={3}>
             {error}
           </Text>
-          <Pressable onPress={() => setError(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Fechar aviso">
-            <Icon name="ion:close" size={16} color={c.textMuted} />
-          </Pressable>
+          <BotaoIcone icone="ion:close" rotulo="Fechar aviso" onPress={() => setError(null)} />
         </View>
       ) : null}
 
       {!route ? (
         <Button
-          label={calculating ? 'Calculando rota…' : 'Otimizar rota'}
+          label="Traçar rota"
           variant="primary"
           size="lg"
           fullWidth
@@ -482,8 +486,10 @@ export default function MapScreen() {
   );
 
   const painelRota = route ? (
-    <Surgir key="rota" style={desktop ? { zIndex: 1 } : styles.dockMobile}>
-      <NavigationPanel route={route} navigating={navigating} onStart={handleStartNav} onCancel={handleClear} />
+    <Surgir key="rota" style={desktop ? { zIndex: 1 } : [styles.dockMobile, telaLarga && styles.painelTablet]}>
+      <View onLayout={(e) => setAlturaDock(e.nativeEvent.layout.height)}>
+        <NavigationPanel route={route} navigating={navigating} compacto={!desktop} onStart={handleStartNav} onCancel={handleClear} />
+      </View>
     </Surgir>
   ) : null;
 
@@ -496,26 +502,24 @@ export default function MapScreen() {
         rotulo="Centralizar na minha localização"
         onPress={() => mapRef.current?.centerOnUser((m: string) => setError(m))}
       />
+      <BotaoRadares mapa={mapRef} />
     </View>
   );
 
-  const pilulaLIA =
-    liaStatus === 'thinking' ? (
-      <View
-        style={[
-          styles.pilula,
-          { backgroundColor: c.surface, borderColor: c.border, boxShadow: sombraFlutuante },
-        ]}
-      >
-        <LIAIndicator status="thinking" />
-      </View>
-    ) : null;
+  // O vão entre os painéis, medido: é nele que a rota precisa caber.
+  const margem = useMemo(
+    () =>
+      desktop
+        ? { top: 72, left: 440, right: 96, bottom: 72 }
+        : { top: topoPainel + alturaPainel + 24, left: 32, right: 72, bottom: route ? alturaDock + 40 : 32 },
+    [desktop, topoPainel, alturaPainel, alturaDock, !!route] // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   // ---------------------------------------------------------------- DESKTOP
   if (desktop) {
     return (
       <View style={{ flex: 1, backgroundColor: c.background }}>
-        <MapComponent ref={mapRef} />
+        <MapComponent ref={mapRef} margem={margem} />
 
         {/* Coluna flutuante à esquerda: busca + resumo da rota */}
         <View style={styles.colunaDesktop}>
@@ -524,7 +528,6 @@ export default function MapScreen() {
         </View>
 
         {controles}
-        {pilulaLIA}
       </View>
     );
   }
@@ -535,14 +538,13 @@ export default function MapScreen() {
       style={{ flex: 1, backgroundColor: c.background }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <MapComponent ref={mapRef} />
+      <MapComponent ref={mapRef} margem={margem} />
 
-      <Surgir style={[styles.painelMobile, { top: topoPainel }]}>
-        <View onLayout={(e) => setAlturaPainel(e.nativeEvent.layout.height)}>{painelBusca}</View>
+      <Surgir style={[styles.painelMobile, telaLarga && styles.painelTablet, { top: topoPainel }]}>
+        <View onLayout={(e) => setAlturaPainel(e.nativeEvent.layout.height)}>{buscaRecolhida ? resumoBusca : painelBusca}</View>
       </Surgir>
 
       {controles}
-      {pilulaLIA}
       {painelRota}
     </KeyboardAvoidingView>
   );
@@ -573,7 +575,8 @@ const styles = StyleSheet.create({
   campos: { flex: 1, gap: 8 },
   // A lista cobre do trilho até o botão de inverter (20 + 8 à esquerda, 36 + 8 à direita).
   listaLarga: { left: -28, right: -44 },
-  trocar: { width: 36, height: 36, borderRadius: 8, alignSelf: 'center', alignItems: 'center', justifyContent: 'center' },
+  trocar: { width: 44, height: 44, marginHorizontal: -4, borderRadius: 8, alignSelf: 'center', alignItems: 'center', justifyContent: 'center' },
+  resumoBusca: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
   erro: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -594,16 +597,7 @@ const styles = StyleSheet.create({
   },
   painelMobile: { position: 'absolute', left: 16, right: 16, zIndex: 30 },
   dockMobile: { position: 'absolute', bottom: 16, left: 16, right: 16, zIndex: 25 },
+  // Tablet: os painéis ocupam um canto e o resto da tela é mapa.
+  painelTablet: { right: 'auto', width: 420 },
   controles: { position: 'absolute', right: 16, gap: 8, zIndex: 20 },
-  // Embaixo no centro: enquanto calcula não há painel de rota, e em cima colidiria com a coluna.
-  pilula: {
-    position: 'absolute',
-    bottom: 24,
-    alignSelf: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 999,
-    borderWidth: 1,
-    zIndex: 20,
-  },
 });

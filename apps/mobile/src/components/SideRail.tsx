@@ -7,11 +7,11 @@
  * x nos dois estados e os rótulos só esmaecem — sem salto de layout.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Image, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Image, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Icon from './Icon';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
-import { ADMIN_URL, API_URL } from '../lib/api';
+import { abrirPainelAdm, API_URL } from '../lib/api';
 
 const TAB_ICONS: Record<string, { active: string; inactive: string }> = {
   Mapa: { active: 'ion:map', inactive: 'ion:map-outline' },
@@ -66,12 +66,6 @@ function useModeloAtivo(): { rotulo: string; online: boolean | null } {
   return estado;
 }
 
-/** Só UI: quem garante o acesso ao painel é o banco (RLS + is_admin()). */
-function abrirPainelAdm() {
-  if (Platform.OS === 'web' && typeof window !== 'undefined') window.location.assign(ADMIN_URL);
-  else Linking.openURL(ADMIN_URL).catch(() => {});
-}
-
 function ItemRail({
   icone,
   rotulo,
@@ -93,7 +87,7 @@ function ItemRail({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={rotulo}
-      accessibilityState={{ selected: !!ativo }}
+      aria-current={ativo ? 'page' : undefined}
       onPress={onPress}
       style={({ pressed }) => [styles.item, { borderRadius: theme.radius.sm, transform: [{ scale: pressed ? theme.motion.pressScale : 1 }] }]}
     >
@@ -125,8 +119,10 @@ export default function SideRail({ routes, activeName, onSelect }: Props) {
   const c = theme.colors;
   const { isAdmin, profile, user } = useAuth();
   const modelo = useModeloAtivo();
-  const [collapsed, setCollapsed] = useState(false);
-  const largura = useRef(new Animated.Value(RAIL_EXPANDED)).current;
+  // Janela estreita de desktop: o rail começa recolhido para não comer o conteúdo.
+  const { width } = useWindowDimensions();
+  const [collapsed, setCollapsed] = useState(width < 1100);
+  const largura = useRef(new Animated.Value(collapsed ? RAIL_COLLAPSED : RAIL_EXPANDED)).current;
 
   useEffect(() => {
     Animated.timing(largura, {
@@ -207,7 +203,7 @@ export default function SideRail({ routes, activeName, onSelect }: Props) {
         <View
           style={styles.linhaRodape}
           accessible
-          accessibilityLabel={`Modelo ${modelo.rotulo}, API ${modelo.online ? 'online' : modelo.online === false ? 'offline' : 'verificando'}`}
+          accessibilityLabel={`Modelo ${modelo.rotulo}, ${modelo.online ? 'online' : modelo.online === false ? 'offline' : 'verificando'}`}
         >
           <View style={styles.slotIcone}>
             <View style={[styles.statusPonto, { backgroundColor: corStatus }]} />
@@ -225,7 +221,7 @@ export default function SideRail({ routes, activeName, onSelect }: Props) {
         <Pressable
           onPress={() => onSelect('Perfil')}
           accessibilityRole="button"
-          accessibilityLabel={`${nome} — abrir perfil`}
+          accessibilityLabel={`${nome}: abrir perfil`}
           style={[styles.linhaRodape, { marginTop: 12 }]}
         >
           <View style={[styles.avatar, { backgroundColor: c.railActive }]}>
@@ -255,7 +251,7 @@ const styles = StyleSheet.create({
   marcaNome: { fontSize: 18, letterSpacing: -0.3 },
   itens: { flex: 1, paddingHorizontal: 12, gap: 4 },
   itensRodape: { paddingHorizontal: 12 },
-  item: { flexDirection: 'row', alignItems: 'center', height: 42, paddingHorizontal: 14, gap: 12, position: 'relative' },
+  item: { flexDirection: 'row', alignItems: 'center', height: 44, paddingHorizontal: 14, gap: 12, position: 'relative' },
   fundo: { borderRadius: 8 },
   indicador: { position: 'absolute', left: -12, top: 9, bottom: 9, width: 3, borderTopRightRadius: 3, borderBottomRightRadius: 3 },
   itemRotulo: { flex: 1, fontSize: 14 },

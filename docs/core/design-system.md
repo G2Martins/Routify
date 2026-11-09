@@ -69,7 +69,7 @@ Mudou um token num lugar → muda no outro no mesmo PR.
 | --- | --- | --- |
 | hover / press | 160 ms | ease-out; escala **0,98** ao pressionar |
 | troca de estado | 240 ms | ease-out-expo `cubic-bezier(.16,1,.3,1)` |
-| entrada de tela e cartões | 760 ms | ease-out-expo; sobe 12 px + opacidade, escalonado em 60 ms por item |
+| entrada de tela e cartões | 320 ms | ease-out-expo; sobe 12 px + opacidade, escalonado em 30 ms por item |
 | carregamento | loop de 1,4 s | skeleton com brilho deslizante (nunca spinner solto em lista) |
 | telas de auth (`Surgir auth`) | 480 ms | ease-out-expo; sobe 10 px + opacidade, 70 ms por item (o `auth-rise` do Valerium) |
 | código de verificação (`CodigoOtp`) | dígito 220 ms · tremida 420 ms · varredura 1,1 s · cursor 1,25 s | pop escala 0,55 → 1,08 → 1; erro `cubic-bezier(.36,.07,.19,.97)` com −2/4/−6/6/−6/6/−6/4/−2 px, limpa e refoca |

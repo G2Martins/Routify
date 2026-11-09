@@ -10,11 +10,11 @@
  * Sem o celular, um deles desativa a verificação na etapa 2 do login (MfaVerificarScreen).
  */
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Linking, Platform, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Linking, Platform, Share, StyleSheet, Text, View } from 'react-native';
 import Button from '../components/Button';
 import CodigoOtp, { StatusCodigo } from '../components/CodigoOtp';
 import Icon from '../components/Icon';
-import { Cartao, Container, Surgir, TituloPagina } from '../components/ui';
+import { Cartao, Skeleton, Surgir, Tela, TituloPagina } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { qrFundo } from '../constants/Theme';
 import { useTheme } from '../context/ThemeContext';
@@ -39,7 +39,7 @@ function confirmar(titulo: string, texto: string, acao = 'Desativar'): Promise<b
   );
 }
 
-export default function SegurancaScreen() {
+export default function SegurancaScreen({ navigation }: any) {
   const { theme } = useTheme();
   const c = theme.colors;
   const { atualizarAal } = useAuth();
@@ -177,17 +177,24 @@ export default function SegurancaScreen() {
   };
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: c.background }} contentContainerStyle={{ paddingBottom: 48 }}>
-      <Container>
-        <TituloPagina titulo="Segurança" sub="Verificação em duas etapas para a sua conta" />
+    <Tela voltar={() => navigation.goBack()}>
+        <TituloPagina titulo="Segurança" />
 
         {estado === 'carregando' ? (
-          <ActivityIndicator color={c.accent} style={{ marginTop: 32 }} />
+          <View accessible accessibilityRole="progressbar" accessibilityLabel="Carregando" style={{ marginTop: 20 }}>
+            <Cartao padding={24}>
+              <Skeleton altura={18} largura="60%" />
+              <View style={{ height: 14 }} />
+              <Skeleton altura={14} />
+              <View style={{ height: 8 }} />
+              <Skeleton altura={14} largura="80%" />
+            </Cartao>
+          </View>
         ) : null}
 
         {estado === 'inativo' || estado === 'ativo' ? (
-          <Surgir auth ordem={1}>
-            <Cartao elevado padding={24}>
+          <Surgir auth ordem={1} style={{ marginTop: 20 }}>
+            <Cartao elevado padding={20}>
               <View style={styles.cabecalho}>
                 <View style={[styles.icone, { backgroundColor: estado === 'ativo' ? c.accentSoft : c.surfaceAlt }]}>
                   <Icon name="ion:shield-checkmark-outline" size={22} color={estado === 'ativo' ? c.accent : c.textMuted} />
@@ -202,7 +209,7 @@ export default function SegurancaScreen() {
               <Text style={[theme.typography.body, { color: c.textMuted, marginTop: 16 }]}>
                 {estado === 'ativo'
                   ? 'Mesmo com a sua senha, ninguém entra sem o código que muda a cada 30 segundos no seu celular.'
-                  : 'Além da senha, peça um código do seu app autenticador ao entrar. Protege seu histórico de rotas, que é dado de localização.'}
+                  : 'Ao entrar, além da senha, peça um código do seu app autenticador.'}
               </Text>
               {erro ? <Text style={[theme.typography.captionMd, { color: c.danger, marginTop: 12 }]}>{erro}</Text> : null}
               <View style={{ marginTop: 20 }}>
@@ -218,7 +225,7 @@ export default function SegurancaScreen() {
 
         {estado === 'ativo' ? (
           <Surgir auth ordem={2} style={{ marginTop: 16 }}>
-            <Cartao elevado padding={24}>
+            <Cartao elevado padding={20}>
               <View style={styles.cabecalho}>
                 <View style={[styles.icone, { backgroundColor: c.surfaceAlt }]}>
                   <Icon name="ion:key-outline" size={22} color={c.textMuted} />
@@ -264,12 +271,12 @@ export default function SegurancaScreen() {
         ) : null}
 
         {estado === 'cadastrando' && cadastro ? (
-          <Surgir auth ordem={1}>
-            <Cartao elevado padding={24}>
+          <Surgir auth ordem={1} style={{ marginTop: 20 }}>
+            <Cartao elevado padding={20}>
               <Text style={[theme.typography.eyebrow, { color: c.textSubtle }]}>Passo 1 de 2 · Adicione ao app</Text>
               <Text style={[theme.typography.body, { color: c.textMuted, marginTop: 8 }]}>
                 {WEB
-                  ? 'Escaneie o QR com o app autenticador (Google Authenticator, Microsoft Authenticator, 1Password).'
+                  ? 'Escaneie o QR com o app autenticador (Google Authenticator, por exemplo).'
                   : 'Toque para abrir no app autenticador ou digite a chave abaixo nele.'}
               </Text>
               {WEB ? (
@@ -297,8 +304,7 @@ export default function SegurancaScreen() {
             </Cartao>
           </Surgir>
         ) : null}
-      </Container>
-    </ScrollView>
+    </Tela>
   );
 }
 
@@ -309,6 +315,7 @@ const styles = StyleSheet.create({
   qrImagem: { width: 196, height: 196 },
   segredo: { marginTop: 6, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8, fontSize: 15, letterSpacing: 1 },
   codigos: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 10, padding: 16, borderRadius: 12, borderWidth: 1 },
-  codigo: { width: '50%', fontSize: 15, letterSpacing: 0.5 },
+  // Duas colunas só quando cabe: o código tem 19 caracteres e não pode quebrar no meio.
+  codigo: { flexGrow: 1, flexBasis: 190, fontSize: 15, letterSpacing: 0.5 },
   acoes: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 16 },
 });
