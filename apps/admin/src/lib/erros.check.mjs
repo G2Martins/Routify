@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { faltaMigracao, mensagemErro } from './erros.ts';
 
 assert.equal(mensagemErro({ code: '42501', message: 'acesso negado' }), 'Acesso negado.');
-assert.equal(mensagemErro({ code: 'P0001', message: 'ação repetida — aguarde alguns segundos' }), 'Ação repetida — aguarde alguns segundos.');
+assert.equal(mensagemErro({ code: 'P0001', message: 'ação repetida — aguarde alguns segundos' }), 'Ação repetida: aguarde alguns segundos.');
 assert.equal(mensagemErro({ code: 'P0002', message: 'usuário não encontrado' }), 'Usuário não encontrado.');
 assert.equal(mensagemErro({ code: '22023', message: 'orçamento deve ser inteiro entre 1 e 600' }), 'Orçamento deve ser inteiro entre 1 e 600.');
 assert.ok(faltaMigracao({ code: 'PGRST202' }) && faltaMigracao({ code: '42P01' }) && !faltaMigracao({ code: '42501' }));

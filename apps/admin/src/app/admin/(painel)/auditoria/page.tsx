@@ -25,7 +25,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function Detalhes({ d }: { d: Record<string, unknown> | null }) {
   const entradas = Object.entries(d ?? {});
-  if (!entradas.length) return <span className="text-muted-foreground">—</span>;
+  if (!entradas.length) return <span className="text-muted-foreground">n/d</span>;
   return (
     <div className="flex flex-wrap gap-1">
       {entradas.map(([k, v]) => {
@@ -83,7 +83,7 @@ export default async function AuditoriaPage({ searchParams }: { searchParams: Pr
       />
       <div className="space-y-5">
         <ErroConsulta erro={erro} acoes />
-        <Cartao atraso={40}>
+        <Cartao atraso={40} siglas={['RLS']}>
           <Form action="/admin/auditoria" className="mb-5 flex flex-wrap items-end gap-3">
             <label className="text-xs text-muted-foreground">
               Ação
@@ -130,7 +130,7 @@ export default async function AuditoriaPage({ searchParams }: { searchParams: Pr
                     <span className="num ml-1.5 text-[10px] text-muted-foreground">{l.acao}</span>
                   </td>
                   <td className="num text-xs" title={l.alvo ?? undefined}>
-                    {l.alvo && UUID.test(l.alvo) ? nomeUsuario(l.alvo, emails) : (l.alvo ?? '—')}
+                    {l.alvo && UUID.test(l.alvo) ? nomeUsuario(l.alvo, emails) : (l.alvo ?? 'n/d')}
                   </td>
                   <td>
                     <Detalhes d={l.detalhes} />

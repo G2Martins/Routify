@@ -1,6 +1,7 @@
 import { Aviso, Cabecalho, ErroConsulta, SeletorJanela } from '@/components/ui';
 import { exigirAdmin } from '@/lib/auth';
 import { MIGRACAO_HISTORICOS, MIGRACAO_PROVEDORES } from '@/lib/erros';
+import { lerVersoes } from '@/lib/leitura';
 import { modeloAtivo } from '@/lib/saude';
 import type {
   AblacaoLia23,
@@ -59,7 +60,7 @@ export default async function ProvedoresPage({ searchParams }: { searchParams: P
       />
       <ErroConsulta erro={analises.error ?? treinos.error} />
 
-      <CartaoModelo ativo={ativo} treino={treino} ablacao={ablacao} />
+      <CartaoModelo ativo={ativo} treino={treino} ablacao={ablacao} leitura={ativo ? lerVersoes((treinos.data ?? []) as LiaTreino[], ativo, 'rmse_seg') : undefined} />
 
       <Grupo titulo="Comparador ao vivo" />
       <ErroConsulta erro={rpc.error} migracao={MIGRACAO_PROVEDORES} />

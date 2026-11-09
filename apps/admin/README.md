@@ -1,6 +1,6 @@
 # Routify — Painel ADM
 
-**Última revisão:** 2026-11-03
+**Última revisão:** 2026-11-09
 
 Painel de observabilidade da plataforma e de acompanhamento da LIA. Next.js 16 (App Router) + Supabase (`@supabase/ssr`) + Recharts + React Flow, no design Valerium (papel claro, tokens HSL, Instrument Serif / IBM Plex).
 
@@ -41,6 +41,13 @@ Passo a passo completo com API e app: [docs/core/rodar-local.md](../../docs/core
 - **Tokens de gráfico.** `--chart-4` (violeta) e `--chart-5` (rosa) foram criados em `globals.css`, nos 3 blocos de tema.
 - **Estado vazio honesto.** Cada seção diz o que falta (comparador sem rodadas, rotas reais sem referência, ablação ou fora do tempo não publicados). A ablação `--smoke` vem com aviso de que não é número de tese.
 - **Nomes dos corredores.** A tabela guarda só o slug; `src/lib/provedores.ts` espelha `CORREDORES` de `services/collector/comparar_provedores.py`, e slug novo aparece como texto legível até o espelho ser atualizado.
+
+### Leitura dos gráficos e navegação (2026-11-09)
+
+- **Legenda e leitura.** `Cartao` aceita `siglas` (termos de `src/lib/glossario.ts`) e `leitura` (frases geradas do dado em `src/lib/leitura.ts`: versão atual × anterior × melhor, calibração, benchmark, série de uso, cobertura, trânsito dos provedores). A versão atual vem de `/health`; sem API, é a de maior número entre as comparáveis do dado. LIA 1.0 (validação não temporal) fica marcada como não comparável.
+- **Carregamento.** `BarraProgresso` (barra no topo no clique), `useLinkStatus` no item do menu, `loading.tsx` por rota com `Esqueleto`. `exigirAdmin` usa `cache()`: layout e página dividem um só `getUser` por requisição.
+- **Celular.** Menu em gaveta abaixo de 768 px; alvos de 44 px em tela de toque; tabelas rolam dentro do cartão.
+- **Texto.** Sem travessão em texto visível; valor ausente aparece como "n/d".
 
 ## Modelo de segurança
 

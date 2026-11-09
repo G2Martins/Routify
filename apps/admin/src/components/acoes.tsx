@@ -74,7 +74,7 @@ export function useAcao() {
         if (sucesso) setRetorno({ tom: 'ok', texto: typeof sucesso === 'function' ? sucesso(data as T) : sucesso });
         return { ok: true, data: data as T };
       } catch {
-        setRetorno({ tom: 'erro', texto: 'Falha de rede — tente de novo.' });
+        setRetorno({ tom: 'erro', texto: 'Falha de rede. Tente de novo.' });
         return { ok: false };
       } finally {
         trava.current = false;
@@ -212,7 +212,7 @@ export function Interruptor({
       aria-label={rotulo}
       disabled={desabilitado}
       onClick={() => onMudar(!ligado)}
-      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors duration-200 ease-out active:scale-[0.98] disabled:opacity-50 ${
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors duration-200 ease-out before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-[''] active:scale-[0.98] disabled:opacity-50 ${
         ligado ? 'border-accent bg-accent' : 'border-border-strong bg-muted'
       }`}
     >

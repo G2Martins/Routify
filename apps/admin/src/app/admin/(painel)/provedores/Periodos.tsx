@@ -16,7 +16,7 @@ const PERIODOS: { chave: string; rotulo: string }[] = [
   { chave: 'dia_fim_de_semana', rotulo: 'Fim de semana, 6–19 h' },
 ];
 
-const sinal = (v: number | undefined) => (v === undefined ? '—' : `${v > 0 ? '+' : ''}${fmtDec(v, 1)}`);
+const sinal = (v: number | undefined) => (v === undefined ? 'n/d' : `${v > 0 ? '+' : ''}${fmtDec(v, 1)}`);
 
 function TabelaPeriodos({ v, titulo }: { v: { nome: string; p: PorPeriodo }[]; titulo: string }) {
   return (
@@ -30,11 +30,11 @@ function TabelaPeriodos({ v, titulo }: { v: { nome: string; p: PorPeriodo }[]; t
               const e = x.p.modelo[p.chave];
               return (
                 <td key={x.nome} className="num">
-                  {e ? `${sinal(e.vies_seg)} / ${fmtDec(e.mae_seg, 1)} s` : '—'}
+                  {e ? `${sinal(e.vies_seg)} / ${fmtDec(e.mae_seg, 1)} s` : 'n/d'}
                 </td>
               );
             })}
-            <td className="num">{v[0].p.persistencia[p.chave] ? `${fmtDec(v[0].p.persistencia[p.chave].mae_seg, 1)} s` : '—'}</td>
+            <td className="num">{v[0].p.persistencia[p.chave] ? `${fmtDec(v[0].p.persistencia[p.chave].mae_seg, 1)} s` : 'n/d'}</td>
           </tr>
         ))}
       </Tabela>
@@ -49,6 +49,7 @@ export function Periodos({ a }: { a: AblacaoLia24 | undefined }) {
   return (
     <Cartao
       titulo="Erro por período do dia · candidata a LIA 2.4"
+      siglas={['MAE', 'viés', 'persistência']}
       nota={`Mesmos 5 folds temporais da 2.3, ${fmtInt(a.linhas)} linhas. A candidata pesa cada linha por (hora, fim de semana) contra o viés de cobertura (23% das linhas às 21h). Não corrigiu o pico da tarde e piorou com leitura de 30 min: rejeitada em 2026-11-02; a 2.3 segue padrão.${a.smoke ? ' Execução de teste: não cite.' : ''}`}
     >
       <div className="flex flex-wrap items-center gap-2">

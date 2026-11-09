@@ -68,7 +68,7 @@ export default async function UsoPage({ searchParams }: { searchParams: Promise<
     <>
       <Cabecalho
         titulo="Uso da plataforma"
-        sobre="Funil, busca, LIA × menor distância e onde a plataforma é usada — agregados no banco. Abaixo, os últimos registros brutos (coordenadas a ~110 m, expurgo em 90 dias, LGPD)."
+        sobre="Funil, busca, LIA × menor distância e onde a plataforma é usada, agregados no banco. Abaixo, os últimos registros brutos (coordenadas a ~110 m, expurgo em 90 dias, LGPD)."
         direita={<SeletorJanela base="/admin/uso" atual={dias} janelas={JANELAS} />}
       />
       <div className="mb-10">
@@ -85,13 +85,13 @@ export default async function UsoPage({ searchParams }: { searchParams: Promise<
               <Kpi rotulo="Litros economizados" valor={fmtDec(litros, 2)} detalhe={`em ${dias} dias`} atraso={20} />
               <Kpi
                 rotulo="Economia em gasolina"
-                valor={params ? `R$ ${fmtDec(litros * params.preco_litro_reais, 2)}` : '—'}
+                valor={params ? `R$ ${fmtDec(litros * params.preco_litro_reais, 2)}` : 'n/d'}
                 detalhe={params ? `a R$ ${fmtDec(params.preco_litro_reais, 2)}/L (ANP, DF)` : 'parâmetros indisponíveis'}
                 atraso={40}
               />
               <Kpi
                 rotulo="CO₂ evitado"
-                valor={params ? `${fmtDec(litros * params.co2_kg_por_litro, 1)} kg` : '—'}
+                valor={params ? `${fmtDec(litros * params.co2_kg_por_litro, 1)} kg` : 'n/d'}
                 detalhe="gasolina C (E30), parte fóssil"
                 atraso={80}
               />
@@ -103,7 +103,7 @@ export default async function UsoPage({ searchParams }: { searchParams: Promise<
               />
             </div>
             {eco.serie_diaria.length ? (
-              <Cartao titulo="Litros economizados por dia">
+              <Cartao titulo="Litros economizados por dia" nota="Estimativa por rota: litros = K1·km + K2·horas (Evans, Herman e Lam, 1976). Só a parte positiva entra na soma.">
                 <BarrasCombustivel dados={eco.serie_diaria} />
               </Cartao>
             ) : null}
@@ -157,7 +157,7 @@ export default async function UsoPage({ searchParams }: { searchParams: Promise<
                 <tr key={e.id}>
                   <td className="num text-xs">{fmtData(e.criado_em)}</td>
                   <td>{e.tipo.replace('_', ' ')}</td>
-                  <td>{e.plataforma ?? '—'}</td>
+                  <td>{e.plataforma ?? 'n/d'}</td>
                   <td className="num max-w-[220px] truncate text-xs text-muted-foreground" title={JSON.stringify(e.dados)}>
                     {JSON.stringify(e.dados)}
                   </td>
@@ -167,7 +167,7 @@ export default async function UsoPage({ searchParams }: { searchParams: Promise<
             {!eventos.data?.length && !eventos.error ? <p className="mt-3 text-sm text-muted-foreground">Nenhum evento ainda.</p> : null}
           </Cartao>
 
-          <Cartao titulo="Últimas requisições à API">
+          <Cartao titulo="Últimas requisições à API" siglas={['5xx', 'p95']}>
             <Tabela cabecalho={['Quando', 'Requisição', 'Status', 'Latência']}>
               {((requisicoes.data ?? []) as Requisicao[]).map((q) => (
                 <tr key={q.id}>

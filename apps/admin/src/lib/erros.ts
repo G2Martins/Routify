@@ -12,7 +12,7 @@ export const faltaMigracao = (e?: { code?: string } | null) => !!e?.code && FALT
 
 /** "ação repetida" → "Ação repetida." */
 const frase = (s: string | undefined, padrao: string) => {
-  const t = (s || padrao).trim();
+  const t = (s || padrao).trim().replace(/\s+—\s+/g, ': ');
   return t.charAt(0).toUpperCase() + t.slice(1) + (/[.!?]$/.test(t) ? '' : '.');
 };
 
@@ -27,17 +27,17 @@ export function mensagemErro(e: ErroBruto): string {
     case 'P0002':
       return frase(e.message, 'não encontrado');
     case '23514':
-      return 'Valor recusado pelas regras do banco — confira os campos (ex.: fim depois do início).';
+      return 'Valor recusado pelas regras do banco: confira os campos (ex.: fim depois do início).';
     case 'PGRST301':
     case 'PGRST303':
-      return 'Sessão expirada — recarregue a página.';
+      return 'Sessão expirada. Recarregue a página.';
   }
   if (e.status !== undefined) {
     switch (e.status) {
       case 0:
         return 'API fora do ar ou NEXT_PUBLIC_API_URL incorreta.';
       case 401:
-        return 'Sessão expirada — recarregue a página.';
+        return 'Sessão expirada. Recarregue a página.';
       case 403:
         return 'Acesso negado pela API.';
       case 429:

@@ -64,6 +64,7 @@ export function UsoChaves() {
   return (
     <Cartao
       titulo="Uso real das chaves no mês"
+      siglas={['Flow', '429']}
       nota={`Coletor (EC2, a cada ciclo) + API (a cada minuto). A contagem começou em 03/11/2026: antes disso o uso não era gravado. Comparador e A/B chamam a TomTom direto ~350 vezes por dia (Routing) e ficam de fora. Pool: ${total} chaves.`}
     >
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -107,7 +108,7 @@ export function UsoChaves() {
                 <td className="num">{fmtInt(da('busca'))}</td>
                 <td className="num">{fmtInt(da('rota'))}</td>
                 <td className="num">{fmtInt(soma((l) => l.chave_id === id, 'falhas_mes'))}</td>
-                <td className="num">{ultima?.ultimo_status ?? '—'}</td>
+                <td className="num">{ultima?.ultimo_status ?? 'n/d'}</td>
                 <td>
                   {fora.length ? (
                     <Selo tom="alerta">
@@ -117,7 +118,7 @@ export function UsoChaves() {
                     <Selo tom="ok">no rodízio</Selo>
                   )}
                 </td>
-                <td className="text-xs">{ultima ? hora.format(new Date(ultima.atualizado_em)) : '—'}</td>
+                <td className="text-xs">{ultima ? hora.format(new Date(ultima.atualizado_em)) : 'n/d'}</td>
               </tr>
             );
           })}

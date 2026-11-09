@@ -1,5 +1,6 @@
 import { BarrasVies, DispersaoRotasReais, GraficoLinhas, type SerieLinha } from '@/components/graficos';
-import { Aviso, Cartao, Kpi, Mini, Selo, Tabela } from '@/components/ui';
+import { Aviso, Cartao, Kpi, Mini, Selo, Siglas, Tabela } from '@/components/ui';
+import { lerTransito } from '@/lib/leitura';
 import { fmtData, fmtDec, fmtDia, fmtInt, fmtMin, fmtPct, fmtPctSinal, num, rotuloVersao } from '@/lib/formato';
 import {
   chipsReceita,
@@ -46,7 +47,7 @@ const melhor = (sim: boolean) => (sim ? 'font-semibold underline decoration-acce
 
 /** Desvio (%) contra a referência: régua centrada no zero (fundo de escala ±50%) e o número com sinal. */
 function Desvio({ pct }: { pct: number | null }) {
-  if (pct === null) return <span className="text-muted-foreground">—</span>;
+  if (pct === null) return <span className="text-muted-foreground">n/d</span>;
   const lado = Math.min(Math.abs(pct), 50);
   return (
     <span className="inline-flex items-center gap-2">
@@ -72,7 +73,9 @@ export function CartaoModelo({
   ativo,
   treino,
   ablacao,
+  leitura,
 }: {
+  leitura?: string[];
   ativo: string | null;
   treino: LiaTreino | undefined;
   ablacao: AblacaoLia23 | undefined;
@@ -118,13 +121,15 @@ export function CartaoModelo({
     { rotulo: 'MAE', modelo: num(treino.mae_seg), desvio: num(treino.mae_seg_std), pers: persMae, perfil: num(treino.baseline_mae_seg) },
   ];
   const celula = (v: number | null, destaque: boolean) => (
-    <span className={`num text-lg sm:text-xl ${melhor(destaque)}`}>{v === null ? '—' : `${fmtDec(v)} s`}</span>
+    <span className={`num text-lg sm:text-xl ${melhor(destaque)}`}>{v === null ? 'n/d' : `${fmtDec(v)} s`}</span>
   );
 
   return (
     <Cartao
       titulo="Modelo em produção"
       className="mb-5"
+      leitura={leitura}
+      siglas={['CV', 'fold', 'MAE', 'RMSE', 'persistência', 'baseline']}
       nota={
         <>
           Validação cruzada temporal de 5 folds, em segundos por trecho de via; ± é o desvio entre folds. Persistência = repetir a
@@ -197,6 +202,7 @@ export function CartaoModelo({
 /* ---------- 2. KPIs da janela ---------- */
 
 export function KpisJanela({ d }: { d: ComparacaoProvedores }) {
+  // legenda curta no fim do bloco; ver <Siglas> abaixo
   const mt = d.lia_mesmo_trajeto;
   const vs = (id: string) => d.vs_tomtom.find((x) => x.provedor === id);
   const semTransito = new Set(d.provedores.filter((p) => !p.com_transito).map((p) => p.provedor));
@@ -244,6 +250,7 @@ export function KpisJanela({ d }: { d: ComparacaoProvedores }) {
         Mesmo trajeto = a TomTom estima o caminho que a LIA escolheu, então só muda o modelo de velocidade. Viés negativo = o
         provedor estima menos tempo que a TomTom; MAPE = erro absoluto médio.
       </p>
+      <Siglas termos={['viés', 'MAPE', 'trânsito']} />
     </div>
   );
 }
@@ -263,6 +270,8 @@ export function TabelaProvedores({ d }: { d: ComparacaoProvedores }) {
     <Cartao
       titulo="Cada provedor contra a TomTom"
       atraso={200}
+      leitura={lerTransito(d)}
+      siglas={['TomTom', 'Mapbox', 'OSRM', 'trânsito', 'tempo de mapa', 'MAPE', 'viés']}
       nota="Pares = mesma viagem, mesma rodada. Traçado igual = quanto da rota coincide com a da TomTom (até 40 m, nos dois sentidos). Respostas e falhas contam todas as linhas gravadas na janela, inclusive as que não formaram par."
     >
       <Tabela cabecalho={['Provedor', 'Trânsito', 'Pares', 'Viés mediano', 'MAPE', 'Dentro de ±20%', 'Traçado igual', 'Respostas', 'Falhas']}>
@@ -276,11 +285,11 @@ export function TabelaProvedores({ d }: { d: ComparacaoProvedores }) {
                 {COMPARA[id] ? <span className="block max-w-72 text-[11px] leading-snug text-muted-foreground">{COMPARA[id]}</span> : null}
               </td>
               <td>{p?.com_transito ? <Selo tom="ok">ao vivo</Selo> : <Selo tom="neutro">tempo de mapa</Selo>}</td>
-              <td className="num">{v ? fmtInt(v.n) : '—'}</td>
-              <td className="num">{v ? fmtPctSinal(v.vies_mediano_pct) : '—'}</td>
-              <td className="num">{v ? fmtPct(v.mape_pct) : '—'}</td>
-              <td className="num">{v ? fmtPct(v.pct_ate_20) : '—'}</td>
-              <td className="num">{v?.traco_comum_pct != null ? fmtPct(v.traco_comum_pct) : '—'}</td>
+              <td className="num">{v ? fmtInt(v.n) : 'n/d'}</td>
+              <td className="num">{v ? fmtPctSinal(v.vies_mediano_pct) : 'n/d'}</td>
+              <td className="num">{v ? fmtPct(v.mape_pct) : 'n/d'}</td>
+              <td className="num">{v ? fmtPct(v.pct_ate_20) : 'n/d'}</td>
+              <td className="num">{v?.traco_comum_pct != null ? fmtPct(v.traco_comum_pct) : 'n/d'}</td>
               <td className="num">{fmtInt(p?.n_ok)}</td>
               <td className={`num ${p?.n_falhas ? 'text-destructive' : ''}`}>{fmtInt(p?.n_falhas)}</td>
             </tr>
@@ -317,6 +326,7 @@ export function ModelosHistoricos({ h }: { h: ProvedoresHistoricos }) {
     <Cartao
       titulo="LIA × modelos históricos dos provedores"
       atraso={220}
+      siglas={['ETA', 'MAPE', 'viés']}
       nota={
         <>
           A LIA prevê pelo histórico mais a última leitura da via; a TomTom e o Mapbox também têm um ETA só pelo histórico. Os dois são
@@ -332,10 +342,10 @@ export function ModelosHistoricos({ h }: { h: ProvedoresHistoricos }) {
               <span className="font-medium">{l.nome}</span>
               <span className="block max-w-72 text-[11px] leading-snug text-muted-foreground">{l.compara}</span>
             </td>
-            <td className="num">{l.v ? fmtInt(l.v.n) : '—'}</td>
-            <td className="num">{l.v ? fmtPctSinal(l.v.vies_mediano_pct) : '—'}</td>
-            <td className={`num ${melhor(destaque.includes(i))}`}>{l.v ? fmtPct(l.v.mape_pct) : '—'}</td>
-            <td className="num">{l.v ? fmtPct(l.v.pct_ate_20) : '—'}</td>
+            <td className="num">{l.v ? fmtInt(l.v.n) : 'n/d'}</td>
+            <td className="num">{l.v ? fmtPctSinal(l.v.vies_mediano_pct) : 'n/d'}</td>
+            <td className={`num ${melhor(destaque.includes(i))}`}>{l.v ? fmtPct(l.v.mape_pct) : 'n/d'}</td>
+            <td className="num">{l.v ? fmtPct(l.v.pct_ate_20) : 'n/d'}</td>
           </tr>
         ))}
       </Tabela>
@@ -390,7 +400,7 @@ export function UltimaRodada({ d }: { d: ComparacaoProvedores }) {
                           falhou{l.erro ? ` · ${l.erro}` : ''}
                         </span>
                       ) : (
-                        <span className="text-muted-foreground">—</span>
+                        <span className="text-muted-foreground">n/d</span>
                       )}
                     </td>
                   );
@@ -420,7 +430,7 @@ export function UltimaRodada({ d }: { d: ComparacaoProvedores }) {
                             <span className="num ml-1.5 text-[11px] text-muted-foreground">n = {fmtInt(x.n)}</span>
                           </>
                         ) : (
-                          <span className="text-muted-foreground">—</span>
+                          <span className="text-muted-foreground">n/d</span>
                         )}
                       </td>
                     );
@@ -445,6 +455,7 @@ export function ViesPorHora({ d }: { d: ComparacaoProvedores }) {
     <Cartao
       titulo="Viés mediano por hora do dia"
       atraso={280}
+      siglas={['viés', 'tempo de mapa']}
       nota="Horário de Brasília; cada ponto é uma das rodadas fixas (n no tooltip). A linha zero é a TomTom: abaixo dela o provedor estima menos tempo. Tracejado = sem trânsito (tempo de mapa)."
     >
       {series.length ? (
@@ -618,6 +629,7 @@ export function Ablacao({ a }: { a: AblacaoLia23 | undefined }) {
     <div className="space-y-5">
       <Cartao
         titulo="Ablação 2.2 → 2.3 · o que cada mudança da receita traz"
+        siglas={['CV', 'OOF', 'RMSE', 'MAE']}
         atraso={360}
         nota={
           <>
@@ -664,16 +676,16 @@ export function Ablacao({ a }: { a: AblacaoLia23 | undefined }) {
                   <span className={melhor(melhorIdade[i].mae.has(k))}>{fmtDec(l.idade[i]?.mae)}</span>
                 </td>
               ))}
-              <td className="num whitespace-nowrap">{l.folds ?? '—'}</td>
+              <td className="num whitespace-nowrap">{l.folds ?? 'n/d'}</td>
             </tr>
           ))}
         </Tabela>
       </Cartao>
       <div className="grid gap-5 lg:grid-cols-2">
-        <Cartao titulo="RMSE × idade da última leitura" atraso={400} nota="Quanto mais velha a leitura, mais o modelo precisa do perfil. A persistência degrada rápido; a 2.3 foi treinada para isso.">
+        <Cartao titulo="RMSE × idade da última leitura" atraso={400} siglas={['RMSE', 'persistência']} nota="Quanto mais velha a leitura, mais o modelo precisa do perfil. A persistência degrada rápido; a 2.3 foi treinada para isso.">
           <GraficoLinhas dados={dadosIdade('rmse')} x="idade" series={series} formatoX="minutos" unidade=" s" dominioY="zero" rotulo="RMSE em segundos por idade da última leitura" />
         </Cartao>
-        <Cartao titulo="MAE × idade da última leitura" atraso={440} nota="Erro típico, menos sensível a picos. Mesmos folds e mesmas séries do gráfico ao lado.">
+        <Cartao titulo="MAE × idade da última leitura" atraso={440} siglas={['MAE']} nota="Erro típico, menos sensível a picos. Mesmos folds e mesmas séries do gráfico ao lado.">
           <GraficoLinhas dados={dadosIdade('mae')} x="idade" series={series} formatoX="minutos" unidade=" s" dominioY="zero" rotulo="MAE em segundos por idade da última leitura" />
         </Cartao>
       </div>
@@ -746,6 +758,7 @@ export function ForaDoTempo({ a }: { a: AvaliacaoForaDoTempo | undefined }) {
     <div className="space-y-5">
       <Cartao
         titulo="Avaliação fora do tempo · leituras que nenhum modelo viu"
+        siglas={['RMSE', 'MAE', 'persistência', 'baseline']}
         atraso={480}
         nota={
           <>
@@ -779,7 +792,7 @@ export function ForaDoTempo({ a }: { a: AvaliacaoForaDoTempo | undefined }) {
                 <td className="font-medium">{rotuloVersao(versao)}</td>
                 <td className="num text-xs">{fmtDia(v.fim_do_treino)}</td>
                 <td className="num">{fmtInt(v.n_linhas)}</td>
-                <td className="num">{v.idade_mediana_leitura_min === undefined ? '—' : `${fmtDec(v.idade_mediana_leitura_min)} min`}</td>
+                <td className="num">{v.idade_mediana_leitura_min === undefined ? 'n/d' : `${fmtDec(v.idade_mediana_leitura_min)} min`}</td>
                 <td className="num"><span className={melhor(r.has(0))}>{fmtDec(f?.modelo?.rmse_seg)}</span></td>
                 <td className="num"><span className={melhor(r.has(1))}>{fmtDec(f?.persistencia?.rmse_seg)}</span></td>
                 <td className="num"><span className={melhor(r.has(2))}>{fmtDec(f?.perfil?.rmse_seg)}</span></td>
@@ -792,10 +805,10 @@ export function ForaDoTempo({ a }: { a: AvaliacaoForaDoTempo | undefined }) {
         </Tabela>
       </Cartao>
       <div className="grid gap-5 lg:grid-cols-2">
-        <Cartao titulo="RMSE por hora do dia" atraso={520} nota="Horário de Brasília. Mostra se o erro muda com o horário, o que o dataset de treino (enviesado no tempo) não deixava ver.">
+        <Cartao titulo="RMSE por hora do dia" atraso={520} siglas={['RMSE']} nota="Horário de Brasília. Mostra se o erro muda com o horário, o que o dataset de treino (enviesado no tempo) não deixava ver.">
           <GraficoLinhas dados={dadosHora} x="hora" series={series} formatoX="hora" unidade=" s" dominioY="zero" ticksX={horas.filter((h) => h % 3 === 0)} rotulo="RMSE em segundos por hora do dia, fora do tempo" />
         </Cartao>
-        <Cartao titulo="RMSE por idade da leitura" atraso={560} nota="Idades maiores simulam partidas no futuro, com a recência envelhecida.">
+        <Cartao titulo="RMSE por idade da leitura" atraso={560} siglas={['RMSE']} nota="Idades maiores simulam partidas no futuro, com a recência envelhecida.">
           <GraficoLinhas dados={dadosIdade} x="idade" series={series} formatoX="minutos" unidade=" s" dominioY="zero" rotulo="RMSE em segundos por idade da última leitura, fora do tempo" />
         </Cartao>
       </div>
@@ -825,6 +838,7 @@ export function Fase3({ f }: { f: Fase3Comparacao | undefined }) {
   return (
     <Cartao
       titulo={`Fase 3 histórica · ${rotuloModelo} × TomTom × menor distância`}
+      siglas={['TomTom', 'ETA', 'viés']}
       atraso={600}
       nota={
         <>
@@ -858,7 +872,7 @@ export function Fase3({ f }: { f: Fase3Comparacao | undefined }) {
         <tr className="font-medium">
           <td>Todas as rodadas · viés mediano</td>
           <td className="num">{fmtInt(r.n)}</td>
-          <td className="text-muted-foreground">—</td>
+          <td className="text-muted-foreground">n/d</td>
           <td>
             <Desvio pct={r.viesLia} />
           </td>

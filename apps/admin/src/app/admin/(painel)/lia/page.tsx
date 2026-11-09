@@ -2,15 +2,13 @@ import { BarrasVersao, BenchmarkFolds, Congestionamento, CurvaCalibracao, Disper
 import Link from 'next/link';
 import { Aviso, BTN_SECUNDARIO, Cabecalho, Cartao, ErroConsulta, Kpi, Selo, Tabela } from '@/components/ui';
 import { exigirAdmin } from '@/lib/auth';
-import { fmtData, fmtDec, fmtInt, num, rotuloVersao as rotulo } from '@/lib/formato';
+import { fmtData, fmtDec, fmtInt, num, rotuloVersao as rotulo, semTravessao } from '@/lib/formato';
 import { MIGRACAO_ACOES } from '@/lib/erros';
+import { lerBenchmark, lerCalibracao, lerCongestionamento, lerFeedback, lerPortao, lerVersoes, type Portao, versaoMaisNova } from '@/lib/leitura';
 import { modeloAtivo } from '@/lib/saude';
 import type { Benchmark, Calibracao, EstresseLia22, Feedback, LiaTreino } from '@/lib/tipos';
 import { Estresse } from './Estresse';
 import { FeedbackOutliers } from './FeedbackOutliers';
-
-// Sem resposta da API (/health), o destaque cai na versão que a tese cita, e a página avisa.
-const VERSAO_DA_TESE = 'lia_2.1';
 
 const ganho = (valor: number | null, base: number | null) =>
   valor === null || base === null || base === 0 ? null : ((valor - base) / base) * 100;
@@ -28,8 +26,10 @@ export default async function LiaPage() {
   const calibracao = analises.data?.find((a) => a.chave === 'calibracao_transfer')?.dados as Calibracao | undefined;
   const benchmark = analises.data?.find((a) => a.chave === 'benchmark_lstm_xgboost')?.dados as Benchmark | undefined;
   const estresse = analises.data?.find((a) => a.chave === 'estresse_lia22')?.dados as EstresseLia22 | undefined;
+  const portao = analises.data?.find((a) => a.chave === 'gate_lia_2_4')?.dados as Portao | undefined;
   // A versão em destaque é a que a API está servindo agora; os KPIs e o baseline seguem ela.
-  const destaque = ativo ?? VERSAO_DA_TESE;
+  // Sem resposta da API (/health), cai na versão comparável mais nova do dado, e a página avisa.
+  const destaque = ativo ?? versaoMaisNova(linhas) ?? '';
   const ativa = linhas.find((l) => l.versao === destaque);
   const baseMae = num(ativa?.baseline_mae_seg);
   const baseRmse = num(ativa?.baseline_rmse_seg);
@@ -39,7 +39,7 @@ export default async function LiaPage() {
     linhas
       .filter((l) => num(l[campo]) !== null)
       .map((l) => ({
-        versao: rotulo(l.versao),
+        versao: l.versao === destaque ? `${rotulo(l.versao)} · atual` : rotulo(l.versao),
         valor: num(l[campo]) ?? 0,
         desvio: num(l[desvio]) ?? 0,
         comparavel: l.validacao === 'temporal',
@@ -53,15 +53,12 @@ export default async function LiaPage() {
   const pontosFeedback = linhasFeedback
     .filter((p) => p.tempo_previsto_seg !== null && !p.feedback_excluido)
     .map((p) => ({ previsto: (p.tempo_previsto_seg ?? 0) / 60, real: p.tempo_real_seg / 60 }));
-  const maeReal = pontosFeedback.length
-    ? pontosFeedback.reduce((s, p) => s + Math.abs(p.previsto - p.real), 0) / pontosFeedback.length
-    : null;
 
   return (
     <>
       <Cabecalho
-        titulo="LIA · desempenho e benchmarks"
-        sobre="Acompanhamento contínuo dos resultados pedidos pelo orientador. Todo número vem dos artefatos versionados em ml/artifacts, publicados por ml/publish_metrics.py."
+        titulo="LIA: desempenho e benchmarks"
+        sobre="Como a LIA atual se compara às versões anteriores. Os números vêm de ml/artifacts, publicados por ml/publish_metrics.py."
         direita={
           <Link href="/admin/provedores" className={BTN_SECUNDARIO}>
             LIA × provedores →
@@ -78,8 +75,8 @@ export default async function LiaPage() {
 
       {linhas.length ? (
         <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          {ativo ? <Selo tom="ok">ativa na API · {rotulo(ativo)}</Selo> : <Selo tom="alerta">API fora do ar · destacando {rotulo(destaque)}</Selo>}
-          <span>KPIs, baseline e destaque dos gráficos seguem esta versão.</span>
+          {ativo ? <Selo tom="ok">ativa na API · {rotulo(ativo)}</Selo> : <Selo tom="alerta">API fora do ar · destacando {destaque ? rotulo(destaque) : 'nenhuma versão'}</Selo>}
+          <span>KPIs, baseline e destaque seguem esta versão.</span>
         </div>
       ) : null}
 
@@ -87,9 +84,9 @@ export default async function LiaPage() {
         <div className="mb-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
           <Kpi rotulo={`RMSE ${rotulo(ativa.versao)}`} valor={`${fmtDec(ativa.rmse_seg)} s`} detalhe={`baseline ${fmtDec(baseRmse)} s`} />
           <Kpi
-            rotulo="Ganho em RMSE"
+            rotulo="RMSE contra o baseline"
             valor={`${fmtDec(Math.abs(ganhoRmse ?? 0))}%`}
-            detalhe={ganhoRmse !== null && ganhoRmse > 0 ? 'PIOR que o baseline histórico' : 'menor que o baseline histórico'}
+            detalhe={ganhoRmse !== null && ganhoRmse > 0 ? 'pior que o baseline' : 'menor que o baseline'}
             atraso={40}
           />
           <Kpi rotulo={`MAE ${rotulo(ativa.versao)}`} valor={`${fmtDec(ativa.mae_seg)} s`} detalhe={`baseline ${fmtDec(baseMae)} s`} atraso={80} />
@@ -105,12 +102,49 @@ export default async function LiaPage() {
 
       {linhas.length ? (
         <div className="mb-5 grid gap-5 lg:grid-cols-2">
-          <Cartao titulo="MAE por versão" nota="Erro típico, em segundos por trecho. Hachura = validação não temporal (LIA 1.0), não comparável." atraso={160}>
+          <Cartao
+            titulo="MAE por versão"
+            nota="Erro típico, em segundos por trecho. Azul: versão atual. Hachura: validação não temporal, não comparável. Linha tracejada: baseline da atual."
+            atraso={160}
+            leitura={lerVersoes(linhas, destaque, 'mae_seg')}
+            siglas={['MAE', 'baseline', 'CV']}
+          >
             <BarrasVersao dados={barras('mae_seg', 'mae_seg_std')} baseline={baseMae} />
           </Cartao>
-          <Cartao titulo="RMSE por versão" nota="Penaliza erros grandes (congestionamento). Barras de erro: desvio entre os 5 folds temporais." atraso={200}>
+          <Cartao
+            titulo="RMSE por versão"
+            nota="Pesa mais os erros grandes. Barras de erro: desvio entre os 5 folds temporais."
+            atraso={200}
+            leitura={lerVersoes(linhas, destaque, 'rmse_seg')}
+            siglas={['RMSE', 'fold']}
+          >
             <BarrasVersao dados={barras('rmse_seg', 'rmse_seg_std')} baseline={baseRmse} />
           </Cartao>
+          {portao?.escolhida && portao.juntas ? (
+            <Cartao
+              titulo="Teste fora do tempo: mesmas leituras para todos"
+              nota="Segundos por trecho, em leituras que nenhum modelo viu no treino."
+              atraso={220}
+              leitura={lerPortao(portao, 'lia_2.4', 'lia_2.3')}
+              siglas={['RMSE', 'MAE', 'persistência']}
+              className="lg:col-span-2"
+            >
+              <Tabela cabecalho={['Modelo', 'RMSE (s)', 'MAE (s)']}>
+                {([
+                  ['LIA 2.4', portao.juntas[portao.escolhida]],
+                  ['LIA 2.3', portao.juntas['lia_2.3']],
+                  ['Persistência', portao.juntas.persistencia],
+                  ['Estático (fluxo livre)', portao.juntas.estatico],
+                ] as const).map(([nome, d]) => (
+                  <tr key={nome}>
+                    <td className="font-medium">{nome}</td>
+                    <td>{fmtDec(d?.rmse_seg ?? null)}</td>
+                    <td>{fmtDec(d?.mae_seg ?? null)}</td>
+                  </tr>
+                ))}
+              </Tabela>
+            </Cartao>
+          ) : null}
         </div>
       ) : null}
 
@@ -119,7 +153,9 @@ export default async function LiaPage() {
           titulo={`Knowledge Transfer: confiança × distância (${fmtInt(calibracao.metodologia.n_pares_totais)} pares)`}
           className="mb-5"
           atraso={240}
-          nota="Pontos: confiança do erro médio de cada faixa. Curva: regressão isotônica não crescente sobre a confiança de cada par (já recortada em [0, 1]) — por isso passa acima dos pontos além de ~600 m, fora do raio usado pela API."
+          nota="Pontos: confiança do erro médio de cada faixa. Curva: ajuste sobre a confiança de cada par (recortada em [0, 1]); por isso passa acima dos pontos além de ~600 m, fora do raio usado pela API."
+          leitura={lerCalibracao(calibracao)}
+          siglas={['Knowledge Transfer', 'isotônica']}
         >
           <CurvaCalibracao dados={calibracao} />
         </Cartao>
@@ -127,7 +163,7 @@ export default async function LiaPage() {
 
       {benchmark ? (
         <div className="mb-5 grid gap-5 lg:grid-cols-[1.5fr_1fr]">
-          <Cartao titulo="Benchmark LSTM × XGBoost — RMSE por fold temporal" atraso={280} nota={benchmark.conclusao}>
+          <Cartao titulo="Benchmark LSTM × XGBoost: RMSE por fold temporal" atraso={280} nota={semTravessao(benchmark.conclusao)} leitura={lerBenchmark(benchmark)} siglas={['LSTM', 'XGBoost', 'RMSE', 'fold']}>
             <BenchmarkFolds dados={benchmark} />
           </Cartao>
           <Cartao titulo="Tempo de treino por fold" atraso={320} nota={`LSTM com ${fmtInt(benchmark.n_parametros_lstm)} parâmetros. Mesma máquina para os três.`}>
@@ -138,10 +174,12 @@ export default async function LiaPage() {
 
       {ativa && num(ativa.rmse_congestionado_seg) !== null ? (
         <Cartao
-          titulo="Erro geral × trechos congestionados (razão < 0,95)"
+          titulo="Erro geral × trechos congestionados"
           className="mb-5"
           atraso={360}
-          nota="Limitação conhecida: o ganho sobre o baseline se mantém no congestionamento, mas o erro absoluto mais que dobra."
+          nota="Congestionado: razão de congestionamento abaixo de 0,95. Limitação conhecida: o erro absoluto sobe nesses trechos."
+          leitura={lerCongestionamento(ativa)}
+          siglas={['razão de congestionamento', 'RMSE', 'baseline']}
         >
           <Congestionamento
             geral={[baseRmse ?? 0, num(ativa.rmse_seg) ?? 0]}
@@ -154,14 +192,12 @@ export default async function LiaPage() {
       {estresse ? <Estresse e={estresse} ativo={ativo} /> : null}
 
       <Cartao
-        titulo="Erro real em produção — previsto × informado pelo usuário"
+        titulo="Erro real em produção: previsto × informado"
         className="mb-5"
         atraso={400}
-        nota={
-          maeReal !== null
-            ? `MAE real: ${fmtDec(maeReal)} min em ${pontosFeedback.length} viagens${excluidas ? ` (${excluidas} excluída${excluidas > 1 ? 's' : ''} como outlier)` : ''}. Linha tracejada = previsão perfeita.`
-            : undefined
-        }
+        nota={`Linha tracejada: previsão perfeita.${excluidas ? ` ${excluidas} viagem${excluidas > 1 ? 's' : ''} excluída${excluidas > 1 ? 's' : ''} como outlier.` : ''}`}
+        leitura={lerFeedback(pontosFeedback)}
+        siglas={['MAE', 'viés']}
       >
         {feedback.error ? (
           <ErroConsulta erro={feedback.error} />
@@ -185,7 +221,7 @@ export default async function LiaPage() {
       </Cartao>
 
       {linhas.length ? (
-        <Cartao titulo="Histórico de versões publicadas" atraso={440}>
+        <Cartao titulo="Histórico de versões publicadas" atraso={440} siglas={['MAE', 'RMSE']}>
           <Tabela cabecalho={['Versão', 'Validação', 'MAE', 'RMSE', 'Amostras', 'Fonte', 'Publicado em']}>
             {linhas.map((l) => (
               <tr key={l.versao}>

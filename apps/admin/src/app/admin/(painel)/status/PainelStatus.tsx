@@ -34,8 +34,8 @@ async function medir<T>(f: () => Promise<{ dados: T | null; erro: string | null 
 
 const minutosDesde = (iso: string | null | undefined) => (iso ? (Date.now() - new Date(iso).getTime()) / 60000 : null);
 const idade = (min: number | null) =>
-  min === null ? '—' : min < 1 ? 'agora' : min < 60 ? `há ${Math.round(min)} min` : `há ${(min / 60).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h`;
-const ms = (v: number | null | undefined) => (v === null || v === undefined ? '—' : v < 1000 ? `${Math.round(v)} ms` : `${(v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} s`);
+  min === null ? 'n/d' : min < 1 ? 'agora' : min < 60 ? `há ${Math.round(min)} min` : `há ${(min / 60).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h`;
+const ms = (v: number | null | undefined) => (v === null || v === undefined ? 'n/d' : v < 1000 ? `${Math.round(v)} ms` : `${(v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} s`);
 const ROTULO: Record<Tom, string> = { ok: 'No ar', alerta: 'Atenção', erro: 'Fora do ar', neutro: 'Sem dado' };
 const TOM_EXTERNO: Record<ProvedorExterno['indicador'], Tom> = { ok: 'ok', menor: 'alerta', maior: 'erro', critico: 'erro', desconhecido: 'neutro' };
 
@@ -117,7 +117,7 @@ export function PainelStatus() {
         <p className="text-sm text-muted-foreground">
           {atualizado ? `Atualizado às ${hora.format(atualizado)} · próxima verificação em 30 s` : 'Verificando agora…'}
         </p>
-        <button type="button" onClick={carregar} className="ml-auto rounded-md border border-border px-3 py-1.5 text-xs hover:border-border-strong">
+        <button type="button" onClick={carregar} className="ml-auto min-h-11 rounded-md border border-border px-3 py-1.5 text-xs hover:border-border-strong pointer-fine:min-h-0">
           Verificar agora
         </button>
       </div>
@@ -127,9 +127,9 @@ export function PainelStatus() {
           <Selo tom={tomApi}>{ROTULO[tomApi]}</Selo>
           <div className="mt-4 grid grid-cols-2 gap-3">
             <Mini rotulo="Resposta" valor={ms(api.ms)} />
-            <Mini rotulo="Modelo" valor={api.dados?.modelo_ativo?.replace('lia_', 'LIA ') ?? '—'} />
+            <Mini rotulo="Modelo" valor={api.dados?.modelo_ativo?.replace('lia_', 'LIA ') ?? 'n/d'} />
             <Mini rotulo="Última leitura" valor={idade(minRecencia)} detalhe="recência que a LIA usa" />
-            <Mini rotulo="Chaves TomTom" valor={!saude ? '—' : saude.tomtom.ativo ? fmtInt(saude.tomtom.chaves) : 'desligado'}
+            <Mini rotulo="Chaves TomTom" valor={!saude ? 'n/d' : saude.tomtom.ativo ? fmtInt(saude.tomtom.chaves) : 'desligado'}
                   detalhe={Object.entries(disponiveis).map(([k, v]) => `${k} ${v}`).join(' · ') || undefined} />
           </div>
         </Cartao>
@@ -138,9 +138,9 @@ export function PainelStatus() {
           <Selo tom={tomBanco}>{ROTULO[tomBanco]}</Selo>
           <div className="mt-4 grid grid-cols-2 gap-3">
             <Mini rotulo="Resposta" valor={ms(banco.ms)} />
-            <Mini rotulo="Tamanho" valor={d ? fmtBytes(d.banco_bytes) : '—'} detalhe={d ? `${Math.round((100 * d.banco_bytes) / LIMITE_BANCO)}% dos 500 MB do plano grátis` : undefined} />
-            <Mini rotulo="Conexões" valor={d ? fmtInt(d.conexoes) : '—'} />
-            <Mini rotulo="Relógio do banco" valor={d ? hora.format(new Date(d.agora)) : '—'} />
+            <Mini rotulo="Tamanho" valor={d ? fmtBytes(d.banco_bytes) : 'n/d'} detalhe={d ? `${Math.round((100 * d.banco_bytes) / LIMITE_BANCO)}% dos 500 MB do plano grátis` : undefined} />
+            <Mini rotulo="Conexões" valor={d ? fmtInt(d.conexoes) : 'n/d'} />
+            <Mini rotulo="Relógio do banco" valor={d ? hora.format(new Date(d.agora)) : 'n/d'} />
           </div>
         </Cartao>
 
@@ -148,17 +148,17 @@ export function PainelStatus() {
           <Selo tom={tomColeta}>{tomColeta === 'neutro' ? 'Sem dado' : tomColeta === 'ok' ? 'Coletando' : tomColeta === 'alerta' ? 'Atrasada' : 'Parada'}</Selo>
           <div className="mt-4 grid grid-cols-2 gap-3">
             <Mini rotulo="Último lote" valor={idade(minColeta)} detalhe={d?.coleta.ultima ? dataHora.format(new Date(d.coleta.ultima)) : undefined} />
-            <Mini rotulo="Linhas na última hora" valor={d ? fmtInt(d.coleta.linhas_1h) : '—'} />
-            <Mini rotulo="Linhas em 24 h" valor={d ? fmtInt(d.coleta.linhas_24h) : '—'} />
-            <Mini rotulo="Pontos em 24 h" valor={d ? `${fmtInt(d.coleta.pontos_24h)} de 630` : '—'} />
+            <Mini rotulo="Linhas na última hora" valor={d ? fmtInt(d.coleta.linhas_1h) : 'n/d'} />
+            <Mini rotulo="Linhas em 24 h" valor={d ? fmtInt(d.coleta.linhas_24h) : 'n/d'} />
+            <Mini rotulo="Pontos em 24 h" valor={d ? `${fmtInt(d.coleta.pontos_24h)} de 630` : 'n/d'} />
           </div>
         </Cartao>
 
-        <Cartao titulo="Comparador LIA × provedores" nota="8 rodadas por dia (picos inclusos); cada rodada dispara a rotina de validação.">
+        <Cartao titulo="Comparador LIA × provedores" siglas={['TomTom', 'OSRM']} nota="8 rodadas por dia (picos inclusos); cada rodada dispara a rotina de validação.">
           <Selo tom={tomComp}>{tomComp === 'neutro' ? 'Sem dado' : tomComp === 'ok' ? 'Em dia' : tomComp === 'alerta' ? 'Atrasado' : 'Parado'}</Selo>
           <div className="mt-4 grid grid-cols-2 gap-3">
             <Mini rotulo="Última rodada" valor={idade(minComp)} detalhe={d?.comparador.ultima_rodada ? dataHora.format(new Date(d.comparador.ultima_rodada)) : undefined} />
-            <Mini rotulo="Rodadas em 24 h" valor={d ? fmtInt(d.comparador.rodadas_24h) : '—'} />
+            <Mini rotulo="Rodadas em 24 h" valor={d ? fmtInt(d.comparador.rodadas_24h) : 'n/d'} />
           </div>
         </Cartao>
 
@@ -166,19 +166,19 @@ export function PainelStatus() {
           <Selo tom={tomFront}>{ROTULO[tomFront]}</Selo>
           <div className="mt-4 grid grid-cols-2 gap-3">
             <Mini rotulo="Resposta" valor={ms(front.ms)} />
-            <Mini rotulo="HTTP" valor={front.dados ? String(front.dados) : '—'} />
+            <Mini rotulo="HTTP" valor={front.dados ? String(front.dados) : 'n/d'} />
           </div>
         </Cartao>
 
-        <Cartao titulo="Máquina da API (EC2 t3)" nota={sistema.erro ? `Erro: ${sistema.erro}` : 'CPU roubada alta = crédito de CPU da t3 esgotado (rotas lentas).'}>
+        <Cartao titulo="Máquina da API (EC2 t3)" siglas={['CPU roubada', 'swap']} nota={sistema.erro ? `Erro: ${sistema.erro}` : 'CPU roubada alta = crédito de CPU da t3 esgotado (rotas lentas).'}>
           <Selo tom={tomMaquina}>{ROTULO[tomMaquina]}</Selo>
           <div className="mt-4 grid grid-cols-2 gap-3">
-            <Mini rotulo="CPU ocupada / roubada" valor={s?.cpu ? `${s.cpu.ocupada_pct}% / ${s.cpu.roubada_pct}%` : '—'} />
-            <Mini rotulo="Memória livre" valor={s?.memoria_mb.disponivel != null ? `${fmtInt(s.memoria_mb.disponivel)} MB` : '—'}
+            <Mini rotulo="CPU ocupada / roubada" valor={s?.cpu ? `${s.cpu.ocupada_pct}% / ${s.cpu.roubada_pct}%` : 'n/d'} />
+            <Mini rotulo="Memória livre" valor={s?.memoria_mb.disponivel != null ? `${fmtInt(s.memoria_mb.disponivel)} MB` : 'n/d'}
                   detalhe={s?.memoria_mb.api_rss != null ? `API usa ${fmtInt(s.memoria_mb.api_rss)} MB` : undefined} />
-            <Mini rotulo="Swap em uso" valor={s?.memoria_mb.swap_usado != null ? `${fmtInt(s.memoria_mb.swap_usado)} MB` : '—'}
+            <Mini rotulo="Swap em uso" valor={s?.memoria_mb.swap_usado != null ? `${fmtInt(s.memoria_mb.swap_usado)} MB` : 'n/d'}
                   detalhe={s?.swappiness != null ? `swappiness ${s.swappiness}` : undefined} />
-            <Mini rotulo="Disco livre" valor={s ? `${s.disco_gb.livre.toLocaleString('pt-BR')} GB` : '—'}
+            <Mini rotulo="Disco livre" valor={s ? `${s.disco_gb.livre.toLocaleString('pt-BR')} GB` : 'n/d'}
                   detalhe={s?.maquina_no_ar_h != null ? `máquina no ar há ${Math.round(s.maquina_no_ar_h / 24)} dias` : undefined} />
           </div>
           {s?.servicos ? (
@@ -195,22 +195,22 @@ export function PainelStatus() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Cartao titulo="Uso da API nas últimas 24 h" nota="Só chamadas de fora (comparador e rotina, internos, não entram).">
+        <Cartao titulo="Uso da API nas últimas 24 h" siglas={['5xx', '429', 'p50', 'p95']} nota="Só chamadas de fora (comparador e rotina, internos, não entram).">
           <div className="grid grid-cols-2 gap-3">
-            <Mini rotulo="Requisições" valor={d ? fmtInt(d.api.requisicoes) : '—'} />
-            <Mini rotulo="Erros 5xx / 429" valor={d ? `${fmtInt(d.api.erros_5xx)} / ${fmtInt(d.api.limitadas_429)}` : '—'} />
+            <Mini rotulo="Requisições" valor={d ? fmtInt(d.api.requisicoes) : 'n/d'} />
+            <Mini rotulo="Erros 5xx / 429" valor={d ? `${fmtInt(d.api.erros_5xx)} / ${fmtInt(d.api.limitadas_429)}` : 'n/d'} />
             <Mini rotulo="Rota p50" valor={ms(d?.api.rota_p50_ms)} />
             <Mini rotulo="Rota p95" valor={ms(d?.api.rota_p95_ms)} />
           </div>
         </Cartao>
-        <Cartao titulo="Jobs do banco (pg_cron)">
+        <Cartao titulo="Jobs do banco (pg_cron)" siglas={['pg_cron']}>
           {d?.cron.length ? (
             <Tabela cabecalho={['Job', 'Agenda (UTC)', 'Última execução', 'Resultado']}>
               {d.cron.map((j) => (
                 <tr key={j.job}>
                   <td>{j.job}</td>
                   <td className="font-mono text-xs">{j.agenda}</td>
-                  <td>{j.inicio ? dataHora.format(new Date(j.inicio)) : '—'}</td>
+                  <td>{j.inicio ? dataHora.format(new Date(j.inicio)) : 'n/d'}</td>
                   <td>
                     <Selo tom={j.status === 'succeeded' ? 'ok' : j.status ? 'erro' : 'neutro'}>{j.status === 'succeeded' ? 'ok' : (j.status ?? 'nunca rodou')}</Selo>
                   </td>
@@ -229,7 +229,7 @@ export function PainelStatus() {
             {externos.map((p) => (
               <li key={p.nome} className="rounded-lg border border-border px-4 py-3">
                 <div className="flex items-center justify-between gap-2">
-                  <a href={p.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium hover:underline">
+                  <a href={p.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center text-sm font-medium hover:underline pointer-fine:min-h-0">
                     {p.nome}
                   </a>
                   <Selo tom={TOM_EXTERNO[p.indicador]}>{p.indicador === 'ok' ? 'Operando' : p.indicador === 'desconhecido' ? 'Sem resposta' : 'Incidente'}</Selo>

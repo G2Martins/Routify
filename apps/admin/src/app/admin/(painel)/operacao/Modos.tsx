@@ -64,7 +64,7 @@ export function Modos({ config, emails }: { config: Record<string, LinhaConfig>;
   };
 
   return (
-    <Cartao titulo="Modos da API" atraso={40} nota="Gravado em config_runtime (auditado). A API relê a configuração a cada 30 s — sem redeploy.">
+    <Cartao titulo="Modos da API" atraso={40} siglas={['kill switch', 'só LIA', 'fusão']} nota="Gravado em config_runtime (auditado). A API relê a configuração a cada 30 s, sem redeploy.">
       <div className="space-y-4">
         <MensagemRetorno retorno={retorno} onFechar={() => setRetorno(null)} />
         <ul className="divide-y divide-border/60">

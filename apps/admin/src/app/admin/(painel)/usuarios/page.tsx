@@ -14,11 +14,11 @@ export default async function UsuariosPage() {
     <>
       <Cabecalho
         titulo="Usuários"
-        sobre="Contas cadastradas e ações de administração. O papel de administrador vem de app_metadata, que só o banco grava — ninguém se promove pelo app. Toda ação é auditada."
+        sobre="Contas cadastradas e ações de administração. O papel de administrador vem de app_metadata, que só o banco grava: ninguém se promove pelo app. Toda ação é auditada."
       />
       <div className="space-y-5">
         <ErroConsulta erro={lista.error} acoes />
-        <Cartao nota="Na própria conta, só a exportação fica liberada.">
+        <Cartao nota="Na própria conta, só a exportação fica liberada." siglas={['LGPD', 'MFA']}>
           <TabelaUsuarios usuarios={usuarios} bloqueados={bloqueados} eu={user.id} />
         </Cartao>
       </div>

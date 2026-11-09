@@ -127,25 +127,25 @@ function statusDe(id: string, saude: Saude | null, offline: boolean, supabaseOk:
       const velho = !saude.recencia.mais_recente || Date.now() - new Date(saude.recencia.mais_recente).getTime() > 86400000;
       return {
         tom: saude.recencia.vias === 0 ? 'erro' : velho ? 'alerta' : 'ok',
-        estado: `${saude.recencia.vias} vias · mais nova há ${i ?? '—'}`,
-        linhas: [`${saude.recencia.vias} vias em cache`, `Leitura mais recente: há ${i ?? '—'}${velho ? ' (peça uma rota para a TomTom renovar)' : ''}`],
+        estado: `${saude.recencia.vias} vias · mais nova há ${i ?? 'n/d'}`,
+        linhas: [`${saude.recencia.vias} vias em cache`, `Leitura mais recente: há ${i ?? 'n/d'}${velho ? ' (peça uma rota para a TomTom renovar)' : ''}`],
       };
     }
     case 'lia':
       if (!saude) return offline ? semApi : { tom: 'neutro', estado: '…', linhas: [] };
-      return { tom: 'ok', estado: `${saude.modelo_ativo} carregado`, linhas: [`RMSE de validação: ${saude.cv_rmse_seg ?? '—'} s`, `Amostras de treino: ${saude.total_amostras_treino?.toLocaleString('pt-BR') ?? '—'}`] };
+      return { tom: 'ok', estado: `${saude.modelo_ativo} carregado`, linhas: [`RMSE de validação: ${saude.cv_rmse_seg ?? 'n/d'} s`, `Amostras de treino: ${saude.total_amostras_treino?.toLocaleString('pt-BR') ?? 'n/d'}`] };
     case 'grafo':
       if (!saude) return offline ? semApi : { tom: 'neutro', estado: '…', linhas: [] };
       return saude.vias_monitoradas
         ? { tom: 'ok', estado: `${saude.vias_monitoradas} vias vinculadas`, linhas: ['Arestas ligadas às vias monitoradas (transfer ≤ 500 m).'] }
-        : { tom: 'alerta', estado: 'sem vínculo — heurística', linhas: ['O banco não respondeu na subida: a rota usa só a mediana global do horário.'] };
+        : { tom: 'alerta', estado: 'sem vínculo, usa heurística', linhas: ['O banco não respondeu na subida: a rota usa só a mediana global do horário.'] };
     case 'pool': {
       if (!saude) return offline ? semApi : { tom: 'neutro', estado: '…', linhas: [] };
       const d = saude.tomtom.disponiveis;
       const tom: Tom = !saude.tomtom.ativo ? 'alerta' : d.fluxo === 0 ? 'erro' : d.fluxo < saude.tomtom.chaves ? 'alerta' : 'ok';
       return {
         tom,
-        estado: saude.tomtom.ativo ? `${d.fluxo}/${saude.tomtom.chaves} chaves livres` : 'sem chaves — só LIA',
+        estado: saude.tomtom.ativo ? `${d.fluxo}/${saude.tomtom.chaves} chaves livres` : 'sem chaves, só LIA',
         linhas: [`Fluxo ${d.fluxo} · Incidentes ${d.incidentes} · Busca ${d.busca} · Rota ${d.rota} (de ${saude.tomtom.chaves})`],
       };
     }
@@ -173,7 +173,7 @@ function statusDe(id: string, saude: Saude | null, offline: boolean, supabaseOk:
     case 'treino':
       return { tom: 'neutro', estado: 'offline · roda local', linhas: ['Publica métricas com ml/publish_metrics.py.'] };
     default:
-      return { tom: 'neutro', estado: '—', linhas: [] };
+      return { tom: 'neutro', estado: 'n/d', linhas: [] };
   }
 }
 
@@ -229,7 +229,7 @@ export function Arquitetura({ supabaseOk }: { supabaseOk: boolean }) {
               type="button"
               onClick={() => setFluxo(f)}
               aria-pressed={fluxo === f}
-              className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+              className={`min-h-11 rounded-full border px-3 py-1 text-xs transition-colors pointer-fine:min-h-0 ${
                 fluxo === f ? 'border-foreground bg-foreground text-background' : 'border-border text-muted-foreground hover:text-foreground'
               }`}
             >

@@ -38,6 +38,7 @@ export function Estresse({ e, ativo }: { e: EstresseLia22; ativo: string | null 
       titulo={`Estresse treino × produção · ${rotuloVersao(base)} × ${rotuloVersao(nova)}`}
       className="mb-5"
       atraso={380}
+      siglas={['RMSE', 'MAE', 'fold']}
       nota={
         <>
           Fold {e.fold} do TimeSeriesSplit ({fmtDia(e.val_periodo?.[0])} a {fmtDia(e.val_periodo?.[1])}), mesmos hiperparâmetros; só a entrada da
@@ -64,7 +65,7 @@ export function Estresse({ e, ativo }: { e: EstresseLia22; ativo: string | null 
               <td className="max-w-64 text-xs text-muted-foreground">{l.muda}</td>
               <td className="num">{fmtDec(l.base?.rmse_seg)} s</td>
               <td className="num">{fmtDec(l.nova?.rmse_seg)} s</td>
-              <td className={`num ${l.delta !== null && l.delta > 0 ? 'font-medium text-alerta' : ''}`}>{l.delta === null ? '—' : sinal(l.delta)}</td>
+              <td className={`num ${l.delta !== null && l.delta > 0 ? 'font-medium text-alerta' : ''}`}>{l.delta === null ? 'n/d' : sinal(l.delta)}</td>
               <td className="num">{fmtDec(l.base?.mae_seg)} s</td>
               <td className="num">{fmtDec(l.nova?.mae_seg)} s</td>
             </tr>

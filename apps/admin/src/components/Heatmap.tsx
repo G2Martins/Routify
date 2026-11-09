@@ -30,7 +30,7 @@ export function HeatmapCobertura({
               return (
                 <span
                   key={h}
-                  title={`${dia} ${h}h — ${n.toLocaleString('pt-BR')} ${unidade}`}
+                  title={`${dia} ${h}h: ${n.toLocaleString('pt-BR')} ${unidade}`}
                   className="h-5 rounded-[3px]"
                   style={{ background: tom(n) }}
                 />

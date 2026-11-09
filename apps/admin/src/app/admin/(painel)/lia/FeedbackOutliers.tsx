@@ -46,8 +46,8 @@ export function FeedbackOutliers({ linhas }: { linhas: Feedback[] }) {
               <td className="num text-xs">{fmtData(f.criado_em)}</td>
               <td className="num">{fmtDuracao(f.tempo_previsto_seg)}</td>
               <td className="num">{fmtDuracao(f.tempo_real_seg)}</td>
-              <td className="num">{e === null ? '—' : `${e > 0 ? '+' : e < 0 ? '−' : ''}${fmtDuracao(Math.abs(e))}`}</td>
-              <td className="num">{f.lia_cobertura_pct === null ? '—' : `${fmtInt(f.lia_cobertura_pct)}%`}</td>
+              <td className="num">{e === null ? 'n/d' : `${e > 0 ? '+' : e < 0 ? '−' : ''}${fmtDuracao(Math.abs(e))}`}</td>
+              <td className="num">{f.lia_cobertura_pct === null ? 'n/d' : `${fmtInt(f.lia_cobertura_pct)}%`}</td>
               <td>
                 {f.feedback_excluido ? (
                   <div className="space-y-1">
@@ -97,7 +97,7 @@ export function FeedbackOutliers({ linhas }: { linhas: Feedback[] }) {
           <p>
             Previsto <span className="num text-foreground">{fmtDuracao(excluir.tempo_previsto_seg)}</span>, real{' '}
             <span className="num text-foreground">{fmtDuracao(excluir.tempo_real_seg)}</span>. A viagem sai do gráfico e do MAE real, mas
-            continua no banco — dá para reincluir depois.
+            continua no banco e dá para reincluir depois.
           </p>
         ) : null}
         <div>

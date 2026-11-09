@@ -2,6 +2,8 @@ import { HeatmapCobertura } from '@/components/Heatmap';
 import { Cabecalho, Cartao, ErroConsulta, Kpi, Tabela } from '@/components/ui';
 import { exigirAdmin } from '@/lib/auth';
 import { fmtBytes, fmtData, fmtInt, fmtPct } from '@/lib/formato';
+import { lerCobertura } from '@/lib/leitura';
+import { Siglas } from '@/components/ui';
 import type { Qualidade } from '@/lib/tipos';
 
 export default async function QualidadePage() {
@@ -14,7 +16,7 @@ export default async function QualidadePage() {
     <>
       <Cabecalho
         titulo="Qualidade dos dados"
-        sobre="Saúde do dataset do TCC (leituras da TomTom no Supabase). Agregações recalculadas todo dia às 03:30 por pg_cron."
+        sobre="Saúde do dataset do TCC (leituras da TomTom no Supabase), recalculada todo dia às 03:30 pelo pg_cron."
         direita={q ? <span className="num text-xs text-muted-foreground">calculado em {fmtData(q.resumo.calculado_em)}</span> : undefined}
       />
       <ErroConsulta erro={error} />
@@ -39,7 +41,8 @@ export default async function QualidadePage() {
             <Kpi rotulo="Confiança TomTom < 0,5" valor={fmtPct(pct(q.resumo.baixa_confianca))} detalhe={`${fmtInt(q.resumo.baixa_confianca)} leituras`} atraso={280} />
           </div>
 
-          <Cartao titulo="Cobertura: leituras por hora × dia da semana" atraso={320} nota="Horário do banco (UTC). Lacunas aparecem como células vazias.">
+          <Siglas termos={['velocidade livre', 'confiança TomTom', 'pg_cron']} />
+          <Cartao titulo="Cobertura: leituras por hora × dia da semana" atraso={320} nota="Horário do banco (UTC). Lacunas aparecem como células vazias." leitura={lerCobertura(q.cobertura_hora_dia)} siglas={['UTC']}>
             <HeatmapCobertura celulas={q.cobertura_hora_dia} />
           </Cartao>
 

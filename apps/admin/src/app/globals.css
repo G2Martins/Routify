@@ -154,6 +154,7 @@ body::before {
 .num {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+  overflow-wrap: break-word;
 }
 
 /* Entrada: sobe 12 px + opacidade, ease-out-expo. Escalonar com style={{animationDelay}}. */
@@ -185,3 +186,25 @@ dialog[open] { animation: surgir 0.24s var(--ease-out-expo) both; }
 /* React Flow no tema do painel */
 .react-flow { --xy-background-color: transparent; }
 .react-flow__attribution { display: none; }
+
+/* Barra de progresso do topo (clique em link) e giro do item de menu pendente */
+@keyframes avanco {
+  0% { transform: translateX(-100%); }
+  60% { transform: translateX(-25%); }
+  100% { transform: translateX(-8%); }
+}
+.barra-progresso { animation: avanco 12s cubic-bezier(0.16, 1, 0.3, 1) both; width: 100%; }
+@keyframes girar { to { transform: rotate(360deg); } }
+.giro { animation: girar 0.7s linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .barra-progresso { animation: none; }
+  .giro { animation: none; border-top-color: hsl(var(--accent)); }
+}
+
+/* Toque: controles do diagrama com alvo de 44 px */
+@media (pointer: coarse) {
+  .react-flow__controls-button { width: 44px; height: 44px; }
+}
+
+/* Gráficos e tabelas nunca estouram a página */
+main { min-width: 0; }

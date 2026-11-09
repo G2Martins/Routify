@@ -107,8 +107,9 @@ export function PoolTomTom({ pausadas: pausadasServidor }: { pausadas: string[] 
   return (
     <Cartao
       titulo="Pool TomTom"
+      siglas={['pool de chaves', 'cooldown', '429', 'Flow']}
       atraso={80}
-      nota="Só ids de chave — o valor nunca sai da API. Testar gasta 1 requisição de Flow da chave (limite: 6 testes por minuto por admin)."
+      nota="Só ids de chave: o valor nunca sai da API. Testar gasta 1 requisição de Flow da chave (limite: 6 testes por minuto por admin)."
     >
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -130,7 +131,7 @@ export function PoolTomTom({ pausadas: pausadasServidor }: { pausadas: string[] 
         {erroEstado && !estado ? (
           <Aviso titulo="Não foi possível ler o pool da API">
             {erroEstado.status === 404
-              ? 'A API em execução não tem /admin/tomtom — atualize e reinicie a API.'
+              ? 'A API em execução não tem /admin/tomtom: atualize e reinicie a API.'
               : mensagemErro(erroEstado)}
           </Aviso>
         ) : null}
@@ -258,7 +259,7 @@ export function PoolTomTom({ pausadas: pausadasServidor }: { pausadas: string[] 
       >
         <p>
           Todas as chaves voltam ao rodízio em todos os serviços. Se uma chave estiver mesmo sem cota, ela volta ao cooldown depois de 3
-          respostas 429 — isso gasta algumas chamadas.
+          respostas 429, o que gasta algumas chamadas.
         </p>
       </ConfirmarDialog>
     </Cartao>

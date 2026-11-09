@@ -187,7 +187,7 @@ export function TabelaUsuarios({ usuarios, bloqueados, eu }: { usuarios: Usuario
           return (
             <tr key={u.id}>
               <td className="font-medium">
-                {u.nome ?? '—'}
+                {u.nome ?? 'n/d'}
                 {proprio ? <span className="ml-2 text-xs font-normal text-muted-foreground">(você)</span> : null}
               </td>
               <td className="num text-xs">{u.email}</td>

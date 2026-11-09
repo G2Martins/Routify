@@ -81,7 +81,7 @@ export function Avisos({ avisos }: { avisos: AvisoApp[] }) {
     <Cartao
       titulo="Avisos do app"
       atraso={120}
-      nota="Banner no app para todos (inclusive sem login) enquanto ativo e dentro da janela. Texto puro — nada de HTML."
+      nota="Banner no app para todos (inclusive sem login) enquanto ativo e dentro da janela. Só texto, sem HTML."
     >
       <div className="space-y-4">
         <MensagemRetorno retorno={retorno} onFechar={() => setRetorno(null)} />
@@ -159,7 +159,7 @@ export function Avisos({ avisos }: { avisos: AvisoApp[] }) {
                 onChange={(e) => setR({ ...r, mensagem: e.target.value })}
                 aria-describedby="aviso-contador"
                 className={`${CAMPO} mt-1 resize-y`}
-                placeholder="Ex.: Manutenção programada hoje às 23h — rotas podem ficar só com a LIA."
+                placeholder="Ex.: Manutenção programada hoje às 23h: rotas podem ficar só com a LIA."
               />
               <p id="aviso-contador" className={`num mt-1 text-right text-[11px] ${r.mensagem.length >= MAX ? 'text-alerta' : 'text-muted-foreground'}`}>
                 {r.mensagem.length}/{MAX}
@@ -213,7 +213,7 @@ export function Avisos({ avisos }: { avisos: AvisoApp[] }) {
                 />
               </div>
             </div>
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex min-h-11 items-center gap-2 text-sm pointer-fine:min-h-0">
               <input type="checkbox" checked={r.ativo} onChange={(e) => setR({ ...r, ativo: e.target.checked })} className="size-4 accent-accent" />
               Ativo
             </label>

@@ -3,6 +3,7 @@ import { StatusApi } from '@/components/StatusApi';
 import { Aviso, Cabecalho, Cartao, ErroConsulta, Kpi, SeletorJanela, Tabela } from '@/components/ui';
 import { exigirAdmin } from '@/lib/auth';
 import { fmtInt, fmtPct } from '@/lib/formato';
+import { lerSerie } from '@/lib/leitura';
 import type { ResumoUso } from '@/lib/tipos';
 
 const JANELAS = [7, 30, 90];
@@ -25,7 +26,7 @@ export default async function VisaoGeral({ searchParams }: { searchParams: Promi
 
   return (
     <>
-      <Cabecalho titulo="Visão geral" sobre="Uso da plataforma e saúde dos serviços, com dados capturados pelo servidor." direita={seletor} />
+      <Cabecalho titulo="Visão geral" sobre="Uso da plataforma e saúde dos serviços, medidos no servidor." direita={seletor} />
       <div className="mb-6">
         <StatusApi />
       </div>
@@ -37,13 +38,13 @@ export default async function VisaoGeral({ searchParams }: { searchParams: Promi
             <Kpi rotulo="Usuários ativos" valor={fmtInt(r.usuarios_ativos)} detalhe={`de ${fmtInt(r.usuarios_total)} cadastrados`} atraso={40} />
             <Kpi
               rotulo="Erros 5xx"
-              valor={r.requisicoes ? fmtPct((r.erros_5xx / r.requisicoes) * 100) : '—'}
+              valor={r.requisicoes ? fmtPct((r.erros_5xx / r.requisicoes) * 100) : 'n/d'}
               detalhe={`${fmtInt(r.erros_5xx)} de ${fmtInt(r.requisicoes)} requisições`}
               atraso={80}
             />
             <Kpi
               rotulo="Latência p95"
-              valor={r.latencia_p95_ms === null ? '—' : `${fmtInt(r.latencia_p95_ms)} ms`}
+              valor={r.latencia_p95_ms === null ? 'n/d' : `${fmtInt(r.latencia_p95_ms)} ms`}
               detalhe={r.rotas ? `${fmtPct((r.rotas_degradadas / r.rotas) * 100)} das rotas em modo só-LIA` : undefined}
               atraso={120}
             />
@@ -55,7 +56,7 @@ export default async function VisaoGeral({ searchParams }: { searchParams: Promi
             </Aviso>
           ) : (
             <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
-              <Cartao titulo="Rotas e usuários por dia" atraso={160}>
+              <Cartao titulo="Rotas e usuários por dia" atraso={160} leitura={lerSerie(r.serie_diaria)}>
                 <SerieUso dados={r.serie_diaria} />
               </Cartao>
               <Cartao titulo="Rotas por hora de partida" atraso={200} nota="Horário de Brasília.">
@@ -65,7 +66,7 @@ export default async function VisaoGeral({ searchParams }: { searchParams: Promi
           )}
 
           <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
-            <Cartao titulo="Endpoints da API" atraso={240}>
+            <Cartao titulo="Endpoints da API" atraso={240} siglas={['p95', '5xx']}>
               {r.por_endpoint.length ? (
                 <Tabela cabecalho={['Rota', 'Requisições', 'Erros 5xx', 'p95']}>
                   {r.por_endpoint.map((e) => (
@@ -73,7 +74,7 @@ export default async function VisaoGeral({ searchParams }: { searchParams: Promi
                       <td className="num">{e.rota}</td>
                       <td className="num">{fmtInt(e.n)}</td>
                       <td className={`num ${e.erros ? 'text-destructive' : ''}`}>{fmtInt(e.erros)}</td>
-                      <td className="num">{e.p95_ms === null ? '—' : `${fmtInt(e.p95_ms)} ms`}</td>
+                      <td className="num">{e.p95_ms === null ? 'n/d' : `${fmtInt(e.p95_ms)} ms`}</td>
                     </tr>
                   ))}
                 </Tabela>

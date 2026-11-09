@@ -18,7 +18,7 @@ const FONTES: Record<string, { rotulo: string; cor: string }> = {
 const PLATAFORMA: Record<string, string> = { web: 'Web', ios: 'iOS', android: 'Android', desconhecida: 'Desconhecida' };
 
 const pct = (parte: number, total: number) => (total ? (parte / total) * 100 : null);
-const comSinal = (seg: number | null) => (seg === null ? '—' : `${seg < 0 ? '−' : ''}${fmtDuracao(Math.abs(seg))}`);
+const comSinal = (seg: number | null) => (seg === null ? 'n/d' : `${seg < 0 ? '−' : ''}${fmtDuracao(Math.abs(seg))}`);
 
 function Funil({ a }: { a: AnalyticsUso }) {
   const escolhidas = Object.values(a.busca_por_fonte).reduce((s, n) => s + n, 0);
@@ -39,7 +39,7 @@ function Funil({ a }: { a: AnalyticsUso }) {
               <span className="num text-xs text-muted-foreground">
                 {fmtInt(e.eventos)} eventos · {fmtInt(e.usuarios)} usuários
                 {anterior ? (
-                  <span className="ml-2 font-medium text-foreground">{anterior.eventos ? fmtPct(pct(e.eventos, anterior.eventos)) : '—'}</span>
+                  <span className="ml-2 font-medium text-foreground">{anterior.eventos ? fmtPct(pct(e.eventos, anterior.eventos)) : 'n/d'}</span>
                 ) : null}
               </span>
             </div>
@@ -92,7 +92,7 @@ function Busca({ a }: { a: AnalyticsUso }) {
           valor={fmtPct(pct(a.busca_sem_resultado, a.busca_sem_resultado + escolhidas))}
           detalhe={`${fmtInt(a.busca_sem_resultado)} buscas vazias`}
         />
-        <Mini rotulo="Posição média" valor={posicao === null ? '—' : `${fmtDec(posicao + 1)}ª`} detalhe="da sugestão escolhida" />
+        <Mini rotulo="Posição média" valor={posicao === null ? 'n/d' : `${fmtDec(posicao + 1)}ª`} detalhe="da sugestão escolhida" />
       </div>
       {Object.keys(a.plataformas).length ? (
         <p className="text-xs text-muted-foreground">
@@ -128,7 +128,7 @@ function Calor({ celulas }: { celulas: { lat: number; lon: number; n: number }[]
         return (
           <span
             key={`${c.lat},${c.lon}`}
-            title={`${c.lat.toFixed(2)}, ${c.lon.toFixed(2)} — ${c.n} pontas de rota`}
+            title={`${c.lat.toFixed(2)}, ${c.lon.toFixed(2)}: ${c.n} pontas de rota`}
             className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
             style={{
               left: `${((c.lon - minLon) / (maxLon - minLon)) * 100}%`,
@@ -168,12 +168,12 @@ export function Analytics({ a }: { a: AnalyticsUso }) {
         >
           <Funil a={a} />
         </Cartao>
-        <Cartao titulo="Busca de endereços" atraso={80} nota="Só fonte, posição e contagens — o texto digitado nunca é gravado.">
+        <Cartao titulo="Busca de endereços" atraso={80} nota="Só fonte, posição e contagens. O texto digitado nunca é gravado.">
           <Busca a={a} />
         </Cartao>
       </div>
 
-      <Cartao titulo="LIA × menor distância" atraso={120} nota="Comparação feita pela API em cada rota calculada (previsão da LIA nos dois caminhos).">
+      <Cartao titulo="LIA × menor distância" atraso={120} siglas={['LIA', 'só LIA', 'fusão']} nota="Comparação feita pela API em cada rota calculada (previsão da LIA nos dois caminhos).">
         <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
           <Mini rotulo="Rotas diferentes" valor={fmtPct(pct(l.diferentes, l.rotas))} detalhe={`${fmtInt(l.diferentes)} de ${fmtInt(l.rotas)} rotas`} />
           <Mini rotulo="Ganho médio" valor={comSinal(ganho)} detalhe="quando a LIA muda o caminho" />
@@ -211,7 +211,7 @@ export function Analytics({ a }: { a: AnalyticsUso }) {
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Nenhuma célula atinge 3 usuários distintos nesta janela — o mapa fica vazio de propósito.
+            Nenhuma célula atinge 3 usuários distintos nesta janela: o mapa fica vazio de propósito.
           </p>
         )}
       </Cartao>
