@@ -530,7 +530,8 @@ def _resumir_caminho(G: nx.MultiDiGraph, nos: List[int]) -> Tuple[float, float, 
 K_VIRTUAIS = 3
 # Snap com vários candidatos (SNAP_CANDIDATOS): cada nó entra no A* com o custo da ligação a pé até ele
 # (regra da pesquisa de 2026-11-02, ml/restricoes_conversao.py › snap_alternativo).
-VEL_LIGACAO_MS = 1.4
+VEL_LIGACAO_MS = trajeto.VEL_LIGACAO_MS
+DISTANCIA_MIN_M = 20.0  # na mesma aresta, projeções quase iguais: não há rota a mostrar
 _cache_virtuais = tomtom.CacheTTL(15 * 60, max_itens=2048)
 
 
@@ -621,6 +622,29 @@ def _vmax_ms(G) -> float:
     return G.graph['vmax_ms']
 
 
+def juntar_pontas(G: nx.MultiDiGraph, t: 'trajeto.Tracado', polyline: List[List[float]],
+                  niveis: List[Optional[int]]) -> Tuple[List[List[float]], List[Optional[int]], float, float]:
+    """Polyline e níveis com os pedaços de aresta das pontas, mais o tempo e a distância que eles somam."""
+    e, s = t.entrada, t.saida
+    d_e, d_s = G[e.u][e.v][e.k], G[s.u][s.v][s.k]
+
+    def nivel(d):
+        r = d.get('lia_razao')
+        return nivel_da_razao(float(r)) if r is not None and d.get('lia_source') in ('model', 'transfer', 'virtual') else None
+
+    def custo(d, fracao):
+        return fracao * float(d.get('travel_time_lia', 0.0) or 0.0), fracao * float(d.get('length', 0.0) or 0.0)
+
+    if t.direto:
+        pts = trajeto.trecho_da_aresta(e.pontos, e.frac, s.frac)
+        return (pts, [nivel(d_e)] * (len(pts) - 1), *custo(d_e, s.frac - e.frac))
+    ini, fim = trajeto.trecho_da_aresta(e.pontos, e.frac, 1.0), trajeto.trecho_da_aresta(s.pontos, 0.0, s.frac)
+    t_e, m_e = custo(d_e, 1.0 - e.frac)
+    t_s, m_s = custo(d_s, s.frac)
+    return (ini + polyline[1:] + fim[1:], [nivel(d_e)] * (len(ini) - 1) + niveis + [nivel(d_s)] * (len(fim) - 1),
+            t_e + t_s, m_e + m_s)
+
+
 def _snap(request: Request, G: nx.MultiDiGraph, lat: float, lon: float) -> Tuple[int, float]:
     arvore = getattr(request.app.state, 'arvore_nos', None)
     if arvore is not None:
@@ -701,11 +725,16 @@ async def calculate_route(body: RouteInput, request: Request):
     marca('prep')
     orig_node, dist_orig = _snap(request, G, *origem)
     dest_node, dist_dest = _snap(request, G, *destino)
+    arvore_arestas = getattr(request.app.state, 'arvore_arestas', None)
+    pontas_o = arvore_arestas.candidatos(*origem) if arvore_arestas is not None else []
+    pontas_d = arvore_arestas.candidatos(*destino) if arvore_arestas is not None else []
+    if pontas_o and pontas_d:  # via longa sem cruzamento perto: o que conta é a distância até a via, não até o nó
+        dist_orig, dist_dest = min(dist_orig, pontas_o[0].metros), min(dist_dest, pontas_d[0].metros)
     marca('snap')
     fora_da_malha = max(dist_orig, dist_dest) > trajeto.LIMITE_SNAP_M
     logger.info(f"Snap: origem {orig_node} a {dist_orig:.0f} m, destino {dest_node} a {dist_dest:.0f} m")
 
-    if not fora_da_malha and orig_node == dest_node:
+    if not fora_da_malha and orig_node == dest_node and (not pontas_o or haversine_m(*origem, *destino) < 30.0):
         raise HTTPException(status_code=422, detail="Origem e destino são o mesmo ponto no grafo.")
 
     # TomTom sob demanda, em paralelo: recência ao vivo nas vias velhas do
@@ -788,7 +817,11 @@ async def calculate_route(body: RouteInput, request: Request):
             if bloqueadas or atraso_sem or atraso_cruz or atraso_cruz_via else 'travel_time_lia')
     proibidas = G.graph.get('conversoes_proibidas')
     k_snap = G.graph.get('snap_candidatos', 1)
-    if k_snap > 1 and arvore_snap is not None:
+    tracado = trajeto.tracar_por_arestas(G, pontas_o, pontas_d, vmax, peso, proibidas) if pontas_o and pontas_d else None
+    if tracado is not None:
+        path_nodes = tracado.nos
+        orig_node, dest_node = path_nodes[0], path_nodes[-1]
+    elif k_snap > 1 and arvore_snap is not None:
         # Snap com vários candidatos: o nó mais perto pode ser o da pista errada de uma via dupla (chega-se a
         # ele com um retorno). Um A* só, de todos os candidatos de origem para todos os de destino.
         entrada = {n: d / VEL_LIGACAO_MS for n, d in arvore_snap.candidatos(*origem, k_snap)}
@@ -814,7 +847,7 @@ async def calculate_route(body: RouteInput, request: Request):
             raise HTTPException(status_code=422, detail=f"Nó não encontrado no grafo: {e}")
     # Conversões proibidas do OSM (RESTRICOES_CONVERSAO=1): o A* restrito só roda quando o caminho
     # livre fez uma (~22% das rotas na medição de ml/restricoes_conversao.py).
-    if proibidas and k_snap <= 1 and trajeto.viola_conversao(path_nodes, proibidas):
+    if tracado is None and proibidas and k_snap <= 1 and trajeto.viola_conversao(path_nodes, proibidas):
         legal = trajeto.astar_com_restricoes(G, orig_node, dest_node, heuristic, peso, proibidas)
         if legal:
             path_nodes = legal
@@ -825,6 +858,13 @@ async def calculate_route(body: RouteInput, request: Request):
     polyline = montar_polyline(G, path_nodes)
     niveis = niveis_lia(G, path_nodes)  # antes do await da fusão (pesos no grafo compartilhado)
     tempo_lia, distancia_total, cobertura_pct = _resumir_caminho(G, path_nodes)
+    t_pontas = m_pontas = 0.0
+    if tracado is not None:
+        polyline, niveis, t_pontas, m_pontas = juntar_pontas(G, tracado, polyline, niveis)
+        tempo_lia += t_pontas
+        distancia_total += m_pontas
+        if distancia_total < DISTANCIA_MIN_M:
+            raise HTTPException(status_code=422, detail="Origem e destino estão na mesma quadra da via.")
     semaforos = trajeto.contar_semaforos(G, path_nodes)
     cruzamentos = trajeto.contar_cruzamentos(G, path_nodes)
     cruzamentos_via = trajeto.contar_cruzamentos(G, path_nodes, 'cruzamento_via')
@@ -844,7 +884,8 @@ async def calculate_route(body: RouteInput, request: Request):
         if proibidas and trajeto.viola_conversao(path_curta, proibidas):  # baseline sob a mesma regra
             path_curta = trajeto.astar_com_restricoes(G, orig_node, dest_node, h_dist, 'length', proibidas) or path_curta
         tempo_curta, dist_curta, _ = _resumir_caminho(G, path_curta)
-        tempo_curta += (atraso_sem * trajeto.contar_semaforos(G, path_curta)
+        dist_curta += m_pontas
+        tempo_curta += t_pontas + (atraso_sem * trajeto.contar_semaforos(G, path_curta)
                         + atraso_cruz * trajeto.contar_cruzamentos(G, path_curta)
                         + atraso_cruz_via * trajeto.contar_cruzamentos(G, path_curta, 'cruzamento_via'))
         rotas_diferentes = path_curta != path_nodes
@@ -852,6 +893,9 @@ async def calculate_route(body: RouteInput, request: Request):
         logger.warning(f"Baseline de menor distância indisponível: {e}")
 
     via_principal = _via_principal(G, path_nodes)
+    if tracado is not None and via_principal == "Via sem nome":  # rota inteira dentro de uma aresta só
+        nome = G[tracado.entrada.u][tracado.entrada.v][tracado.entrada.k].get('name')
+        via_principal = (nome[0] if isinstance(nome, list) and nome else nome) or via_principal
     interdicoes = sum(
         1 for u, v in zip(path_nodes[:-1], path_nodes[1:])
         if any((u, v, k) in bloqueadas for k in G[u][v])

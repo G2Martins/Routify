@@ -51,8 +51,10 @@ ox.settings.timeout = 300  # 5min por request Overpass
 
 MODELS_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'ml', 'artifacts')
 # lia_2.3 = 2.2 (2.1 + contexto) + perfis fora da amostra, recência envelhecida e early stopping
-# no próprio treino (ml/artifacts/ablation_lia_2.3.json). A tese cita a 2.1. Rollback: LIA_VERSION=lia_2.2.
-MODEL_VERSION = os.getenv('LIA_VERSION', 'lia_2.3')
+# no próprio treino (ml/artifacts/ablation_lia_2.3.json). A tese cita a 2.1.
+# lia_2.4 = receita da 2.3 + as leituras de novembro, adotada pelo portão fora do tempo (ml/gate_lia_2_4.py).
+# Rollback: LIA_VERSION=lia_2.3.
+MODEL_VERSION = os.getenv('LIA_VERSION', 'lia_2.4')
 # O raio entra no nome: trocar GRAPH_RADIUS_KM não reaproveita um grafo menor em
 # silêncio (o brasilia_graph.graphml antigo tinha ~15 km e não cobria Ceilândia).
 GRAPH_CACHE = os.path.join(MODELS_DIR, f"brasilia_graph_{os.getenv('GRAPH_RADIUS_KM', '38')}km.graphml")
@@ -304,7 +306,8 @@ async def lifespan(app: FastAPI):
             logging.warning(f"Supabase indisponível no startup ({e})")
             sb = None
 
-        graph_stats = graph_enrichment.enrich_graph(G, sb)
+        # Só pontos que o modelo conhece: ponto novo de coleta entra nas rotas no treino seguinte, sem degradar até lá.
+        graph_stats = graph_enrichment.enrich_graph(G, sb, so_ids=set(encoder.classes_.tolist()))
         # Snap sem reconstruir a árvore de nós a cada requisição.
         arvore_nos = trajeto.ArvoreNos(G)
         # Semáforos (OSM traffic_signals) + atraso médio calibrado contra a TomTom.
@@ -345,9 +348,9 @@ async def lifespan(app: FastAPI):
         # Snap com vários candidatos (pista certa em via dupla, sem retorno): k nós por ponta num A* só.
         # 1 = só o mais próximo (padrão até o A/B de dia útil: scripts/ab_ec2.sh snap).
         G.graph['snap_candidatos'] = max(1, int(os.getenv('SNAP_CANDIDATOS', '1')))
-        # Conversões proibidas do OSM (o OSMnx ignora): desligadas por padrão até o A/B de dia útil
-        # (scripts/ab_ec2.sh restricoes). RESTRICOES_CONVERSAO=1 liga. Ver ml/restricoes_conversao.py.
-        if os.getenv('RESTRICOES_CONVERSAO', '0') == '1':
+        # Conversões proibidas do OSM (o OSMnx ignora): ligadas desde 2026-11-09. No A/B de 16 picos de dia útil
+        # (scripts/ab_ec2.sh restricoes) o ETA quase não muda; rota legal vale mais. RESTRICOES_CONVERSAO=0 desliga.
+        if os.getenv('RESTRICOES_CONVERSAO', '1') == '1':
             G.graph['conversoes_proibidas'] = trajeto.carregar_conversoes_proibidas(
                 os.path.join(MODELS_DIR, f'restricoes_conversao_{BRASILIA_RADIUS_M // 1000}km.json'))
             logging.info(f"Conversões proibidas: {sum(map(len, G.graph['conversoes_proibidas'].values())):,} "
@@ -384,6 +387,11 @@ async def lifespan(app: FastAPI):
         maior_componente = max(nx.strongly_connected_components(G), key=len)
         app.state.arvore_nos = trajeto.ArvoreNos(G, nos=maior_componente)
         logging.info(f"Snap de origem/destino em {len(maior_componente):,} de {G.number_of_nodes():,} nós (maior componente)")
+        # A rota nasce e termina na via, no sentido permitido, não no cruzamento mais perto. SNAP_ARESTA=0 volta ao nó.
+        if os.getenv('SNAP_ARESTA', '1') == '1':
+            t0 = time.time()
+            app.state.arvore_arestas = trajeto.ArvoreArestas(G, nos=maior_componente)
+            logging.info(f"Snap em aresta pronto em {time.time()-t0:.1f}s")
         app.state.graph_stats = graph_stats
         app.state.model_version = MODEL_VERSION
         app.state.supabase = sb

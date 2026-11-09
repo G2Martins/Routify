@@ -15,7 +15,7 @@ import json
 import logging
 import math
 import os
-from typing import List, Optional, Sequence, Tuple
+from typing import List, NamedTuple, Optional, Sequence, Tuple
 
 import networkx as nx
 import numpy as np
@@ -28,6 +28,7 @@ LIMITE_SNAP_M = 600.0  # além disso = fora da malha (rota da TomTom). 400 m tir
 MAX_PONTOS_APOIO = 100  # supportingPoints por chamada (a geometria vem inteira de volta)
 MARGEM_REL = 0.10  # a rota da TomTom precisa ser >= 10% mais rápida…
 MARGEM_ABS_S = 60.0  # …e ganhar pelo menos 1 min, para trocar a da LIA
+VEL_LIGACAO_MS = 1.4  # a pé, do ponto até a via (ml/restricoes_conversao.py › snap_alternativo)
 
 
 class ArvoreNos:
@@ -56,10 +57,177 @@ class ArvoreNos:
         return [int(n) for n in self.nos[idx[:, 0]]], [float(d) * RAIO_TERRA_M for d in dist[:, 0]]
 
 
+def pontos_da_aresta(G: nx.MultiDiGraph, u: int, v: int, d: dict) -> List[List[float]]:
+    """[lat, lon] da aresta no sentido u → v (a geometria do OSM pode vir invertida)."""
+    geom = d.get('geometry')
+    pts = [[float(y), float(x)] for x, y in geom.coords] if geom is not None else []
+    if not pts:
+        return [[G.nodes[u]['y'], G.nodes[u]['x']], [G.nodes[v]['y'], G.nodes[v]['x']]]
+    no = G.nodes[u]
+    if (pts[0][0] - no['y']) ** 2 + (pts[0][1] - no['x']) ** 2 > (pts[-1][0] - no['y']) ** 2 + (pts[-1][1] - no['x']) ** 2:
+        pts.reverse()
+    return pts
+
+
+class Ponta(NamedTuple):
+    """Onde a rota entra (ou sai) da malha: a projeção do ponto na aresta u → v."""
+    u: int
+    v: int
+    k: int
+    frac: float  # fração da aresta entre u e a projeção
+    metros: float  # do ponto até a projeção
+    pontos: list  # geometria inteira da aresta, de u para v
+
+
+def _projetar(lat: float, lon: float, pts: List[List[float]]) -> Tuple[float, float, int, List[float]]:
+    """Projeção na polyline, em plano local: (metros até ela, fração percorrida, índice do segmento, ponto)."""
+    kx, ky = 111320.0 * math.cos(math.radians(lat)), 110540.0
+    xy = [((p[1] - lon) * kx, (p[0] - lat) * ky) for p in pts]
+    comp = [math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(xy, xy[1:])]
+    total = sum(comp) or 1.0
+    melhor = (math.inf, 0.0, 0, pts[0])
+    acum = 0.0
+    for i, (a, b, c) in enumerate(zip(xy, xy[1:], comp)):
+        t = 0.0 if c == 0 else max(0.0, min(1.0, -(a[0] * (b[0] - a[0]) + a[1] * (b[1] - a[1])) / (c * c)))
+        px, py = a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])
+        dist = math.hypot(px, py)
+        if dist < melhor[0]:
+            melhor = (dist, (acum + t * c) / total, i, [pts[i][0] + t * (pts[i + 1][0] - pts[i][0]),
+                                                        pts[i][1] + t * (pts[i + 1][1] - pts[i][1])])
+        acum += c
+    return melhor
+
+
+def trecho_da_aresta(pontos: List[List[float]], frac_ini: float, frac_fim: float) -> List[List[float]]:
+    """Pedaço da polyline entre duas frações do comprimento (sem sair da geometria real da via)."""
+    kx = math.cos(math.radians(pontos[0][0]))
+    comp = [math.hypot((b[1] - a[1]) * kx, b[0] - a[0]) for a, b in zip(pontos, pontos[1:])]
+    total = sum(comp) or 1.0
+
+    def em(frac):
+        alvo, acum = frac * total, 0.0
+        for i, c in enumerate(comp):
+            if acum + c >= alvo or i == len(comp) - 1:
+                t = 0.0 if c == 0 else min(1.0, max(0.0, (alvo - acum) / c))
+                return i, [pontos[i][0] + t * (pontos[i + 1][0] - pontos[i][0]),
+                           pontos[i][1] + t * (pontos[i + 1][1] - pontos[i][1])]
+            acum += c
+        return 0, pontos[0]
+
+    i0, p0 = em(frac_ini)
+    i1, p1 = em(frac_fim)
+    return [p0] + [list(p) for p in pontos[i0 + 1:i1 + 1]] + [p1]
+
+
+class ArvoreArestas:
+    """Acha as vias mais próximas de um ponto, não só o cruzamento mais próximo.
+
+    Com snap em nó a rota começava no cruzamento: em via dupla, muitas vezes na pista do outro sentido, com um
+    retorno ou um trecho aparente na contramão logo na saída, e o conector atravessava calçada e prédio até lá. Na
+    aresta, a rota nasce na projeção do ponto, percorre a via no sentido que ela permite e o conector é o menor
+    possível. Amostra cada par de nós do maior componente a cada ~60 m (uma vez por par: ida e volta dividem amostra).
+    """
+    PASSO_M = 60.0
+
+    def __init__(self, G: nx.MultiDiGraph, nos=None):
+        self.G = G
+        permitidos = set(G.nodes if nos is None else nos)
+        coords, self.pares, vistos = [], [], set()
+        for u, v, d in G.edges(data=True):
+            if u == v or u not in permitidos or v not in permitidos or (min(u, v), max(u, v)) in vistos:
+                continue
+            vistos.add((min(u, v), max(u, v)))
+            pts = pontos_da_aresta(G, u, v, d)
+            n = max(1, int(float(d.get('length') or 0.0) / self.PASSO_M))
+            for i in range(n):
+                coords.append(trecho_da_aresta(pts, (i + 0.5) / n, (i + 0.5) / n)[0])
+                self.pares.append((u, v))
+        self._arvore = BallTree(np.radians(np.asarray(coords)), metric='haversine')
+
+    def candidatos(self, lat: float, lon: float, amostras: int = 40, folga_m: float = 40.0, maximo: int = 8) -> List[Ponta]:
+        """Arestas dirigidas mais próximas (só as a no máximo folga_m além da melhor), da mais perto à mais longe."""
+        _, idx = self._arvore.query(np.radians([[lat, lon]]), k=min(amostras, len(self.pares)))
+        pontas = []
+        for u, v in dict.fromkeys(self.pares[i] for i in idx[0]):
+            for a, b in ((u, v), (v, u)):
+                for k, d in (self.G[a][b].items() if self.G.has_edge(a, b) else ()):
+                    pts = pontos_da_aresta(self.G, a, b, d)
+                    metros, frac, _, _ = _projetar(lat, lon, pts)
+                    pontas.append(Ponta(a, b, k, frac, metros, pts))
+        pontas.sort(key=lambda p: p.metros)
+        return [p for p in pontas if pontas and p.metros <= pontas[0].metros + folga_m][:maximo]
+
+
+class Tracado(NamedTuple):
+    """Resultado do A* entre pontas: nós, polyline, e o que as pontas somam (fora da lista de nós)."""
+    nos: List[int]
+    entrada: Ponta
+    saida: Ponta
+    direto: bool  # origem e destino na mesma aresta, sem passar por nó nenhum
+
+
+def _tempo_aresta(G: nx.MultiDiGraph, p: Ponta) -> float:
+    return float(G[p.u][p.v][p.k].get('travel_time_lia', 0.0) or 0.0)
+
+
+def tem_retorno(nos: Sequence[int]) -> bool:
+    """u → v → u: meia-volta no meio da via."""
+    return any(a == c for a, c in zip(nos, nos[2:]))
+
+
+def tracar_por_arestas(G: nx.MultiDiGraph, entradas: List[Ponta], saidas: List[Ponta], vmax: float, peso,
+                       proibidas: Optional[dict] = None) -> Optional[Tracado]:
+    """A* único de todas as entradas para todas as saídas. Andar até a via custa tempo a pé: a pista certa só
+    ganha se a volta que ela evita compensar a caminhada. None se não houver caminho."""
+    if not entradas or not saidas:
+        return None
+    custo_ini, custo_fim = {}, {}
+    for e in entradas:
+        c = (1.0 - e.frac) * _tempo_aresta(G, e) + e.metros / VEL_LIGACAO_MS
+        if c < custo_ini.get(e.v, (math.inf,))[0]:
+            custo_ini[e.v] = (c, e)
+    for s in saidas:
+        c = s.frac * _tempo_aresta(G, s) + s.metros / VEL_LIGACAO_MS
+        if c < custo_fim.get(s.u, (math.inf,))[0]:
+            custo_fim[s.u] = (c, s)
+    direto, c_direto = None, math.inf
+    for e in entradas:
+        for s in saidas:
+            if (e.u, e.v, e.k) == (s.u, s.v, s.k) and s.frac >= e.frac:
+                c = (s.frac - e.frac) * _tempo_aresta(G, e) + (e.metros + s.metros) / VEL_LIGACAO_MS
+                if c < c_direto:
+                    direto, c_direto = (e, s), c
+
+    cy = sum(G.nodes[n]['y'] for n in custo_fim) / len(custo_fim)
+    cx = sum(G.nodes[n]['x'] for n in custo_fim) / len(custo_fim)
+    raio = max(_haversine_m((cy, cx), (G.nodes[n]['y'], G.nodes[n]['x'])) for n in custo_fim)
+
+    def h(n):  # admissível para o conjunto: distância ao centro menos o raio das saídas
+        return max(0.0, _haversine_m((G.nodes[n]['y'], G.nodes[n]['x']), (cy, cx)) - raio) / vmax
+
+    origens = {n: c for n, (c, _) in custo_ini.items()}
+    destinos = {n: c for n, (c, _) in custo_fim.items()}
+    anteriores = {n: e.u for n, (_, e) in custo_ini.items()}
+    proximos = {n: s.v for n, (_, s) in custo_fim.items()}
+    nos = astar_multi(G, origens, destinos, h, peso, proibidas, anteriores, proximos)
+    if nos and tem_retorno(nos):  # raro (~2%): só então paga o estado (nó, anterior) em todos os nós
+        nos = astar_multi(G, origens, destinos, h, peso, proibidas, anteriores, proximos, sem_retorno=True) or nos
+    if proibidas and not nos:
+        nos = astar_multi(G, origens, destinos, h, peso)
+    if nos:
+        pesar = peso if callable(peso) else (lambda a, b, paralelas: min(d.get(peso, 1) for d in paralelas.values()))
+        c_path = origens[nos[0]] + destinos[nos[-1]] + sum(pesar(a, b, G[a][b]) or 0.0 for a, b in zip(nos, nos[1:]))
+        if c_path <= c_direto:
+            return Tracado(nos, custo_ini[nos[0]][1], custo_fim[nos[-1]][1], False)
+    if direto:
+        return Tracado([direto[0].u], direto[0], direto[1], True)
+    return None
+
+
 def _haversine_m(a: Sequence[float], b: Sequence[float]) -> float:
-    la1, lo1, la2, lo2 = map(np.radians, (a[0], a[1], b[0], b[1]))
-    h = np.sin((la2 - la1) / 2) ** 2 + np.cos(la1) * np.cos(la2) * np.sin((lo2 - lo1) / 2) ** 2
-    return float(2 * RAIO_TERRA_M * np.arcsin(np.sqrt(h)))
+    la1, lo1, la2, lo2 = math.radians(a[0]), math.radians(a[1]), math.radians(b[0]), math.radians(b[1])
+    h = math.sin((la2 - la1) / 2) ** 2 + math.cos(la1) * math.cos(la2) * math.sin((lo2 - lo1) / 2) ** 2
+    return 2 * RAIO_TERRA_M * math.asin(math.sqrt(h))
 
 
 def pontos_apoio(polyline: List[List[float]], passo_m: float = 150.0,
@@ -361,11 +529,15 @@ def astar_com_restricoes(G: nx.MultiDiGraph, origem: int, destino: int, heuristi
 
 
 def astar_multi(G: nx.MultiDiGraph, origens: dict, destinos: dict, heuristica, peso,
-                proibidas: Optional[dict] = None) -> Optional[List[int]]:
+                proibidas: Optional[dict] = None, anteriores: Optional[dict] = None,
+                proximos: Optional[dict] = None, sem_retorno: bool = False) -> Optional[List[int]]:
     """A* de várias origens para vários destinos: {nó: custo de entrada em s} e {nó: custo de saída em s}.
     Serve ao snap com vários candidatos (a pista certa de uma via dupla, sem retorno) e às conversões
     proibidas: o estado é (nó, anterior) só nos nós-via (~1% do grafo). `heuristica(nó)` tem de ser admissível
     para o conjunto de destinos. Um destino virtual soma o custo de saída, então o melhor par sai exato.
+    anteriores/proximos: de que nó se chega a cada origem e para que nó se sai de cada destino, quando a ponta é
+    uma aresta: a conversão proibida vale também na primeira e na última manobra. sem_retorno: nada de u → v → u,
+    salvo em rua sem saída; guarda o nó anterior em todos os estados, então só quando o caminho rápido fez um.
     None se não houver caminho (legal)."""
     proibidas = proibidas or {}
     pesar = peso if callable(peso) else (lambda u, v, paralelas: min(d.get(peso, 1) for d in paralelas.values()))
@@ -375,7 +547,7 @@ def astar_multi(G: nx.MultiDiGraph, origens: dict, destinos: dict, heuristica, p
     contador = itertools.count()
     fila = []
     for no, c0 in origens.items():
-        estado = (no, None)
+        estado = (no, anteriores.get(no) if anteriores and (sem_retorno or no in vias) else None)
         if c0 < custo.get(estado, math.inf):
             custo[estado], pai[estado] = c0, None
             heapq.heappush(fila, (c0 + heuristica(no), next(contador), estado))
@@ -392,17 +564,20 @@ def astar_multi(G: nx.MultiDiGraph, origens: dict, destinos: dict, heuristica, p
             return caminho[::-1]
         fechados.add(estado)
         no, anterior = estado
-        if no in destinos and custo[estado] + destinos[no] < custo.get(fim, math.inf):
+        vetados = proibidas.get((anterior, no), ()) if anterior is not None else ()
+        if sem_retorno and anterior is not None and len(G[no]) > 1:  # sem saída: voltar é a única opção
+            vetados = {*vetados, anterior}
+        if (no in destinos and custo[estado] + destinos[no] < custo.get(fim, math.inf)
+                and not (proximos and proximos.get(no) in vetados)):
             custo[fim], pai[fim] = custo[estado] + destinos[no], estado
             heapq.heappush(fila, (custo[fim], next(contador), fim))
-        vetados = proibidas.get((anterior, no), ()) if anterior is not None else ()
         for viz, paralelas in G[no].items():
             if viz in vetados:
                 continue
             c = pesar(no, viz, paralelas)
             if c is None:
                 continue
-            prox = (viz, no if viz in vias else None)
+            prox = (viz, no if sem_retorno or viz in vias else None)
             novo = custo[estado] + c
             if novo < custo.get(prox, math.inf):
                 custo[prox], pai[prox] = novo, estado

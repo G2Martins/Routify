@@ -90,10 +90,14 @@ class HorariosInput(BaseModel):
 class Horario(BaseModel):
     saida: datetime = Field(..., description="Hora de partida (Brasília, com fuso).")
     tempo_seg: int = Field(..., description="Tempo previsto do trajeto saindo nessa hora.")
+    trafego: Optional[List[Optional[int]]] = Field(
+        None, description="Trânsito previsto por trecho da `polyline` nessa saída (ponto i → i+1): 0 livre, 1 moderado, "
+                          "2 lento, 3 parado, null sem dado. Mesmo formato do `trafego` do /route.")
 
 
 class HorariosOutput(BaseModel):
     horarios: List[Horario]
+    polyline: List[List[float]] = Field(default_factory=list, description="Pontos [lat, lon] do trajeto, seguindo a geometria real das vias.")
     melhor: int = Field(..., description="Índice da saída mais rápida (no empate, a mais cedo).")
     distancia_km: float
     tempo_livre_seg: int = Field(..., description="Mesmo trajeto sem congestionamento (razão 1,0), com os atrasos de cruzamento.")
@@ -172,11 +176,12 @@ def _atrasos(G: nx.MultiDiGraph) -> Tuple[float, float, float]:
 
 def tempos_por_saida(model, encoder, profiles, G: nx.MultiDiGraph, nos: List[int], saidas: List[datetime],
                      agora: datetime, recencia=None, transfer_confidence=None,
-                     contexto=None) -> Tuple[np.ndarray, float]:
+                     contexto=None, niveis: Optional[List[List[Optional[int]]]] = None) -> Tuple[np.ndarray, float]:
     """(tempo previsto em s do caminho `nos` para cada instante de `saidas`, tempo livre do mesmo caminho).
 
     Uma chamada ao modelo para (via, vel. livre) × saídas; mesma conta do assign_lia_weights + atrasos do /route.
     As arestas são as que o A* percorreu (pesos atuais do grafo): ler antes de qualquer await.
+    `niveis`, se vier, recebe o nível de trânsito de cada aresta do caminho, uma lista por saída.
     """
     ordem = lia_inf.ordem_features(model)
     i_vel = ordem.index('velocidade_livre')
@@ -233,13 +238,18 @@ def tempos_por_saida(model, encoder, profiles, G: nx.MultiDiGraph, nos: List[int
             prior = lia_inf.clamp_razao(float(t_grupo.sum() / (t_grupo / R[k, col_grupo]).sum()))
         alvo = prior if prior_vivo else 1.0  # para onde a transferência encolhe
         total = 0.0
+        linha_niveis: List[Optional[int]] = []
         for t, c in zip(trechos, conf):
             if t.fonte == 'blocked':
                 total += route.PENALTY_NON_DRIVABLE_S
+                linha_niveis.append(None)
                 continue
             razao = prior if t.fonte == 'heuristic' else float(R[k, col[(t.via, t.vel)]]) * c + alvo * (1.0 - c)
             total += lia_inf.tempo_de_razao(t.comprimento, t.vel, razao)
+            linha_niveis.append(None if t.fonte == 'heuristic' else lia_inf.nivel_da_razao(razao))
         tempos[k] = total + atrasos
+        if niveis is not None:
+            niveis.append(linha_niveis)
     livre = sum(lia_inf.tempo_de_razao(t.comprimento, t.vel, 1.0) for t in trechos if t.fonte != 'blocked') + atrasos
     return tempos, livre
 
@@ -255,6 +265,27 @@ def _primeira_saida(inicio: Optional[datetime], agora: datetime) -> datetime:
     if not agora - timedelta(minutes=TOLERANCIA_PASSADO_MIN) <= dt <= agora + HORIZONTE:
         raise HTTPException(status_code=422, detail="inicio precisa estar entre agora e 7 dias à frente.")
     return dt.astimezone(BRASILIA_TZ)
+
+
+def _tracar(G: nx.MultiDiGraph, pontas_o: list, pontas_d: list):
+    """O mesmo traçado do /route (snap em aresta), com os atrasos no peso e as conversões proibidas. None sem pontas."""
+    if not pontas_o or not pontas_d:
+        return None
+    a_sem, a_cruz, a_via = _atrasos(G)
+    peso = (tomtom.peso_sem_interditadas(set(), route.PENALTY_NON_DRIVABLE_S, a_sem, a_cruz, a_via)
+            if a_sem or a_cruz or a_via else 'travel_time_lia')
+    return trajeto.tracar_por_arestas(G, pontas_o, pontas_d, route._vmax_ms(G), peso, G.graph.get('conversoes_proibidas'))
+
+
+def _niveis_na_polyline(G: nx.MultiDiGraph, nos: List[int], por_aresta: List[Optional[int]], n_pontos: int) -> List[Optional[int]]:
+    """Nível por aresta → nível por trecho da polyline. As pontas (pedaços de aresta fora de `nos`) herdam o nível
+    da aresta vizinha do caminho: dá para pintar sem outra chamada ao modelo."""
+    miolo: List[Optional[int]] = []
+    for (trecho, _), nivel in zip(route._trechos(G, nos), por_aresta):
+        miolo.extend([nivel] * (len(trecho) - 1))
+    falta = max(0, n_pontos - 1 - len(miolo))
+    primeiro, ultimo = (por_aresta[0], por_aresta[-1]) if por_aresta else (None, None)
+    return [primeiro] * (falta // 2) + miolo + [ultimo] * (falta - falta // 2)
 
 
 def _caminho(G: nx.MultiDiGraph, orig: int, dest: int) -> List[int]:
@@ -314,7 +345,10 @@ async def planejar_saida(body: HorariosInput, request: Request):
     if max(dist_orig, dist_dest) > trajeto.LIMITE_SNAP_M:
         raise HTTPException(status_code=422, detail="Origem ou destino fora da área que a LIA cobre "
                                                     "(caixa de ±38 km em volta do Plano Piloto).")
-    if orig == dest:
+    arvore = getattr(st, 'arvore_arestas', None)
+    pontas_o = arvore.candidatos(body.origem.lat, body.origem.lon) if arvore is not None else []
+    pontas_d = arvore.candidatos(body.destino.lat, body.destino.lon) if arvore is not None else []
+    if orig == dest and (not pontas_o or route.haversine_m(body.origem.lat, body.origem.lon, body.destino.lat, body.destino.lon) < 30.0):
         raise HTTPException(status_code=422, detail="Origem e destino são o mesmo ponto no grafo.")
 
     # Daqui ao fim não há await: os pesos ficam no grafo compartilhado entre requisições (regra do /route).
@@ -326,12 +360,22 @@ async def planejar_saida(body: HorariosInput, request: Request):
         contexto_obj.para_requisicao(primeira, recencia, max(minutos, 0.0)) if contexto_obj is not None else None,
     )
     t_pesos = time.perf_counter()
-    nos = _caminho(G, orig, dest)
+    tracado = _tracar(G, pontas_o, pontas_d)
+    nos = tracado.nos if tracado is not None else _caminho(G, orig, dest)
     t_astar = time.perf_counter()
     _, distancia_m, cobertura = route._resumir_caminho(G, nos)
+    polyline, t_pontas = route.montar_polyline(G, nos), 0.0
+    if tracado is not None:
+        polyline, _, t_pontas, m_pontas = route.juntar_pontas(G, tracado, polyline, route.niveis_lia(G, nos))
+        distancia_m += m_pontas
+        if distancia_m < route.DISTANCIA_MIN_M:
+            raise HTTPException(status_code=422, detail="Origem e destino estão na mesma quadra da via.")
     saidas = [primeira + timedelta(minutes=k * body.passo_min) for k in range(body.janelas)]
+    niveis_arestas: List[List[Optional[int]]] = []
     tempos, livre = tempos_por_saida(st.model, st.encoder, st.profiles, G, nos, saidas, agora, recencia,
-                                     transfer_confidence, contexto_obj)
+                                     transfer_confidence, contexto_obj, niveis_arestas)
+    tempos, livre = tempos + t_pontas, livre + t_pontas
+    trafego = [_niveis_na_polyline(G, nos, n, len(polyline)) for n in niveis_arestas]
     melhor = int(np.argmin(tempos))
     fim = time.perf_counter()
     # Sem coordenadas no log (LGPD): só tamanho, resultado e tempo por fase.
@@ -339,7 +383,8 @@ async def planejar_saida(body: HorariosInput, request: Request):
                 f"pesos={(t_pesos - t0) * 1000:.0f} astar={(t_astar - t_pesos) * 1000:.0f} "
                 f"saidas={(fim - t_astar) * 1000:.0f} total={(fim - t0) * 1000:.0f}")
     return HorariosOutput(
-        horarios=[Horario(saida=s, tempo_seg=int(round(t))) for s, t in zip(saidas, tempos)],
+        horarios=[Horario(saida=s, tempo_seg=int(round(t)), trafego=n) for s, t, n in zip(saidas, tempos, trafego)],
+        polyline=polyline,
         melhor=melhor,
         distancia_km=round(distancia_m / 1000, 2),
         tempo_livre_seg=int(round(livre)),

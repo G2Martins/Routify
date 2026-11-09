@@ -1,0 +1,27 @@
+{
+ "n": 300,
+ "conector_mediano_m": {
+  "no": 164.0,
+  "aresta": 124.1
+ },
+ "conector_p90_m": {
+  "no": 357.5,
+  "aresta": 270.8
+ },
+ "rotas_com_retorno": {
+  "no": 0,
+  "aresta": 0
+ },
+ "rotas_com_conversao_proibida": {
+  "no": 70,
+  "aresta": 0
+ },
+ "km_mediano": {
+  "no": 23.2,
+  "aresta": 23.1
+ },
+ "ms_mediano": {
+  "no": 93.3,
+  "aresta": 170.9
+ }
+}

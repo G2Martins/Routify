@@ -230,7 +230,7 @@ def calibrar_velocidade_livre(G, vel_tomtom: dict, dist_max_m: float = 30.0, fat
     return {'fator': fator, 'pontos': len(perto), 'fatores_grupo': fatores_grupo or None}
 
 
-def enrich_graph(G, sb, raio_m: float = RAIO_TRANSFER_M) -> dict:
+def enrich_graph(G, sb, raio_m: float = RAIO_TRANSFER_M, so_ids=None) -> dict:
     """Anexa speed_kph, coordenada e vínculo à via monitorada mais próxima.
 
     Idempotente: rodar duas vezes no mesmo grafo produz o mesmo resultado.
@@ -252,6 +252,9 @@ def enrich_graph(G, sb, raio_m: float = RAIO_TRANSFER_M) -> dict:
 
     # --- 3. Vínculo com a via monitorada mais próxima ---
     ids_vias, coords_vias = fetch_monitored_points(sb)
+    if so_ids is not None and len(ids_vias):
+        manter = np.isin(ids_vias, list(so_ids))
+        ids_vias, coords_vias = ids_vias[manter], coords_vias[manter]
     # Coordenada de cada via, em graus: o TomTom sob demanda (tomtom.py)
     # consulta o Flow Segment Data exatamente nos pontos do dataset de treino.
     G.graph['vias_monitoradas'] = {
