@@ -66,15 +66,14 @@ def calcular(state, agora: Optional[datetime] = None) -> dict:
 
     conhecidas = set(encoder.classes_.tolist())
     ids = sorted(v for v in vias if v in conhecidas)
-    if not ids:
-        return {'atualizado_em': agora.isoformat(timespec='seconds'), 'pontos': [], 'resumo': {}}
     ordem = lia_inf.ordem_features(model)
     leituras = {v: (recencia.get(v) if recencia is not None else None) for v in ids}
-    linhas = [lia_inf.montar_features(int(enc), hora, dia, float(vel_tomtom.get(v, 50.0)),
+    linhas = [] if not ids else [lia_inf.montar_features(int(enc), hora, dia, float(vel_tomtom.get(v, 50.0)),
                                       lia_inf.lookup_perfis(profiles, v, hora, dia), leituras[v],
                                       ctx(v) if ctx else None, ordem)
               for v, enc in zip(ids, encoder.transform(ids))]
-    razoes = np.clip(model.predict(np.asarray(linhas, dtype=float)), lia_inf.RAZAO_MIN, lia_inf.RAZAO_MAX)
+    razoes = (np.clip(model.predict(np.asarray(linhas, dtype=float)), lia_inf.RAZAO_MIN, lia_inf.RAZAO_MAX)
+              if linhas else np.empty(0))
 
     pontos, resumo = [], {'livre': 0, 'moderado': 0, 'lento': 0, 'parado': 0}
     rotulos = ('livre', 'moderado', 'lento', 'parado')
@@ -85,7 +84,20 @@ def calcular(state, agora: Optional[datetime] = None) -> dict:
         idade = round(math.expm1(leitura['delta_min_lag1'])) if leitura and leitura.get('delta_min_lag1') is not None else None
         lat, lon = vias[v]
         pontos.append({'id': int(v), 'lat': round(float(lat), 5), 'lon': round(float(lon), 5), 'nome': nomes.get(v),
-                       'razao': round(r, 3), 'nivel': nivel, 'leitura_ha_min': idade})
+                       'razao': round(r, 3), 'nivel': nivel, 'leitura_ha_min': idade, 'fonte': 'lia'})
+    # Pontos que o modelo ainda não conhece (coleta nova): a última leitura medida, sem previsão, até o próximo treino.
+    coletadas, nomes_db = G.graph.get('vias_coletadas') or {}, G.graph.get('nomes_coletadas') or {}
+    for v in sorted(set(coletadas) - set(ids)):
+        leitura = recencia.get(v) if recencia is not None else None
+        if not leitura or leitura.get('razao_lag1') is None:
+            continue
+        r = float(leitura['razao_lag1'])
+        nivel = nivel_da_razao(r)
+        resumo[rotulos[nivel]] += 1
+        lat, lon = coletadas[v]
+        pontos.append({'id': int(v), 'lat': round(float(lat), 5), 'lon': round(float(lon), 5), 'nome': nomes_db.get(v),
+                       'razao': round(r, 3), 'nivel': nivel, 'leitura_ha_min': round(math.expm1(leitura['delta_min_lag1'])),
+                       'fonte': 'medicao'})
     pontos.sort(key=lambda p: p['razao'])
     return {'atualizado_em': agora.isoformat(timespec='seconds'), 'modelo': getattr(state, 'model_version', None),
             'pontos': pontos, 'resumo': resumo}
@@ -174,7 +186,7 @@ async def detalhe_ponto(request: Request, id_ponto: int = Path(..., ge=1, le=2_0
     limitar(_limite_ponto, ip_cliente(request))
     st = request.app.state
     G = st.graph
-    vias = G.graph.get('vias_monitoradas') or {}
+    vias = G.graph.get('vias_coletadas') or G.graph.get('vias_monitoradas') or {}
     if id_ponto not in vias:
         raise HTTPException(status_code=404, detail="Ponto não encontrado.")
     guardado = _cache_ponto.get(id_ponto)
@@ -197,7 +209,8 @@ async def detalhe_ponto(request: Request, id_ponto: int = Path(..., ge=1, le=2_0
     if 'nomes_vias' not in G.graph:
         G.graph['nomes_vias'] = nomes_das_vias(G)
     livre = (G.graph.get('vel_livre_tomtom') or {}).get(id_ponto)
-    return {'id': id_ponto, 'nome': G.graph['nomes_vias'].get(id_ponto), 'lat': round(float(lat), 5), 'lon': round(float(lon), 5),
+    nome = G.graph['nomes_vias'].get(id_ponto) or (G.graph.get('nomes_coletadas') or {}).get(id_ponto)
+    return {'id': id_ponto, 'nome': nome, 'lat': round(float(lat), 5), 'lon': round(float(lon), 5),
             'vel_livre_kmh': _num(livre, 1),
             'agora': {k: ponto[k] for k in ('razao', 'nivel', 'leitura_ha_min')} if ponto else None,
             'historico': guardado}

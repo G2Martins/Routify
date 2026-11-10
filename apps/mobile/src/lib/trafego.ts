@@ -3,7 +3,8 @@
 export const NIVEIS = ['livre', 'moderado', 'lento', 'parado'] as const;
 export const ROTULO_NIVEL: Record<(typeof NIVEIS)[number], string> = { livre: 'Livre', moderado: 'Moderado', lento: 'Lento', parado: 'Parado' };
 
-export type Ponto = { id: number; lat: number; lon: number; nome: string | null; razao: number; nivel: number; leitura_ha_min: number | null };
+/** fonte 'medicao': ponto de coleta nova que o modelo ainda não conhece; razão e nível são da última leitura, não previsão. */
+export type Ponto = { id: number; lat: number; lon: number; nome: string | null; razao: number; nivel: number; leitura_ha_min: number | null; fonte?: 'lia' | 'medicao' };
 export type RespostaAgora = { atualizado_em: string; pontos: Ponto[]; resumo: Record<(typeof NIVEIS)[number], number> };
 
 export interface DetalhePonto {
@@ -30,6 +31,17 @@ export const DIA_SEMANA = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'];
 export const razaoTxt = (r: number): string => r.toFixed(2).replace('.', ',');
 
 export const nomeDoPonto = (p: { nome: string | null; id: number }): string => p.nome ?? `Via monitorada ${p.id}`;
+
+export type Grupo = { nome: string; pontos: Ponto[]; nivel: number; razao: number };
+
+/** Pontos com o mesmo nome de via viram um grupo: o pior nível primeiro, depois a menor razão média. */
+export function agruparPorNome(pontos: Ponto[]): Grupo[] {
+  const porNome = new Map<string, Ponto[]>();
+  for (const p of pontos) porNome.set(nomeDoPonto(p), [...(porNome.get(nomeDoPonto(p)) ?? []), p]);
+  return [...porNome.entries()]
+    .map(([nome, ps]) => ({ nome, pontos: [...ps].sort((a, b) => a.razao - b.razao), nivel: Math.max(...ps.map((p) => p.nivel)), razao: ps.reduce((s, p) => s + p.razao, 0) / ps.length }))
+    .sort((a, b) => b.nivel - a.nivel || a.razao - b.razao);
+}
 
 /** Há quanto tempo veio a última leitura, na maior unidade que faz sentido. */
 export function idadeLeitura(min: number | null): string {

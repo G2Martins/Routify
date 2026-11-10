@@ -20,7 +20,7 @@ import { trafficColors } from '../constants/Theme';
 import { useTheme } from '../context/ThemeContext';
 import { API_URL } from '../lib/api';
 import { useAlvo, useDesktopLayout } from '../lib/responsive';
-import { NIVEIS, nomeDoPonto, Ponto, RespostaAgora, ROTULO_NIVEL } from '../lib/trafego';
+import { agruparPorNome, idadeLeitura, NIVEIS, Ponto, RespostaAgora, ROTULO_NIVEL } from '../lib/trafego';
 
 const INTERVALO_MS = 60_000;
 const WEB = Platform.OS === 'web';
@@ -35,11 +35,12 @@ export default function TransitoScreen() {
   const insets = useSafeAreaInsets();
   const { height: alturaJanela } = useWindowDimensions();
   const alvo = useAlvo();
-  const mapaRef = useRef<{ showTrafficPoints?: (p: Ponto[] | null) => void; selecionarPonto?: (id: number | null) => void; mostrarRadares?: never } | null>(null);
+  const mapaRef = useRef<{ showTrafficPoints?: (p: Ponto[] | null) => void; selecionarPonto?: (id: number | null) => void; destacarPontos?: (ids: number[] | null) => void; mostrarRadares?: never } | null>(null);
   const [dados, setDados] = useState<RespostaAgora | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [aberto, setAberto] = useState<number | null>(null);
+  const [grupo, setGrupo] = useState<string | null>(null);
 
   const [moderado, lento, parado] = trafficColors[mapStyle === 'street' || theme.mode === 'light' ? 'light' : 'dark'];
   const cor = [c.success, moderado, lento, parado];
@@ -90,7 +91,13 @@ export default function TransitoScreen() {
   }, [aberto, margem]);
 
   const total = dados ? NIVEIS.reduce((s, n) => s + (dados.resumo[n] ?? 0), 0) : 0;
-  const lentas = (dados?.pontos ?? []).filter((p) => p.nivel >= 1).slice(0, 12);
+  const lentas = agruparPorNome((dados?.pontos ?? []).filter((p) => p.nivel >= 1)).slice(0, 12);
+  const temMedicao = (dados?.pontos ?? []).some((p) => p.fonte === 'medicao');
+  const escolherGrupo = (nome: string, ids: number[]) => {
+    const novo = grupo === nome ? null : nome;
+    setGrupo(novo);
+    mapaRef.current?.destacarPontos?.(novo ? ids : null);
+  };
   const pontoAberto = aberto == null ? undefined : dados?.pontos.find((p) => p.id === aberto);
 
   const painel = (
@@ -126,6 +133,11 @@ export default function TransitoScreen() {
                 </View>
               ))}
             </View>
+            {temMedicao ? (
+              <Text style={[theme.typography.caption, { color: c.textMuted, marginTop: 10 }]}>
+                Pontos só com contorno são de coleta nova: mostram a última medição. A LIA passa a prever neles no próximo treino.
+              </Text>
+            ) : null}
           </Cartao>
         </Surgir>
       ) : null}
@@ -135,31 +147,59 @@ export default function TransitoScreen() {
           <Cartao padding={0}>
             <Text style={[theme.typography.eyebrow, { color: c.textMuted, padding: 16, paddingBottom: 8 }]}>Mais lentas agora</Text>
             {lentas.length ? (
-              lentas.map((p) => (
-                <Pressable
-                  key={p.id}
-                  onPress={() => setAberto(p.id)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${nomeDoPonto(p)}: ${ROTULO_NIVEL[NIVEIS[p.nivel]]}, ${Math.round(p.razao * 100)}% da velocidade livre. Ver detalhes`}
-                  style={(estado) => {
-                    const { hovered } = estado as { hovered?: boolean };
-                    return [styles.linha, { minHeight: alvo, borderTopColor: c.border }, hovered && { backgroundColor: c.surfaceAlt }];
-                  }}
-                >
-                  <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
-                    <View style={styles.linhaTopo}>
-                      <Text numberOfLines={2} style={[theme.typography.bodyMd, { color: c.text, flex: 1 }]}>{nomeDoPonto(p)}</Text>
-                      <Selo tom={p.nivel >= 3 ? 'erro' : 'alerta'} ponto>{ROTULO_NIVEL[NIVEIS[p.nivel]]}</Selo>
-                    </View>
-                    {/* Barra: velocidade prevista como % da livre. */}
-                    <View style={[styles.barra, { backgroundColor: c.surfaceAlt }]}>
-                      <View style={{ width: `${Math.round(p.razao * 100)}%`, height: '100%', borderRadius: 3, backgroundColor: cor[p.nivel] }} />
-                    </View>
-                    <Text style={[theme.typography.caption, { color: c.textMuted }]}>{`${Math.round(p.razao * 100)}% da velocidade livre`}</Text>
+              lentas.map((g) => {
+                const varios = g.pontos.length > 1;
+                const expandido = grupo === g.nome;
+                const pct = Math.round(g.razao * 100);
+                return (
+                  <View key={g.nome}>
+                    <Pressable
+                      onPress={() => (varios ? escolherGrupo(g.nome, g.pontos.map((p) => p.id)) : setAberto(g.pontos[0].id))}
+                      accessibilityRole="button"
+                      accessibilityState={varios ? { expanded: expandido } : undefined}
+                      accessibilityLabel={`${g.nome}: ${ROTULO_NIVEL[NIVEIS[g.nivel]]}, ${varios ? `${g.pontos.length} pontos, média de ` : ''}${pct}% da velocidade livre. ${varios ? 'Mostrar os pontos no mapa' : 'Ver detalhes'}`}
+                      style={(estado) => {
+                        const { hovered } = estado as { hovered?: boolean };
+                        return [styles.linha, { minHeight: alvo, borderTopColor: c.border }, (hovered || expandido) && { backgroundColor: c.surfaceAlt }];
+                      }}
+                    >
+                      <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
+                        <View style={styles.linhaTopo}>
+                          <Text numberOfLines={2} style={[theme.typography.bodyMd, { color: c.text, flex: 1 }]}>{g.nome}</Text>
+                          <Selo tom={g.nivel >= 3 ? 'erro' : 'alerta'} ponto>{ROTULO_NIVEL[NIVEIS[g.nivel]]}</Selo>
+                        </View>
+                        {/* Barra: velocidade prevista como % da livre (média dos pontos da via). */}
+                        <View style={[styles.barra, { backgroundColor: c.surfaceAlt }]}>
+                          <View style={{ width: `${pct}%`, height: '100%', borderRadius: 3, backgroundColor: cor[g.nivel] }} />
+                        </View>
+                        <Text style={[theme.typography.caption, { color: c.textMuted }]}>
+                          {varios ? `${g.pontos.length} pontos nesta via · média de ${pct}% da velocidade livre` : `${pct}% da velocidade livre`}
+                        </Text>
+                      </View>
+                      <Icon name={varios ? (expandido ? 'ion:chevron-up' : 'ion:chevron-down') : 'ion:chevron-forward'} size={16} color={c.textSubtle} />
+                    </Pressable>
+                    {expandido
+                      ? g.pontos.map((p, i) => (
+                          <Pressable
+                            key={p.id}
+                            onPress={() => setAberto(p.id)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Ponto ${i + 1} de ${g.nome}: ${Math.round(p.razao * 100)}% da velocidade livre. Ver detalhes`}
+                            style={(estado) => {
+                              const { hovered } = estado as { hovered?: boolean };
+                              return [styles.subLinha, { minHeight: alvo, borderTopColor: c.border }, hovered && { backgroundColor: c.surfaceAlt }];
+                            }}
+                          >
+                            <View style={[styles.bolinha, { backgroundColor: cor[p.nivel] }]} />
+                            <Text style={[theme.typography.body, { color: c.text, flex: 1 }]}>{`Ponto ${i + 1} · ${Math.round(p.razao * 100)}%`}</Text>
+                            <Text style={[theme.typography.caption, { color: c.textMuted }]}>{p.fonte === 'medicao' ? 'medição' : idadeLeitura(p.leitura_ha_min)}</Text>
+                            <Icon name="ion:chevron-forward" size={16} color={c.textSubtle} />
+                          </Pressable>
+                        ))
+                      : null}
                   </View>
-                  <Icon name="ion:chevron-forward" size={16} color={c.textSubtle} />
-                </Pressable>
-              ))
+                );
+              })
             ) : (
               <Text style={[theme.typography.body, { color: c.textMuted, paddingHorizontal: 16, paddingBottom: 16 }]}>Todos os pontos estão livres agora.</Text>
             )}
@@ -245,6 +285,7 @@ const styles = StyleSheet.create({
   bolinha: { width: 8, height: 8, borderRadius: 4 },
   linha: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth },
   linhaTopo: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  subLinha: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 28, paddingRight: 16, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth },
   barra: { height: 6, borderRadius: 3, overflow: 'hidden' },
   folhaEnvelope: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 40, alignItems: 'center' },
   folha: { flex: 1, width: '100%', maxWidth: 600, borderTopLeftRadius: 16, borderTopRightRadius: 16, borderWidth: 1, borderBottomWidth: 0 },

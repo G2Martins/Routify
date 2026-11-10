@@ -252,6 +252,14 @@ def enrich_graph(G, sb, raio_m: float = RAIO_TRANSFER_M, so_ids=None) -> dict:
 
     # --- 3. Vínculo com a via monitorada mais próxima ---
     ids_vias, coords_vias = fetch_monitored_points(sb)
+    # Todos os pontos coletados, inclusive os que o modelo ainda não conhece (aparecem no app como "só medição").
+    G.graph['vias_coletadas'] = {int(i): (math.degrees(lat), math.degrees(lon)) for i, (lat, lon) in zip(ids_vias, coords_vias)}
+    if sb is not None:
+        try:
+            G.graph['nomes_coletadas'] = {int(r['id_ponto']): r['nome_via'] for r in
+                                          sb.table('vias_monitoradas').select('id_ponto, nome_via').execute().data or []}
+        except Exception as e:  # nome é cosmético: sem ele o app mostra "Via monitorada N"
+            logging.warning(f"Nomes das vias monitoradas indisponíveis ({type(e).__name__})")
     if so_ids is not None and len(ids_vias):
         manter = np.isin(ids_vias, list(so_ids))
         ids_vias, coords_vias = ids_vias[manter], coords_vias[manter]

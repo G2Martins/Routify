@@ -1,7 +1,7 @@
 // npm test (de apps/mobile): textos do detalhe de um ponto e a validação do arquivo de radares.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { diaCurto, erroDoPonto, horaEDiaAgora, idadeLeitura, nomeDoPonto, razaoTxt } from '../src/lib/trafego.ts';
+import { agruparPorNome, diaCurto, erroDoPonto, horaEDiaAgora, idadeLeitura, nomeDoPonto, razaoTxt } from '../src/lib/trafego.ts';
 import { radaresValidos } from '../src/lib/radares.ts';
 
 test('idade da leitura na maior unidade que faz sentido', () => {
@@ -49,3 +49,11 @@ test('radares: descarta o que não é coordenada, limite inválido vira null, no
   assert.deepEqual(radaresValidos(null), []);
   assert.deepEqual(radaresValidos({ radares: 'x' }), []);
 });
+
+test('pontos com o mesmo nome viram um grupo, o pior primeiro', () => {
+  const p = (id, nome, razao, nivel) => ({ id, nome, razao, nivel, lat: 0, lon: 0, leitura_ha_min: 5 });
+  const g = agruparPorNome([p(1, 'Eixo', 0.7, 1), p(2, 'EPTG', 0.4, 2), p(3, 'Eixo', 0.6, 1), p(4, null, 0.8, 1)]);
+  assert.deepEqual(g.map((x) => [x.nome, x.pontos.map((y) => y.id)]), [['EPTG', [2]], ['Eixo', [3, 1]], ['Via monitorada 4', [4]]]);
+  assert.equal(g[1].razao.toFixed(2), '0.65');
+});
+

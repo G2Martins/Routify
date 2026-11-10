@@ -58,3 +58,17 @@ def test_cache_de_60_s_e_limite_por_ip(tmp_path, monkeypatch):
     assert _ModeloContado.chamadas == 1  # uma predição em lote, servida do cache depois
     r = cli.get('/trafego/agora')
     assert r.status_code == 429 and int(r.headers['Retry-After']) >= 1
+
+
+def test_ponto_novo_aparece_como_medicao_ate_o_treino(tmp_path):
+    st = _estado(tmp_path)
+    st.graph.graph['vias_coletadas'] = {**st.graph.graph['vias_monitoradas'], 700: (-15.9, -48.1)}
+    st.graph.graph['nomes_coletadas'] = {700: 'Avenida Recanto das Emas'}
+    st.recencia_cache.registrar(700, 0.55)
+    d = trafego.calcular(st, datetime(2026, 11, 3, 8, tzinfo=lia.BRASILIA_TZ))
+    novo = next(p for p in d['pontos'] if p['id'] == 700)
+    assert novo['fonte'] == 'medicao' and novo['razao'] == 0.55 and novo['nome'] == 'Avenida Recanto das Emas'
+    assert {p['fonte'] for p in d['pontos'] if p['id'] != 700} == {'lia'}
+    assert 99 not in [p['id'] for p in d['pontos']], 'sem leitura e sem modelo: fica de fora'
+    assert sum(d['resumo'].values()) == 3
+

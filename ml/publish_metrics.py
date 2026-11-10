@@ -74,7 +74,8 @@ def linhas_treinos():
 
     v21 = _json('lia_2.1_metadata.json')
     if v21:
-        linhas.append(_linha_cv('lia_2.1', 'lia_2.1_metadata.json › cv', v21, cv21))
+        linhas.append(_linha_cv('lia_2.1', 'lia_2.1_metadata.json › cv', v21, cv21, {
+            'pct_congestionado': v21.get('pct_congestionado'), 'feature_importance': v21.get('feature_importance')}))
 
     # Ablação do contexto: mesma receita no mesmo ambiente, com e sem as 5 features.
     for versao, nota in (('lia_2.1_repro', '2.1 refeita no pipeline atual — base justa da ablação.'),
@@ -92,6 +93,10 @@ def linhas_treinos():
                 'persistencia_rmse_seg': cv.get('persistencia_rmse_seg'),
                 'persistencia_mae_seg': cv.get('persistencia_mae_seg'),
                 'cv_por_idade_recencia_min': meta.get('cv_por_idade_recencia_min'),
+                'cv_por_periodo': meta.get('cv_por_periodo'),
+                'cv_por_periodo_recencia_30min': meta.get('cv_por_periodo_recencia_30min'),
+                'feature_importance': meta.get('feature_importance'),
+                'hiperparametros': meta.get('hiperparametros'),
                 'receita': meta.get('receita')}))
 
     for nome in sorted(os.listdir(ARTEFATOS)):
@@ -136,6 +141,7 @@ def main():
         ('gate_lia_2_4', _json('gate_lia_2.4_330arvores.json')),
         ('baseline_estatico', _json('baseline_estatico.json')),
         ('avaliacao_fora_do_tempo', _json('avaliacao_fora_do_tempo.json')),
+        ('estresse_versoes', _json('estresse_versoes.json')),
         ('cobertura_dataset', _json('cobertura_dataset.json')),
         ('experimento_velocidade_livre', _json('experimento_velocidade_livre.json')),
         ('fase3_comparacao', fase3()),

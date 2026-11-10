@@ -190,7 +190,7 @@ type Rota = {
 };
 
 /** Ponto de /trafego/agora (tela "Trânsito agora"). */
-export type PontoTransito = { id: number; lat: number; lon: number; nivel: number };
+export type PontoTransito = { id: number; lat: number; lon: number; nivel: number; fonte?: string };
 
 /** Folga da rota nas bordas do mapa: quem desenha painel por cima (MapScreen, Planejar) informa quanto cobre. */
 export type Margem = { top: number; left: number; right: number; bottom: number };
@@ -218,6 +218,7 @@ const MapaVetorial = forwardRef(({ onFalha, margem, onPontoPress }: Props, ref) 
   const rotaRef = useRef<Rota | null>(null);
   const pontosRef = useRef<PontoTransito[] | null>(null);
   const selecionadoRef = useRef<number | null>(null);
+  const grupoRef = useRef<number[] | null>(null);
   const radaresRef = useRef<Radar[] | null>(null);
   const popupRef = useRef<Popup | null>(null);
   const margemRef = useRef<Margem>(MARGEM_PADRAO);
@@ -253,18 +254,20 @@ const MapaVetorial = forwardRef(({ onFalha, margem, onPontoPress }: Props, ref) 
     const map = mapRef.current;
     if (!map || !estiloPronto.current || !map.getStyle()) return;
     if (map.getLayer('transito-selecionado')) map.removeLayer('transito-selecionado');
+    if (map.getLayer('transito-grupo')) map.removeLayer('transito-grupo');
     if (map.getLayer('transito-agora')) map.removeLayer('transito-agora');
     if (map.getSource('transito-agora')) map.removeSource('transito-agora');
     const pontos = pontosRef.current;
     if (!pontos?.length) return;
     const [moderado, lento, parado] = trafficColors[temaRef.current.mapStyle === 'street' ? 'light' : 'dark'];
+    const corNivel: ExpressionSpecification = ['match', ['get', 'nivel'], 1, moderado, 2, lento, 3, parado, temaRef.current.c.success];
     map.addSource('transito-agora', {
       type: 'geojson',
       data: {
         type: 'FeatureCollection',
         features: pontos.map((p) => ({
           type: 'Feature',
-          properties: { id: p.id, nivel: p.nivel },
+          properties: { id: p.id, nivel: p.nivel, fonte: p.fonte ?? 'lia' },
           geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
         })),
       },
@@ -276,14 +279,28 @@ const MapaVetorial = forwardRef(({ onFalha, margem, onPontoPress }: Props, ref) 
         source: 'transito-agora',
         paint: {
           'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, ['+', 2.5, ['get', 'nivel']], 14, ['+', 6, ['*', 2, ['get', 'nivel']]]],
-          'circle-color': ['match', ['get', 'nivel'], 1, moderado, 2, lento, 3, parado, temaRef.current.c.success],
-          'circle-opacity': 0.9,
-          'circle-stroke-width': 1,
-          'circle-stroke-color': paleta().fundo,
+          'circle-color': corNivel,
+          // Coleta nova (o modelo ainda não conhece): só o contorno, para não parecer previsão.
+          'circle-opacity': ['match', ['get', 'fonte'], 'medicao', 0.25, 0.9],
+          'circle-stroke-width': ['match', ['get', 'fonte'], 'medicao', 2, 1],
+          'circle-stroke-color': ['match', ['get', 'fonte'], 'medicao', corNivel, paleta().fundo],
         },
       },
       map.getLayer('rota-alt') ? 'rota-alt' : undefined,
     );
+    // Pontos de uma mesma via escolhida na lista: anel em todos, para ver onde ficam.
+    map.addLayer({
+      id: 'transito-grupo',
+      type: 'circle',
+      source: 'transito-agora',
+      filter: ['in', ['get', 'id'], ['literal', grupoRef.current ?? []]],
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 7, 14, 13],
+        'circle-color': TRANSP,
+        'circle-stroke-width': 2.5,
+        'circle-stroke-color': temaRef.current.c.accent,
+      },
+    });
     // Anel no ponto aberto no painel: sabe-se de qual ponto são os dados.
     map.addLayer({
       id: 'transito-selecionado',
@@ -680,6 +697,24 @@ const MapaVetorial = forwardRef(({ onFalha, margem, onPontoPress }: Props, ref) 
     showTrafficPoints(pontos: PontoTransito[] | null) {
       pontosRef.current = pontos;
       desenharPontos();
+    },
+
+    /** Destaca os pontos de uma via (grupo da lista) e enquadra todos eles no vão que os painéis deixam livre. */
+    destacarPontos(ids: number[] | null) {
+      grupoRef.current = ids;
+      const map = mapRef.current;
+      if (!map || !estiloPronto.current) return;
+      if (map.getLayer('transito-grupo')) map.setFilter('transito-grupo', ['in', ['get', 'id'], ['literal', ids ?? []]]);
+      const alvo = (pontosRef.current ?? []).filter((p) => ids?.includes(p.id));
+      if (!alvo.length) return;
+      const lons = alvo.map((p) => p.lon);
+      const lats = alvo.map((p) => p.lat);
+      const m = margemRef.current;
+      map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], {
+        padding: { top: m.top + 40, bottom: m.bottom + 40, left: m.left + 40, right: m.right + 40 },
+        maxZoom: 15,
+        duration: reduzirMovimento() ? 0 : 700,
+      });
     },
 
     /** Marca o ponto aberto no painel e leva a câmera até ele, no vão que os painéis deixam livre. */

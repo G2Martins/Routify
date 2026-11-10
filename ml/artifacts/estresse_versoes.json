@@ -1,0 +1,129 @@
+{
+ "gerado_em": "2026-11-10T00:07:06+00:00",
+ "desde": "2026-11-09",
+ "cenarios": [
+  "como_chega",
+  "leitura_60min",
+  "leitura_120min",
+  "sem_vizinhos",
+  "chuva_zero",
+  "tudo_velho"
+ ],
+ "versoes": {
+  "lia_2.1": {
+   "como_chega": {
+    "rmse_seg": 44.682,
+    "mae_seg": 20.063
+   },
+   "leitura_60min": null,
+   "leitura_120min": {
+    "rmse_seg": 51.252,
+    "mae_seg": 23.111,
+    "n": 17640
+   },
+   "sem_vizinhos": {
+    "rmse_seg": 44.682,
+    "mae_seg": 20.063
+   },
+   "chuva_zero": {
+    "rmse_seg": 44.682,
+    "mae_seg": 20.063
+   },
+   "tudo_velho": {
+    "rmse_seg": 49.74,
+    "mae_seg": 22.466
+   }
+  },
+  "lia_2.2": {
+   "como_chega": {
+    "rmse_seg": 45.073,
+    "mae_seg": 19.834
+   },
+   "leitura_60min": null,
+   "leitura_120min": {
+    "rmse_seg": 49.691,
+    "mae_seg": 22.8,
+    "n": 17640
+   },
+   "sem_vizinhos": {
+    "rmse_seg": 46.226,
+    "mae_seg": 20.652
+   },
+   "chuva_zero": {
+    "rmse_seg": 44.25,
+    "mae_seg": 19.377
+   },
+   "tudo_velho": {
+    "rmse_seg": 52.441,
+    "mae_seg": 24.918
+   }
+  },
+  "lia_2.3": {
+   "como_chega": {
+    "rmse_seg": 46.376,
+    "mae_seg": 22.056
+   },
+   "leitura_60min": null,
+   "leitura_120min": {
+    "rmse_seg": 48.15,
+    "mae_seg": 23.046,
+    "n": 17640
+   },
+   "sem_vizinhos": {
+    "rmse_seg": 44.549,
+    "mae_seg": 21.635
+   },
+   "chuva_zero": {
+    "rmse_seg": 45.822,
+    "mae_seg": 21.696
+   },
+   "tudo_velho": {
+    "rmse_seg": 53.142,
+    "mae_seg": 25.78
+   }
+  },
+  "lia_2.4": {
+   "como_chega": {
+    "rmse_seg": 43.746,
+    "mae_seg": 19.547
+   },
+   "leitura_60min": null,
+   "leitura_120min": {
+    "rmse_seg": 44.914,
+    "mae_seg": 20.467,
+    "n": 17640
+   },
+   "sem_vizinhos": {
+    "rmse_seg": 42.966,
+    "mae_seg": 19.976
+   },
+   "chuva_zero": {
+    "rmse_seg": 43.342,
+    "mae_seg": 19.33
+   },
+   "tudo_velho": {
+    "rmse_seg": 48.888,
+    "mae_seg": 22.841
+   }
+  }
+ },
+ "referencias": {
+  "persistencia_120min": {
+   "rmse_seg": 115.031,
+   "mae_seg": 46.547
+  },
+  "persistencia": {
+   "rmse_seg": 68.037,
+   "mae_seg": 26.309
+  },
+  "estatico": {
+   "rmse_seg": 107.793,
+   "mae_seg": 41.398
+  }
+ },
+ "n_linhas": 17640,
+ "periodo": [
+  "2026-11-09 00:20:15.331373-03:00",
+  "2026-11-09 20:54:54.408190-03:00"
+ ]
+}

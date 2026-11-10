@@ -1,0 +1,435 @@
+{
+ "regra": "A proposta de 2026-11-03 (proposta_expansao_sensores.py) ordena os buracos pelo tamanho e caiu quase toda em rodovias",
+ "por_ra": 10,
+ "pontos_antes": 780,
+ "ras": {
+  "Recanto das Emas": [
+   {
+    "nome_via": "Estrada Parque Contorno",
+    "latitude": -15.887466,
+    "longitude": -48.058787
+   },
+   {
+    "nome_via": "Estrada Parque Contorno",
+    "latitude": -15.917842,
+    "longitude": -48.049078
+   },
+   {
+    "nome_via": "Estrada Parque Contorno",
+    "latitude": -15.908051,
+    "longitude": -48.052202
+   },
+   {
+    "nome_via": "Estrada Parque Contorno",
+    "latitude": -15.932893,
+    "longitude": -48.044238
+   },
+   {
+    "nome_via": "Avenida Recanto das Emas",
+    "latitude": -15.90591,
+    "longitude": -48.079314
+   },
+   {
+    "nome_via": "Avenida Recanto das Emas",
+    "latitude": -15.913732,
+    "longitude": -48.099176
+   },
+   {
+    "nome_via": "Avenida Recanto das Emas",
+    "latitude": -15.903308,
+    "longitude": -48.062376
+   },
+   {
+    "nome_via": "Avenida Recanto das Emas",
+    "latitude": -15.928719,
+    "longitude": -48.108894
+   },
+   {
+    "nome_via": "Avenida Ponte Alta",
+    "latitude": -15.916636,
+    "longitude": -48.067512
+   },
+   {
+    "nome_via": "ponte",
+    "latitude": -15.92238,
+    "longitude": -48.134865
+   }
+  ],
+  "Park Way": [
+   {
+    "nome_via": "Estrada Parque Indústria e Abastecimento",
+    "latitude": -15.893442,
+    "longitude": -47.961659
+   },
+   {
+    "nome_via": "Estrada Parque Indústria e Abastecimento",
+    "latitude": -15.933479,
+    "longitude": -47.982268
+   },
+   {
+    "nome_via": "Estrada Parque Indústria e Abastecimento",
+    "latitude": -15.912072,
+    "longitude": -47.968018
+   },
+   {
+    "nome_via": "Estrada Parque Contorno",
+    "latitude": -15.977061,
+    "longitude": -47.993687
+   },
+   {
+    "nome_via": "Estrada Parque Contorno",
+    "latitude": -15.974635,
+    "longitude": -48.012176
+   },
+   {
+    "nome_via": "Estrada Parque Indústria e Abastecimento",
+    "latitude": -15.948549,
+    "longitude": -47.992843
+   },
+   {
+    "nome_via": "Estrada Parque Dom Bosco",
+    "latitude": -15.873043,
+    "longitude": -47.95373
+   },
+   {
+    "nome_via": "Estrada Parque Dom Bosco",
+    "latitude": -15.863881,
+    "longitude": -47.939252
+   },
+   {
+    "nome_via": "Estrada Parque do Ipê",
+    "latitude": -15.958509,
+    "longitude": -48.011997
+   },
+   {
+    "nome_via": "Estrada Parque Contorno",
+    "latitude": -15.97519,
+    "longitude": -47.968422
+   }
+  ],
+  "Paranoá": [
+   {
+    "nome_via": "Estrada Parque Paranoá",
+    "latitude": -15.783618,
+    "longitude": -47.805688
+   },
+   {
+    "nome_via": "Estrada Parque Contorno",
+    "latitude": -15.790165,
+    "longitude": -47.77982
+   },
+   {
+    "nome_via": "Estrada Parque Contorno",
+    "latitude": -15.772347,
+    "longitude": -47.774739
+   },
+   {
+    "nome_via": "Estrada Parque Paranoá",
+    "latitude": -15.768192,
+    "longitude": -47.811108
+   },
+   {
+    "nome_via": "Estrada Parque Contorno",
+    "latitude": -15.821003,
+    "longitude": -47.794212
+   },
+   {
+    "nome_via": "Estrada Parque Paranoá",
+    "latitude": -15.781255,
+    "longitude": -47.792099
+   },
+   {
+    "nome_via": "Estrada Parque Tamanduá",
+    "latitude": -15.761532,
+    "longitude": -47.787326
+   },
+   {
+    "nome_via": "Estrada Parque Contorno",
+    "latitude": -15.833768,
+    "longitude": -47.8031
+   },
+   {
+    "nome_via": "Estrada Sobradinho dos Melos",
+    "latitude": -15.766108,
+    "longitude": -47.726854
+   },
+   {
+    "nome_via": "Estrada São Bartolomeu",
+    "latitude": -15.814775,
+    "longitude": -47.784619
+   }
+  ],
+  "Guará": [
+   {
+    "nome_via": "Estrada Parque Taguatinga",
+    "latitude": -15.811895,
+    "longitude": -47.987613
+   },
+   {
+    "nome_via": "Estrada Parque Ceilândia",
+    "latitude": -15.786923,
+    "longitude": -47.992283
+   },
+   {
+    "nome_via": "Estrada Parque Indústria e Abastecimento",
+    "latitude": -15.848236,
+    "longitude": -47.954596
+   },
+   {
+    "nome_via": "Estrada Parque Vale",
+    "latitude": -15.801223,
+    "longitude": -48.001072
+   },
+   {
+    "nome_via": "Estrada Parque Guará",
+    "latitude": -15.838088,
+    "longitude": -47.96102
+   },
+   {
+    "nome_via": "Avenida Contorno",
+    "latitude": -15.835937,
+    "longitude": -47.970154
+   },
+   {
+    "nome_via": "Via Bernardo Sayão",
+    "latitude": -15.850625,
+    "longitude": -47.975304
+   },
+   {
+    "nome_via": "STRC Trecho 2",
+    "latitude": -15.797828,
+    "longitude": -47.991143
+   },
+   {
+    "nome_via": "Avenida Contorno",
+    "latitude": -15.826587,
+    "longitude": -47.975334
+   },
+   {
+    "nome_via": "Avenida Contorno",
+    "latitude": -15.835344,
+    "longitude": -47.986428
+   }
+  ],
+  "Samambaia": [
+   {
+    "nome_via": "Avenida Leste",
+    "latitude": -15.87268,
+    "longitude": -48.058476
+   },
+   {
+    "nome_via": "Avenida Leste",
+    "latitude": -15.859303,
+    "longitude": -48.063908
+   },
+   {
+    "nome_via": "VC-311",
+    "latitude": -15.854342,
+    "longitude": -48.165682
+   },
+   {
+    "nome_via": "Avenida Segunda Norte",
+    "latitude": -15.873447,
+    "longitude": -48.104769
+   },
+   {
+    "nome_via": "1ᵃ Avenida Norte",
+    "latitude": -15.883622,
+    "longitude": -48.114409
+   },
+   {
+    "nome_via": "1ᵃ Avenida Norte",
+    "latitude": -15.888715,
+    "longitude": -48.125504
+   },
+   {
+    "nome_via": "Avenida Segunda Norte",
+    "latitude": -15.858154,
+    "longitude": -48.082523
+   },
+   {
+    "nome_via": "1ᵃ Avenida Norte",
+    "latitude": -15.896561,
+    "longitude": -48.142438
+   },
+   {
+    "nome_via": "Avenida Primeira Sul",
+    "latitude": -15.886017,
+    "longitude": -48.104384
+   },
+   {
+    "nome_via": "Avenida Primeira Sul",
+    "latitude": -15.88057,
+    "longitude": -48.094007
+   }
+  ],
+  "Vicente Pires": [
+   {
+    "nome_via": "Estrada Parque Ceilândia",
+    "latitude": -15.789766,
+    "longitude": -48.02151
+   },
+   {
+    "nome_via": "Rua 3",
+    "latitude": -15.811162,
+    "longitude": -48.011987
+   },
+   {
+    "nome_via": "Rua 3",
+    "latitude": -15.799744,
+    "longitude": -48.01192
+   },
+   {
+    "nome_via": "Avenida da Misericórdia",
+    "latitude": -15.81609,
+    "longitude": -48.038712
+   },
+   {
+    "nome_via": "SHVP - Rua 7",
+    "latitude": -15.799199,
+    "longitude": -48.042683
+   },
+   {
+    "nome_via": "SHVP - Rua 5",
+    "latitude": -15.813353,
+    "longitude": -48.025125
+   },
+   {
+    "nome_via": "SHVP - Rua 8",
+    "latitude": -15.803183,
+    "longitude": -48.027676
+   },
+   {
+    "nome_via": "Rua 1",
+    "latitude": -15.813514,
+    "longitude": -48.0536
+   },
+   {
+    "nome_via": "Avenida da Misericórdia",
+    "latitude": -15.825106,
+    "longitude": -48.047412
+   }
+  ],
+  "Sobradinho": [
+   {
+    "nome_via": "Rodovia Presidente Juscelino Kubitschek",
+    "latitude": -15.654341,
+    "longitude": -47.782675
+   },
+   {
+    "nome_via": "Rodovia Presidente Juscelino Kubitschek",
+    "latitude": -15.67795,
+    "longitude": -47.8282
+   },
+   {
+    "nome_via": "Rodovia Luiz Carlos Prestes",
+    "latitude": -15.686407,
+    "longitude": -47.851869
+   },
+   {
+    "nome_via": "Rodovia Presidente Juscelino Kubitschek",
+    "latitude": -15.667355,
+    "longitude": -47.810666
+   },
+   {
+    "nome_via": "Rodovia Presidente Juscelino Kubitschek",
+    "latitude": -15.643814,
+    "longitude": -47.760549
+   },
+   {
+    "nome_via": "Rodovia Presidente Juscelino Kubitschek",
+    "latitude": -15.66203,
+    "longitude": -47.799475
+   },
+   {
+    "nome_via": "Rodovia Presidente Juscelino Kubitschek",
+    "latitude": -15.648001,
+    "longitude": -47.76906
+   },
+   {
+    "nome_via": "Rota do Cavalo",
+    "latitude": -15.712314,
+    "longitude": -47.762349
+   },
+   {
+    "nome_via": "Rota do Cavalo",
+    "latitude": -15.724178,
+    "longitude": -47.77705
+   },
+   {
+    "nome_via": "Estrada Parque Contorno",
+    "latitude": -15.700048,
+    "longitude": -47.825732
+   }
+  ],
+  "Sobradinho II": [
+   {
+    "nome_via": "VC-215",
+    "latitude": -15.624239,
+    "longitude": -47.823908
+   },
+   {
+    "nome_via": "AR 19 Conjunto 10",
+    "latitude": -15.64295,
+    "longitude": -47.816075
+   },
+   {
+    "nome_via": "AR 3",
+    "latitude": -15.639006,
+    "longitude": -47.828119
+   }
+  ],
+  "Lago Norte": [
+   {
+    "nome_via": "Estrada Parque Indústria e Abastecimento",
+    "latitude": -15.699381,
+    "longitude": -47.880749
+   },
+   {
+    "nome_via": "Rodovia Luiz Carlos Prestes",
+    "latitude": -15.689045,
+    "longitude": -47.86112
+   },
+   {
+    "nome_via": "Estrada Parque Indústria e Abastecimento",
+    "latitude": -15.694559,
+    "longitude": -47.871793
+   },
+   {
+    "nome_via": "Estrada Parque Contorno",
+    "latitude": -15.718434,
+    "longitude": -47.800002
+   },
+   {
+    "nome_via": "Estrada Parque Contorno",
+    "latitude": -15.693068,
+    "longitude": -47.841818
+   },
+   {
+    "nome_via": "Estrada Parque Paranoá",
+    "latitude": -15.719758,
+    "longitude": -47.857398
+   },
+   {
+    "nome_via": "Estrada Parque Tamanduá",
+    "latitude": -15.758219,
+    "longitude": -47.808332
+   },
+   {
+    "nome_via": "Estrada Parque Contorno",
+    "latitude": -15.730223,
+    "longitude": -47.789212
+   },
+   {
+    "nome_via": "Estrada Parque Paranoá",
+    "latitude": -15.750663,
+    "longitude": -47.816521
+   },
+   {
+    "nome_via": "Estrada Parque Paranoá",
+    "latitude": -15.730969,
+    "longitude": -47.840693
+   }
+  ]
+ }
+}
