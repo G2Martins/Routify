@@ -25,15 +25,12 @@ install -m 0644 "$COL/deploy/routify-collector.service" /etc/systemd/system/rout
 # depois que a migration 20261102000000_lia_vs_provedores criar a tabela.
 install -m 0644 "$COL/deploy/routify-comparador.service" /etc/systemd/system/routify-comparador.service
 install -m 0644 "$COL/deploy/routify-comparador.timer" /etc/systemd/system/routify-comparador.timer
-install -m 0644 "$COL/deploy/routify-gps.service" /etc/systemd/system/routify-gps.service
-install -m 0644 "$COL/deploy/routify-gps.timer" /etc/systemd/system/routify-gps.timer
 # Rotina de validação: roda ao fim de cada rodada do comparador (OnSuccess/OnFailure), sem timer próprio.
 install -m 0644 "$COL/deploy/routify-rotina.service" /etc/systemd/system/routify-rotina.service
 # A/B nos picos de dia útil (scripts/ab_ec2.sh): só liga com AB=1; para sozinho na data AB_ATE da unit.
 install -m 0644 "$COL/deploy/routify-ab.service" /etc/systemd/system/routify-ab.service
 install -m 0644 "$COL/deploy/routify-ab.timer" /etc/systemd/system/routify-ab.timer
 systemctl daemon-reload
-if [ "${GPS:-0}" = 1 ]; then systemctl enable --now routify-gps.timer >/dev/null; fi
 if [ "${COMPARADOR:-0}" = 1 ]; then systemctl enable --now routify-comparador.timer >/dev/null; echo "comparador: $(systemctl list-timers routify-comparador.timer --no-pager | sed -n 2p)"; fi
 if [ "${AB:-0}" = 1 ]; then systemctl enable --now routify-ab.timer >/dev/null; echo "A/B: $(systemctl list-timers routify-ab.timer --no-pager | sed -n 2p)"; fi
 systemctl enable routify-collector >/dev/null

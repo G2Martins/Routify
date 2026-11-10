@@ -196,6 +196,10 @@ Cascata de fallback em [src/components/mapa/geolocalizacao.ts](src/components/ma
 
 Edge requer `lfsvc` ativo (Windows). Chrome/Firefox/Comet usam Google Location API próprio.
 
+O passo 1 ou 2 pode "dar certo" com erro de quilômetros (PC sem GPS: o navegador estima pela rede). Com raio acima de
+500 m (`coords.accuracy`), `pelaPrecisao` afasta o zoom e avisa "Posição aproximada (± N km)". A posição só centraliza o
+mapa; nunca vira origem da rota sozinha.
+
 <div align="center">
   <img src="assets/Logo_Routify.png" alt="Routify Logo" width="350"/>
 

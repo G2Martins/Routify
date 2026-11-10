@@ -6,6 +6,19 @@
  */
 
 /**
+ * Zoom e aviso pela precisão que o navegador informa (raio em metros). PC sem GPS: a posição vem da rede ou do IP,
+ * com erro de quilômetros (caso real: Núcleo Bandeirante para quem estava em Águas Claras). Ela não pode parecer exata.
+ */
+export function pelaPrecisao(raioM: number, zoomExato: number): { zoom: number; aviso: string | null } {
+  if (!Number.isFinite(raioM) || raioM <= 500) return { zoom: zoomExato, aviso: null };
+  const txt = raioM >= 1000 ? `${Math.round(raioM / 1000)} km` : `${Math.round(raioM / 10) * 10} m`;
+  return {
+    zoom: raioM > 3000 ? 12 : 14,
+    aviso: `Posição aproximada (± ${txt}): sem GPS, o navegador estima pela rede. Para a rota, digite a origem.`,
+  };
+}
+
+/**
  * Centraliza em quem usa. `colocar(lat, lon, zoom)` recebe a posição; `onError` recebe a mensagem
  * para o usuário quando nada funcionou ou a posição é aproximada.
  */
@@ -50,10 +63,15 @@ export function localizarUsuario(colocar: (lat: number, lon: number, zoom: numbe
     return false;
   };
 
+  const usar = (c: GeolocationCoordinates, zoomExato: number) => {
+    const { zoom, aviso } = pelaPrecisao(c.accuracy, zoomExato);
+    colocar(c.latitude, c.longitude, zoom);
+    if (aviso) onError?.(aviso);
+  };
+
   (async () => {
     try {
-      const { latitude, longitude } = (await tentar(true)).coords;
-      colocar(latitude, longitude, 15);
+      usar((await tentar(true)).coords, 15);
       return;
     } catch (err) {
       const codigo = (err as GeolocationPositionError).code;
@@ -72,8 +90,7 @@ export function localizarUsuario(colocar: (lat: number, lon: number, zoom: numbe
       }
     }
     try {
-      const { latitude, longitude } = (await tentar(false)).coords;
-      colocar(latitude, longitude, 14);
+      usar((await tentar(false)).coords, 14);
       return;
     } catch {
       // segue para o IP

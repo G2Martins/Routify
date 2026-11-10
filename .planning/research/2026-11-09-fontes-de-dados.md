@@ -9,7 +9,7 @@ mesmo alvo (razão de velocidade) só vem da nossa coleta TomTom. O resto serve 
 |---|---|---|
 | TomTom Flow, 150 pontos novos (`proposta_expansao_sensores.json`) | mesmo alvo, em buracos de sensor | **adotar**: a cota por dia não muda, só a cadência (`intervalo_diurno`) |
 | Fluxo DER-DF ([dataset](https://dados.df.gov.br/o/dados-abertos/v1.0/datasets/volume-diario-de-trafego-trechos-rodoviarios), CC-BY, mensal, até jul/2026) | contagem de 15 min em 93 trechos de rodovia distrital, sem velocidade nem coordenada | **validação**: `validacao_der.py`, r = 0,80 entre fluxo e lentidão por hora |
-| GPS dos ônibus (SEMOB, `/service/gps/operacoes`, aberto, sem histórico) | posição e velocidade de ~1.800 veículos em todo o DF | **validação**: `coletar_gps_onibus.py`. Ônibus para no ponto e usa faixa exclusiva: não é alvo. Licença não declarada: confirmar antes de citar |
+| GPS dos ônibus (SEMOB, `/service/gps/operacoes`, aberto, sem histórico) | posição e velocidade de ~1.800 veículos em todo o DF | **fora do escopo (2026-11-09)**: os sites do GDF (até `www.df.gov.br`) não respondem a IPs da AWS, e a coleta só rodava no PC do dono. O coletor foi removido; o que ele gravou ficou só em `services/collector/dados/gps` (gitignored). Ônibus para no ponto e usa faixa exclusiva: nunca seria alvo |
 | Mapbox `driving-traffic` | ETA com trânsito no DF todo | **só comparar** (já no comparador). Os Product Terms são PDF e não confirmei se permitem treinar |
 | Radares DETRAN-DF | 39 linhas por região, sem coordenada | **não serve**. Para o mapa usamos o OSM: 273 radares (`scripts/radares_osm.py`) |
 | Infosimples (placas, multas) | dado pessoal | **não usar** (LGPD, sem utilidade aqui) |

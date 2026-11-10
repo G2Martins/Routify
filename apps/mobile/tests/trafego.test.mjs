@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { agruparPorNome, diaCurto, erroDoPonto, horaEDiaAgora, idadeLeitura, nomeDoPonto, razaoTxt } from '../src/lib/trafego.ts';
 import { radaresNaRota, radaresValidos } from '../src/lib/radares.ts';
+import { pelaPrecisao } from '../src/components/mapa/geolocalizacao.ts';
 
 test('idade da leitura na maior unidade que faz sentido', () => {
   assert.equal(idadeLeitura(null), 'Sem leitura recente');
@@ -69,5 +70,14 @@ test('radares na rota: só os da pista, na ordem do trajeto', () => {
   assert.deepEqual(achados.map((r) => r.limite_kmh), [80, 60]);
   assert.ok(Math.abs(achados[0].km - 0.535) < 0.02 && Math.abs(achados[1].km - 1.62) < 0.03);
   assert.deepEqual(radaresNaRota([[-15.8, -47.9]], radares), []);
+});
+
+test('posição da rede (PC sem GPS) não parece exata', () => {
+  assert.deepEqual(pelaPrecisao(25, 15), { zoom: 15, aviso: null });
+  const rede = pelaPrecisao(8000, 15);
+  assert.equal(rede.zoom, 12);
+  assert.match(rede.aviso, /± 8 km/);
+  assert.match(pelaPrecisao(740, 15).aviso, /± 740 m/);
+  assert.equal(pelaPrecisao(NaN, 14).aviso, null);
 });
 
