@@ -3,12 +3,6 @@ import { Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Geist_400Regular } from '@expo-google-fonts/geist/400Regular';
-import { Geist_500Medium } from '@expo-google-fonts/geist/500Medium';
-import { Geist_600SemiBold } from '@expo-google-fonts/geist/600SemiBold';
-import { Geist_700Bold } from '@expo-google-fonts/geist/700Bold';
-import { GeistMono_500Medium } from '@expo-google-fonts/geist-mono/500Medium';
-import { GeistMono_700Bold } from '@expo-google-fonts/geist-mono/700Bold';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { AuthProvider } from './src/context/AuthContext';
 import RootNavigator from './src/navigation/MainNavigator';
@@ -42,13 +36,16 @@ function ThemedStatusBar() {
 }
 
 export default function App() {
+  // Subconjunto latino das fontes do @expo-google-fonts (566 KB → 202 KB; o app espera por elas no boot). Refazer:
+  // python -m fontTools.subset <ttf> --unicodes="U+0000-017F,U+0192,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0300-0308,
+  //   U+2000-206F,U+2070-209F,U+20AC,U+2122,U+2190-2199,U+2212,U+2215,U+2264-2265,U+FEFF,U+FFFD" --no-hinting --desubroutinize
   const [fontesProntas, erroFontes] = useFonts({
-    Geist_400Regular,
-    Geist_500Medium,
-    Geist_600SemiBold,
-    Geist_700Bold,
-    GeistMono_500Medium,
-    GeistMono_700Bold,
+    Geist_400Regular: require('./assets/fontes/Geist_400Regular.ttf'),
+    Geist_500Medium: require('./assets/fontes/Geist_500Medium.ttf'),
+    Geist_600SemiBold: require('./assets/fontes/Geist_600SemiBold.ttf'),
+    Geist_700Bold: require('./assets/fontes/Geist_700Bold.ttf'),
+    GeistMono_500Medium: require('./assets/fontes/GeistMono_500Medium.ttf'),
+    GeistMono_700Bold: require('./assets/fontes/GeistMono_700Bold.ttf'),
   });
 
   // Sem as fontes o layout "pula" ao trocar; com erro, segue com a do sistema.

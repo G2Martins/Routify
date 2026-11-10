@@ -73,6 +73,11 @@ const nextConfig: NextConfig = {
           { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
         ],
       },
+      // Export do Expo: nome com hash do conteúdo, nunca muda. Sem isto saía max-age=0 (revalida a cada visita, CDN sem cache).
+      ...['/_expo/static/:path*', '/assets/:path*'].map((source) => ({
+        source,
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      })),
       // Por último: no mesmo cabeçalho, a regra que vem depois vence (docs do Next).
       {
         source: '/admin/:path*',

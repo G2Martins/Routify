@@ -148,7 +148,7 @@ export default function SideRail({ routes, activeName, onSelect }: Props) {
       <View style={styles.marca}>
         <Image
           // eslint-disable-next-line @typescript-eslint/no-require-imports
-          source={require('../../assets/Logo_Routify_icon.png')}
+          source={require('../../assets/Logo_Routify_icon_192.png')}
           style={styles.logo}
           resizeMode="contain"
         />

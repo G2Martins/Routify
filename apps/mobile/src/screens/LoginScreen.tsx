@@ -37,7 +37,7 @@ const LOGIN_GOOGLE_ATIVO = false;
 
 const NATIVO = Platform.OS !== 'web';
 const MSG_INVALIDO = 'E-mail ou senha inválidos.';
-const LOGO_ICONE = require('../../assets/Logo_Routify_icon.png'); // eslint-disable-line @typescript-eslint/no-require-imports
+const LOGO_ICONE = require('../../assets/Logo_Routify_icon_192.png'); // eslint-disable-line @typescript-eslint/no-require-imports
 
 const PROVAS = [
   { icone: 'ion:analytics-outline', titulo: 'LIA prevê o congestionamento', texto: 'Modelo treinado com o histórico de tráfego do DF.' },

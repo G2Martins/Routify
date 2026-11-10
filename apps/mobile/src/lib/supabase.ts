@@ -1,4 +1,5 @@
-import 'react-native-url-polyfill/auto';
+// O navegador já tem URL: o polyfill (~60 KB) só entra no nativo. EXPO_OS é constante no build, o ramo some na web.
+if (process.env.EXPO_OS !== 'web') require('react-native-url-polyfill/auto'); // eslint-disable-line @typescript-eslint/no-require-imports
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { createBrowserClient } from '@supabase/ssr';
