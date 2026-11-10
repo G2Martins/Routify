@@ -90,3 +90,17 @@ def test_categoria_conta_como_nome_do_marco():
     saida = search.ranquear('aeroporto', cands, CENTRO_BRASILIA, 2)
     assert saida[0]['categoria_codigo'] == 'AIRPORT'
     assert search.rotulo(saida[0]).startswith('Aeroporto Internacional de Brasília')
+
+
+def test_endereco_com_numero_acha_o_predio_e_a_via():
+    """Caso real de 2026-11-09: "Avenida Pau Brasil 14" voltava vazio (o 14 não está no nome de nada)."""
+    via = {**_cand('Avenida Pau-Brasil', None, 'Taguatinga', 0.99, -15.835, -48.022, tipo='Street')}
+    goias = {**_cand('Rua Pau Brasil', None, 'Valparaíso de Goiás · Rua Pau Brasil 14', 0.9, -16.07, -47.98, tipo='Point Address')}
+    predio = {'label': 'Avenida Pau Brasil, 14', 'sublabel': 'Via Brisa · Águas Claras', 'bairro': 'Águas Claras',
+              'tipo': 'Point Address', 'lat': -15.836, 'lon': -48.021, 'score': 0.5, 'fonte': 'nominatim'}
+    saida = search.ranquear('Avenida Pau Brasil 14', [via, goias, predio], CENTRO_BRASILIA, 5)
+    assert [c['label'] for c in saida][:2] == ['Avenida Pau Brasil, 14', 'Avenida Pau-Brasil']
+    assert all(c['label'] != 'Rua Pau Brasil' for c in saida), 'outra rua, em Goiás'
+    # Sem o número, a via segue em primeiro.
+    assert search.ranquear('Avenida Pau Brasil', [via, goias], CENTRO_BRASILIA, 5)[0]['label'] == 'Avenida Pau-Brasil'
+

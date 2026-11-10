@@ -362,6 +362,12 @@ def test_nominatim_resposta_torta_vira_lista_vazia(monkeypatch):
                         cliente_com([{'display_name': 'Torre de TV, Brasília, DF', 'lat': '-15.79', 'lon': '-47.89'}]))
     (item,) = asyncio.run(search._nominatim('torre', 5))
     assert item['label'] == 'Torre de TV' and math.isclose(item['lat'], -15.79)
+    monkeypatch.setattr(search, '_ultima_nominatim', 0.0)
+    monkeypatch.setattr(search.httpx, 'AsyncClient', cliente_com([{
+        'display_name': 'Via Brisa, 14, Avenida Pau Brasil, Águas Claras, Distrito Federal', 'lat': '-15.836', 'lon': '-48.021',
+        'address': {'building': 'Via Brisa', 'house_number': '14', 'road': 'Avenida Pau Brasil', 'suburb': 'Águas Claras'}}]))
+    (item,) = asyncio.run(search._nominatim('avenida pau brasil 14', 5))
+    assert item['label'] == 'Avenida Pau Brasil, 14' and item['sublabel'] == 'Via Brisa · Águas Claras' and item['tipo'] == 'Point Address'
 
 
 def test_apelidos_de_marcos_da_bateria_de_2026_11_03():

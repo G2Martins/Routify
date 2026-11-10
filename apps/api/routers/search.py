@@ -334,6 +334,9 @@ def ranquear(q: str, candidatos: List[dict], perto: Tuple[float, float], limite:
     qs = [qn] + [v for v in (variantes or []) if v and v != qn]
     palavras_q = {t for v in qs for t in v.split()}
     tem_numero = any(t.isdigit() for t in qn.split())
+    # Número de casa ("Avenida Pau Brasil 14"): a via casa sem ele e o endereço exato casa com ele no endereço.
+    numeros = [t for t in qn.split() if t.isdigit()]
+    sem_numero = [s for s in (' '.join(t for t in v.split() if not t.isdigit()) for v in qs) if s] if numeros else []
     ref = {'lat': perto[0], 'lon': perto[1]}
 
     avaliados = []
@@ -354,8 +357,12 @@ def ranquear(q: str, candidatos: List[dict], perto: Tuple[float, float], limite:
                 exato = v in nomes or vc in colados or any(sorted(v.split()) == sorted(n.split()) for n in nomes)
                 comeca = any(n.startswith(v) for n in nomes) or any(n.startswith(vc) for n in colados)
                 base = max(base, 3.6 if exato else 2.2 if comeca else 1.6)
+        ender = tn + normalizar(f"{c.get('sublabel', '')} {c.get('bairro') or ''}").split()
+        if numeros and any(_casa(v.split(), ender) for v in qs) and all(n in ender for n in numeros):
+            base = max(base, 3.0)  # via E número no endereço: é o endereço que a pessoa digitou
+        if base == 0.0 and any(_casa(s.split(), tn, junto, curtos=True) for s in sem_numero):
+            base = 1.4  # a via, sem o número (a fonte não tem o ponto exato)
         if base == 0.0:
-            ender = tn + normalizar(f"{c.get('sublabel', '')} {c.get('bairro') or ''}").split()
             if any(_casa(v.split(), ender) for v in qs):
                 base = 0.6  # o texto bate só no endereço
             else:
@@ -381,7 +388,8 @@ def ranquear(q: str, candidatos: List[dict], perto: Tuple[float, float], limite:
         )
     avaliados.sort(key=lambda c: -c['_pontos'])
     # Com um resultado forte, o que ficou muito atrás é ruído (ex.: rua homônima em GO).
-    corte = max(1.0, avaliados[0]['_pontos'] - 2.5) if avaliados else 0.0
+    # Com número de casa, a via sem o número segue na lista logo abaixo do endereço exato.
+    corte = (1.0 if numeros else max(1.0, avaliados[0]['_pontos'] - 2.5)) if avaliados else 0.0
 
     def repetido(o: dict, c: dict) -> bool:
         d = _km(o, c)
@@ -668,6 +676,7 @@ async def _nominatim(q: str, limite: int) -> List[dict]:
                     'format': 'json',
                     'limit': limite,
                     'countrycodes': 'br',
+                    'addressdetails': 1,
                 },
                 headers={'User-Agent': 'Routify/1.0 TCC'},
             )
@@ -679,9 +688,17 @@ async def _nominatim(q: str, limite: int) -> List[dict]:
     itens = []
     try:
         for item in resp.json():
-            label = (item.get('display_name') or '').split(',')[0].strip()
-            if label:
-                itens.append({'label': label, 'sublabel': (item.get('display_name') or '')[:120],
+            nome = (item.get('display_name') or '').split(',')[0].strip()
+            end = item.get('address') if isinstance(item.get('address'), dict) else {}
+            rua, numero = end.get('road'), end.get('house_number')
+            bairro = end.get('suburb') or end.get('city_district') or end.get('neighbourhood')
+            if rua and numero:  # endereço com número: o nome é o endereço, o prédio vai para baixo
+                label = f'{rua}, {numero}'
+                sub = ' · '.join(x for x in (nome if nome not in (rua, numero) else None, bairro) if x)
+                itens.append({'label': label, 'sublabel': (sub or item.get('display_name') or '')[:120], 'bairro': bairro,
+                              'tipo': 'Point Address', 'lat': float(item['lat']), 'lon': float(item['lon']), 'score': 0.5})
+            elif nome:
+                itens.append({'label': nome, 'sublabel': (item.get('display_name') or '')[:120],
                               'lat': float(item['lat']), 'lon': float(item['lon']), 'score': 0.5})
     except (ValueError, KeyError, TypeError, AttributeError):
         return []  # resposta torta não derruba o autocomplete (e não entra no cache)
@@ -751,7 +768,10 @@ async def autocomplete(
     saida = ranquear(q, candidatos, perto, limit, vs)
     # Só conta o que sobrou do ranking: três resultados fuzzy da TomTom que não casam com nada
     # não impedem o último recurso. A trava de 1 s e o cache de 24 h seguem valendo.
-    if len(saida) < 3 and len(qn) >= 4:
+    # Número de casa sem nenhum resultado que o contenha: a TomTom quase não tem número no DF, o OSM tem.
+    falta_numero = any(t.isdigit() for t in qn.split()[1:]) and not any(
+        c.get('_base', 0) >= 3.0 for c in saida)
+    if (len(saida) < 3 or falta_numero) and len(qn) >= 4:
         extras = await _nominatim(q, limit)
         if extras:
             saida = ranquear(q, candidatos + [dict(r, fonte='nominatim') for r in extras], perto, limit, vs)
