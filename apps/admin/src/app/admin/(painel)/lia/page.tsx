@@ -1,20 +1,43 @@
-import { BarrasVersao, BenchmarkFolds, Congestionamento, CurvaCalibracao, DispersaoFeedback, TempoTreino, type BarraVersao } from '@/components/graficos';
+import { BenchmarkFolds, CurvaCalibracao, DispersaoFeedback, TempoTreino } from '@/components/graficos';
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import { Aviso, BTN_SECUNDARIO, Cabecalho, Cartao, ErroConsulta, Kpi, Selo, Tabela } from '@/components/ui';
 import { exigirAdmin } from '@/lib/auth';
 import { fmtData, fmtDec, fmtInt, num, rotuloVersao as rotulo, semTravessao } from '@/lib/formato';
 import { MIGRACAO_ACOES } from '@/lib/erros';
-import { lerBenchmark, lerCalibracao, lerCongestionamento, lerFeedback, lerPortao, lerVersoes, type Portao, versaoMaisNova } from '@/lib/leitura';
+import { anterior, lerBenchmark, lerCalibracao, lerFeedback, lerPortao, lerVersoes, mesmaBase, type Portao, versaoMaisNova } from '@/lib/leitura';
 import { modeloAtivo } from '@/lib/saude';
-import type { Benchmark, Calibracao, EstresseLia22, Feedback, LiaTreino } from '@/lib/tipos';
+import type { Benchmark, Calibracao, EstresseLia22, EstresseVersoes, Feedback, LiaTreino } from '@/lib/tipos';
+import { extrair, maisNovaPrimeiro, seletavel } from '@/lib/versoes';
+import {
+  CartaoCongestionado,
+  CartaoEstresse,
+  CartaoFeatures,
+  CartaoFolds,
+  CartaoIdade,
+  CartaoPeriodo30,
+  CartaoPeriodoCv,
+  PainelVersoes,
+  SeletorPar,
+} from './Comparativos';
 import { Estresse } from './Estresse';
 import { FeedbackOutliers } from './FeedbackOutliers';
 
 const ganho = (valor: number | null, base: number | null) =>
   valor === null || base === null || base === 0 ? null : ((valor - base) / base) * 100;
 
-export default async function LiaPage() {
+function Secao({ titulo, children }: { titulo: string; children?: ReactNode }) {
+  return (
+    <div className="mb-3 mt-8">
+      <h2 className="font-display text-2xl tracking-tight">{titulo}</h2>
+      {children ? <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{children}</p> : null}
+    </div>
+  );
+}
+
+export default async function LiaPage({ searchParams }: { searchParams: Promise<{ a?: string; b?: string }> }) {
   const { sb } = await exigirAdmin();
+  const pedido = await searchParams;
   const [treinos, analises, feedback, ativo] = await Promise.all([
     sb.from('lia_treinos').select('*').order('versao'),
     sb.from('lia_analises').select('chave, dados, atualizado_em'),
@@ -23,28 +46,30 @@ export default async function LiaPage() {
   ]);
 
   const linhas = (treinos.data ?? []) as LiaTreino[];
-  const calibracao = analises.data?.find((a) => a.chave === 'calibracao_transfer')?.dados as Calibracao | undefined;
-  const benchmark = analises.data?.find((a) => a.chave === 'benchmark_lstm_xgboost')?.dados as Benchmark | undefined;
-  const estresse = analises.data?.find((a) => a.chave === 'estresse_lia22')?.dados as EstresseLia22 | undefined;
-  const portao = analises.data?.find((a) => a.chave === 'gate_lia_2_4')?.dados as Portao | undefined;
-  // A versão em destaque é a que a API está servindo agora; os KPIs e o baseline seguem ela.
-  // Sem resposta da API (/health), cai na versão comparável mais nova do dado, e a página avisa.
-  const destaque = ativo ?? versaoMaisNova(linhas) ?? '';
-  const ativa = linhas.find((l) => l.versao === destaque);
+  const analise = <T,>(chave: string) => analises.data?.find((x) => x.chave === chave)?.dados as T | undefined;
+  const calibracao = analise<Calibracao>('calibracao_transfer');
+  const benchmark = analise<Benchmark>('benchmark_lstm_xgboost');
+  const estresseAntigo = analise<EstresseLia22>('estresse_lia22');
+  const estresse = analise<EstresseVersoes>('estresse_versoes');
+  const portao = analise<Portao>('gate_lia_2_4');
+
+  // Par A × B: a URL manda; sem ela, A = versão ativa na API (ou a mais nova do dado) e B = a anterior a ela.
+  // Sem resposta da API (/health), a página avisa em vez de adivinhar.
+  const seletaveis = linhas.filter(seletavel);
+  const vs = seletaveis.map(extrair).sort((x, y) => maisNovaPrimeiro(x.versao, y.versao));
+  const existe = (v?: string) => !!v && seletaveis.some((l) => l.versao === v);
+  const padraoA = existe(ativo ?? undefined) ? (ativo as string) : (versaoMaisNova(linhas) ?? '');
+  const a = existe(pedido.a) ? (pedido.a as string) : padraoA;
+  const ativa = linhas.find((l) => l.versao === a);
+  const padraoB = ativa ? (anterior(linhas, ativa, 'rmse_seg')?.versao ?? '') : '';
+  const b = existe(pedido.b) && pedido.b !== a ? (pedido.b as string) : existe(padraoB) && padraoB !== a ? padraoB : (vs.find((v) => v.versao !== a)?.versao ?? '');
+  const outra = linhas.find((l) => l.versao === b);
+
   const baseMae = num(ativa?.baseline_mae_seg);
   const baseRmse = num(ativa?.baseline_rmse_seg);
   const ganhoRmse = ativa ? ganho(num(ativa.rmse_seg), baseRmse) : null;
 
-  const barras = (campo: 'mae_seg' | 'rmse_seg', desvio: 'mae_seg_std' | 'rmse_seg_std'): BarraVersao[] =>
-    linhas
-      .filter((l) => num(l[campo]) !== null)
-      .map((l) => ({
-        versao: l.versao === destaque ? `${rotulo(l.versao)} · atual` : rotulo(l.versao),
-        valor: num(l[campo]) ?? 0,
-        desvio: num(l[desvio]) ?? 0,
-        comparavel: l.validacao === 'temporal',
-        destaque: l.versao === destaque,
-      }));
+  const todas = linhas.filter((l) => num(l.rmse_seg) !== null || num(l.mae_seg) !== null).map(extrair);
 
   const linhasFeedback = (feedback.data ?? []) as Feedback[];
   // Sem a migration das ações, a RPC antiga não traz id/feedback_excluido.
@@ -54,11 +79,18 @@ export default async function LiaPage() {
     .filter((p) => p.tempo_previsto_seg !== null && !p.feedback_excluido)
     .map((p) => ({ previsto: (p.tempo_previsto_seg ?? 0) / 60, real: p.tempo_real_seg / 60 }));
 
+  // O teste fora do tempo (gate) só existe para a 2.4 contra a 2.3; o resto do bloco segue o par.
+  const gateServe = a === 'lia_2.4' && b === 'lia_2.3';
+  const bases = ativa && outra && ativa.validacao === 'temporal' && outra.validacao === 'temporal' ? mesmaBase(ativa, outra) : true;
+  const cvMaior = ativa && outra && num(ativa.rmse_seg) !== null && num(outra.rmse_seg) !== null && (num(ativa.rmse_seg) as number) > (num(outra.rmse_seg) as number);
+  const novoGate = portao?.escolhida ? portao.juntas?.[portao.escolhida] : undefined;
+  const velhoGate = portao?.juntas?.['lia_2.3'];
+
   return (
     <>
       <Cabecalho
         titulo="LIA: desempenho e benchmarks"
-        sobre="Como a LIA atual se compara às versões anteriores. Os números vêm de ml/artifacts, publicados por ml/publish_metrics.py."
+        sobre="Como as versões da LIA se comparam. Escolha o par A × B abaixo; os números vêm de ml/artifacts, publicados por ml/publish_metrics.py."
         direita={
           <Link href="/admin/provedores" className={BTN_SECUNDARIO}>
             LIA × provedores →
@@ -74,10 +106,13 @@ export default async function LiaPage() {
       ) : null}
 
       {linhas.length ? (
-        <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          {ativo ? <Selo tom="ok">ativa na API · {rotulo(ativo)}</Selo> : <Selo tom="alerta">API fora do ar · destacando {destaque ? rotulo(destaque) : 'nenhuma versão'}</Selo>}
-          <span>KPIs, baseline e destaque seguem esta versão.</span>
-        </div>
+        <>
+          <SeletorPar key={`${a}-${b}`} vs={vs} a={a} b={b} />
+          <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            {ativo ? <Selo tom="ok">ativa na API · {rotulo(ativo)}</Selo> : <Selo tom="alerta">API fora do ar · A padrão: {padraoA ? rotulo(padraoA) : 'nenhuma versão'}</Selo>}
+            <span>Os KPIs seguem a versão A.</span>
+          </div>
+        </>
       ) : null}
 
       {ativa ? (
@@ -100,53 +135,97 @@ export default async function LiaPage() {
         </div>
       ) : null}
 
-      {linhas.length ? (
-        <div className="mb-5 grid gap-5 lg:grid-cols-2">
-          <Cartao
-            titulo="MAE por versão"
-            nota="Erro típico, em segundos por trecho. Azul: versão atual. Hachura: validação não temporal, não comparável. Linha tracejada: baseline da atual."
-            atraso={160}
-            leitura={lerVersoes(linhas, destaque, 'mae_seg')}
-            siglas={['MAE', 'baseline', 'CV']}
-          >
-            <BarrasVersao dados={barras('mae_seg', 'mae_seg_std')} baseline={baseMae} />
-          </Cartao>
-          <Cartao
-            titulo="RMSE por versão"
-            nota="Pesa mais os erros grandes. Barras de erro: desvio entre os 5 folds temporais."
-            atraso={200}
-            leitura={lerVersoes(linhas, destaque, 'rmse_seg')}
-            siglas={['RMSE', 'fold']}
-          >
-            <BarrasVersao dados={barras('rmse_seg', 'rmse_seg_std')} baseline={baseRmse} />
-          </Cartao>
-          {portao?.escolhida && portao.juntas ? (
-            <Cartao
-              titulo="Teste fora do tempo: mesmas leituras para todos"
-              nota="Segundos por trecho, em leituras que nenhum modelo viu no treino."
-              atraso={220}
-              leitura={lerPortao(portao, 'lia_2.4', 'lia_2.3')}
-              siglas={['RMSE', 'MAE', 'persistência']}
-              className="lg:col-span-2"
-            >
-              <Tabela cabecalho={['Modelo', 'RMSE (s)', 'MAE (s)']}>
-                {([
-                  ['LIA 2.4', portao.juntas[portao.escolhida]],
-                  ['LIA 2.3', portao.juntas['lia_2.3']],
-                  ['Persistência', portao.juntas.persistencia],
-                  ['Estático (fluxo livre)', portao.juntas.estatico],
-                ] as const).map(([nome, d]) => (
-                  <tr key={nome}>
-                    <td className="font-medium">{nome}</td>
-                    <td>{fmtDec(d?.rmse_seg ?? null)}</td>
-                    <td>{fmtDec(d?.mae_seg ?? null)}</td>
-                  </tr>
-                ))}
-              </Tabela>
-            </Cartao>
-          ) : null}
-        </div>
+      {ativa && outra ? (
+        <>
+          <Secao titulo="Atual × anterior em leituras novas">
+            A comparação justa: as duas versões nas mesmas leituras, que nenhuma viu no treino.
+          </Secao>
+          <div className="surgir mb-5 rounded-lg border-l-2 border-accent bg-accent/5 px-4 py-3 text-sm leading-relaxed">
+            {!bases && cvMaior ? (
+              <p>
+                <b>{rotulo(a)} não piorou.</b> O CV dela ({fmtDec(ativa.rmse_seg)} s de RMSE) é maior que o da {rotulo(b)} ({fmtDec(outra.rmse_seg)} s) porque foi medido numa base maior
+                ({fmtInt(ativa.total_amostras)} contra {fmtInt(outra.total_amostras)} amostras), com as leituras de novembro, que cobrem os picos o dia todo e são mais difíceis. CV de bases diferentes não se compara.
+                {gateServe && novoGate && velhoGate
+                  ? ` Nas mesmas ${fmtInt(novoGate.n)} leituras novas, a ${rotulo(a)} erra ${fmtDec(novoGate.rmse_seg)} s de RMSE e ${fmtDec(novoGate.mae_seg)} s de MAE, contra ${fmtDec(velhoGate.rmse_seg)} s e ${fmtDec(velhoGate.mae_seg)} s da ${rotulo(b)}.`
+                  : ' Veja o teste abaixo.'}
+              </p>
+            ) : !bases ? (
+              <p>
+                {rotulo(a)} e {rotulo(b)} treinaram em bases diferentes ({fmtInt(ativa.total_amostras)} contra {fmtInt(outra.total_amostras)} amostras): o CV de uma não se compara com o da outra. Use os blocos desta seção, que medem as duas nas mesmas leituras.
+              </p>
+            ) : (
+              <p>
+                {rotulo(a)} e {rotulo(b)} usam a mesma base de treino: o CV abaixo é comparável. Os blocos desta seção medem as duas em leituras que nenhuma viu.
+              </p>
+            )}
+          </div>
+
+          <div className="mb-5 space-y-5">
+            {portao?.escolhida && portao.juntas ? (
+              <Cartao
+                titulo="Teste fora do tempo: mesmas leituras para todos"
+                nota={`Segundos por trecho, em leituras que nenhum modelo viu no treino. ${gateServe ? '' : 'Este teste existe só para a LIA 2.4 contra a 2.3, qualquer que seja o par escolhido. '}Para outros pares, use o estresse abaixo.`}
+                atraso={220}
+                leitura={lerPortao(portao, 'lia_2.4', 'lia_2.3')}
+                siglas={['RMSE', 'MAE', 'persistência']}
+              >
+                <Tabela estreita cabecalho={['Modelo', 'RMSE (s)', 'MAE (s)']}>
+                  {([
+                    ['LIA 2.4', portao.juntas[portao.escolhida]],
+                    ['LIA 2.3', portao.juntas['lia_2.3']],
+                    ['Persistência', portao.juntas.persistencia],
+                    ['Estático (fluxo livre)', portao.juntas.estatico],
+                  ] as const).map(([nome, d]) => (
+                    <tr key={nome}>
+                      <td className="font-medium">{nome}</td>
+                      <td>{fmtDec(d?.rmse_seg ?? null)}</td>
+                      <td>{fmtDec(d?.mae_seg ?? null)}</td>
+                    </tr>
+                  ))}
+                </Tabela>
+              </Cartao>
+            ) : (
+              <Aviso titulo="Teste fora do tempo ainda não publicado">
+                Rode <span className="num">python ml/publish_metrics.py</span> para publicar <span className="num">gate_lia_2_4</span>.
+              </Aviso>
+            )}
+            {estresse?.versoes && Object.keys(estresse.versoes).length ? (
+              <CartaoEstresse key={`e-${a}-${b}`} vs={vs} a={a} b={b} e={estresse} />
+            ) : (
+              <Aviso titulo="Estresse por versão ainda não publicado">
+                Rode <span className="num">ml/estresse_versoes.py</span> e depois <span className="num">ml/publish_metrics.py</span>.
+              </Aviso>
+            )}
+          </div>
+        </>
       ) : null}
+
+      {linhas.length ? (
+        <>
+          <Secao titulo="Validação cruzada (CV)">
+            Cada versão é medida na própria base de treino, com cortes no tempo. Só vale comparar CV entre versões da mesma base; as outras aparecem hachuradas.
+          </Secao>
+          <div className="mb-5">
+            <PainelVersoes
+              key={`p-${a}`}
+              todas={todas}
+              a={a}
+              leituraMae={lerVersoes(linhas, a, 'mae_seg', b)}
+              leituraRmse={lerVersoes(linhas, a, 'rmse_seg', b)}
+            />
+          </div>
+          <div className="mb-5 grid gap-5 lg:grid-cols-2">
+            <CartaoFolds key={`f-${a}-${b}`} vs={vs} a={a} b={b} />
+            <CartaoIdade key={`i-${a}-${b}`} vs={vs} a={a} b={b} />
+            <CartaoPeriodoCv key={`pc-${a}-${b}`} vs={vs} a={a} b={b} />
+            <CartaoPeriodo30 key={`p3-${a}-${b}`} vs={vs} a={a} b={b} />
+            <CartaoFeatures key={`ft-${a}-${b}`} vs={vs} a={a} b={b} />
+            <CartaoCongestionado key={`c-${a}-${b}`} vs={vs} a={a} b={b} />
+          </div>
+        </>
+      ) : null}
+
+      {calibracao || benchmark ? <Secao titulo="Análises sem versão">Valem para a LIA como um todo, não para uma versão: não mudam com o par A × B.</Secao> : null}
 
       {calibracao ? (
         <Cartao
@@ -172,25 +251,9 @@ export default async function LiaPage() {
         </div>
       ) : null}
 
-      {ativa && num(ativa.rmse_congestionado_seg) !== null ? (
-        <Cartao
-          titulo="Erro geral × trechos congestionados"
-          className="mb-5"
-          atraso={360}
-          nota="Congestionado: razão de congestionamento abaixo de 0,95. Limitação conhecida: o erro absoluto sobe nesses trechos."
-          leitura={lerCongestionamento(ativa)}
-          siglas={['razão de congestionamento', 'RMSE', 'baseline']}
-        >
-          <Congestionamento
-            geral={[baseRmse ?? 0, num(ativa.rmse_seg) ?? 0]}
-            congestionado={[num(ativa.baseline_rmse_congestionado_seg) ?? 0, num(ativa.rmse_congestionado_seg) ?? 0]}
-            modelo={rotulo(ativa.versao)}
-          />
-        </Cartao>
-      ) : null}
+      {estresseAntigo && !estresse?.versoes ? <Estresse e={estresseAntigo} ativo={ativo} /> : null}
 
-      {estresse ? <Estresse e={estresse} ativo={ativo} /> : null}
-
+      <Secao titulo="Produção" />
       <Cartao
         titulo="Erro real em produção: previsto × informado"
         className="mb-5"

@@ -81,8 +81,9 @@ export const fmtMin = (seg: unknown) => {
 
 /** lia_2.1_retreino_20260923 → "LIA 2.1 re-treino 23/09"; lia_2.2 → "LIA 2.2". Outro formato volta como veio. */
 export function rotuloVersao(versao: string) {
-  const m = versao.match(/^lia_([\d.]+)(?:_retreino_(\d{4})(\d{2})(\d{2}))?$/);
+  const m = versao.match(/^lia_([\d.]+)(?:_retreino_(\d{4})(\d{2})(\d{2})|(_repro))?$/);
   if (!m) return versao;
+  if (m[5]) return `LIA ${m[1]} refeita`;
   return m[2] ? `LIA ${m[1]} re-treino ${m[4]}/${m[3]}` : `LIA ${m[1]}`;
 }
 

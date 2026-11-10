@@ -327,6 +327,16 @@ export type EstresseLia22 = {
   cenarios: Record<string, Record<string, ErroSeg>>;
 };
 
+/** ml/estresse_versoes.py → estresse_versoes.json: modelos de produção nas mesmas leituras novas (que nenhum viu). */
+export type EstresseVersoes = {
+  desde?: string;
+  n_linhas?: number;
+  periodo?: [string, string];
+  cenarios?: string[];
+  versoes?: Record<string, Record<string, { rmse_seg?: number; mae_seg?: number; n?: number } | undefined>>;
+  referencias?: Record<string, { rmse_seg?: number; mae_seg?: number } | undefined>;
+};
+
 /** Status ao vivo (/admin/status). */
 export type ProvedorExterno = {
   nome: string;

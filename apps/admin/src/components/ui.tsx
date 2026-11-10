@@ -184,10 +184,10 @@ export function SeletorJanela({ base, atual, janelas = [7, 30, 90] }: { base: st
   );
 }
 
-export function Tabela({ cabecalho, children }: { cabecalho: string[]; children: ReactNode }) {
+export function Tabela({ cabecalho, children, estreita = false }: { cabecalho: string[]; children: ReactNode; estreita?: boolean }) {
   return (
     <div className="max-w-full overflow-x-auto overscroll-x-contain">
-      <table className="w-full min-w-[640px] border-collapse text-sm">
+      <table className={`w-full ${estreita ? '' : 'min-w-[640px]'} border-collapse text-sm`}>
         <thead>
           <tr className="border-b border-border text-left text-xs uppercase tracking-[0.1em] text-muted-foreground">
             {cabecalho.map((c) => (

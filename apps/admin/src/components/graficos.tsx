@@ -102,43 +102,161 @@ export function BarrasHora({ dados }: { dados: { hora: number; rotas: number }[]
 
 /* ---------- LIA ---------- */
 
-export type BarraVersao = { versao: string; valor: number; desvio: number; comparavel: boolean; destaque: boolean };
+/** atual = versão A; comparavel = mesma base da A; outra_base = CV de outra base (não se compara); nao_temporal = validação sem corte no tempo. */
+export type BarraVersao = { versao: string; valor: number; desvio: number; tipo: 'atual' | 'comparavel' | 'outra_base' | 'nao_temporal' };
 
-/** MAE ou RMSE por versão × baseline. Não comparável = hachura (vale em P&B). */
+/** MAE ou RMSE por versão × baseline. Outra base e não temporal = hachuras distintas (valem em P&B). */
 export function BarrasVersao({ dados, baseline }: { dados: BarraVersao[]; baseline: number | null }) {
-  const hachura = `hachura-${useId().replace(/:/g, '')}`;
+  const id = useId().replace(/:/g, '');
+  const diag = `diag-${id}`;
+  const grade = `grade-${id}`;
+  const preenche = (t: BarraVersao['tipo']) =>
+    t === 'atual' ? 'var(--chart-1)' : t === 'comparavel' ? 'var(--chart-neutro)' : t === 'outra_base' ? `url(#${grade})` : `url(#${diag})`;
+  const traco = (t: BarraVersao['tipo']) => (t === 'atual' || t === 'comparavel' ? 'none' : t === 'outra_base' ? 'var(--chart-3)' : 'var(--chart-eixo)');
   return (
-    <Moldura altura={250}>
-      <BarChart data={dados} margin={{ top: 22, right: 12, bottom: 0, left: -12 }}>
-        <defs>
-          <pattern id={hachura} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-            <line x1="0" y1="0" x2="0" y2="6" stroke="var(--chart-eixo)" strokeWidth="1.5" />
-          </pattern>
-        </defs>
-        <CartesianGrid vertical={false} stroke="var(--chart-grade)" />
-        <XAxis dataKey="versao" tick={TICK} tickLine={false} axisLine={false} />
-        <YAxis tick={TICK} tickLine={false} axisLine={false} unit=" s" />
-        <Tooltip {...DICA} formatter={(v) => `${br(Number(v))} s`} />
-        {baseline !== null ? (
-          <ReferenceLine
-            y={baseline}
-            stroke="hsl(var(--muted-foreground))"
-            strokeDasharray="5 4"
-            label={{ value: `baseline ${br(baseline)} s`, position: 'insideTopRight', fill: 'var(--chart-eixo)', fontSize: 11 }}
-          />
-        ) : null}
-        <Bar dataKey="valor" name="Erro" radius={[4, 4, 0, 0]}>
-          {dados.map((d) => (
-            <Cell
-              key={d.versao}
-              fill={d.destaque ? 'var(--chart-1)' : d.comparavel ? 'var(--chart-neutro)' : `url(#${hachura})`}
-              stroke={d.comparavel ? 'none' : 'var(--chart-eixo)'}
+    <>
+      <Moldura altura={250} rotulo="Erro por versão da LIA">
+        <BarChart data={dados} margin={{ top: 22, right: 12, bottom: 0, left: -12 }}>
+          <defs>
+            <pattern id={diag} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <line x1="0" y1="0" x2="0" y2="6" stroke="var(--chart-eixo)" strokeWidth="1.5" />
+            </pattern>
+            <pattern id={grade} width="6" height="6" patternUnits="userSpaceOnUse">
+              <rect width="6" height="6" fill="var(--chart-3)" fillOpacity="0.18" />
+              <path d="M0 3H6M3 0V6" stroke="var(--chart-3)" strokeWidth="1" />
+            </pattern>
+          </defs>
+          <CartesianGrid vertical={false} stroke="var(--chart-grade)" />
+          <XAxis dataKey="versao" tick={renderTick} height={56} interval={0} tickLine={false} axisLine={false} />
+          <YAxis tick={TICK} tickLine={false} axisLine={false} unit=" s" />
+          <Tooltip {...DICA} formatter={(v) => `${br(Number(v))} s`} />
+          {baseline !== null ? (
+            <ReferenceLine
+              y={baseline}
+              stroke="hsl(var(--muted-foreground))"
+              strokeDasharray="5 4"
+              label={{ value: `baseline ${br(baseline)} s`, position: 'insideTopRight', fill: 'var(--chart-eixo)', fontSize: 11 }}
             />
+          ) : null}
+          <Bar dataKey="valor" name="Erro" radius={[4, 4, 0, 0]}>
+            {dados.map((d) => (
+              <Cell key={d.versao} fill={preenche(d.tipo)} stroke={traco(d.tipo)} />
+            ))}
+            <ErrorBar dataKey="desvio" width={6} stroke="hsl(var(--muted-foreground))" />
+            <LabelList dataKey="valor" position="top" formatter={(v) => br(Number(v))} fill="hsl(var(--foreground))" fontSize={11} />
+          </Bar>
+        </BarChart>
+      </Moldura>
+      <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        {([
+          ['atual', 'Versão A'],
+          ['comparavel', 'Mesma base da A'],
+          ['outra_base', 'Outra base: não se compara'],
+          ['nao_temporal', 'Validação não temporal'],
+        ] as const)
+          .filter(([t]) => dados.some((d) => d.tipo === t))
+          .map(([t, nome]) => (
+            <li key={t} className="flex items-center gap-1.5">
+              <svg width="14" height="14" aria-hidden>
+                <rect width="14" height="14" rx="2" fill={preenche(t)} stroke={traco(t)} />
+              </svg>
+              {nome}
+            </li>
           ))}
-          <ErrorBar dataKey="desvio" width={6} stroke="hsl(var(--muted-foreground))" />
-          <LabelList dataKey="valor" position="top" formatter={(v) => br(Number(v))} fill="hsl(var(--foreground))" fontSize={11} />
+      </ul>
+    </>
+  );
+}
+
+/** Rótulo de eixo que quebra nos espaços (cabe em 390 px). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function TickQuebra({ x, y, payload }: any) {
+  const partes = String(payload?.value ?? '').split(' ');
+  return (
+    <text x={x} y={y} textAnchor="middle" fill="var(--chart-eixo)" fontSize={11} fontFamily="var(--font-plex-mono)">
+      {partes.map((p, i) => (
+        <tspan key={i} x={x} dy={12}>
+          {p}
+        </tspan>
+      ))}
+    </text>
+  );
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const renderTick = (p: any) => <TickQuebra {...p} />;
+
+export type GrupoComparado = { x: string; a: number | null; b: number | null; pers?: number | null };
+
+/**
+ * Duas versões lado a lado (B neutro, A em destaque) por grupo, com uma referência opcional em linha (persistência).
+ * `horizontal` troca os eixos para rótulos longos (importância das features).
+ */
+export function BarrasComparadas({
+  dados,
+  nomeA,
+  nomeB,
+  nomeRef,
+  horizontal = false,
+  ligar = false,
+  altura = 280,
+  unidade = ' s',
+  casas = 1,
+}: {
+  dados: GrupoComparado[];
+  nomeA: string;
+  nomeB?: string;
+  nomeRef?: string;
+  horizontal?: boolean;
+  /** Liga a referência com linha só quando o eixo é uma sequência (idade da leitura); em categorias fica só o marcador. */
+  ligar?: boolean;
+  altura?: number;
+  unidade?: string;
+  casas?: number;
+}) {
+  const fmt = (v: unknown) => (typeof v === 'number' ? `${br(v, casas)}${unidade}` : 'n/d');
+  const rot = (v: unknown) => (typeof v === 'number' ? br(v, casas) : '');
+  const raio: [number, number, number, number] = horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0];
+  const barB = nomeB ? (
+        <Bar dataKey="b" name={nomeB} fill="var(--chart-neutro)" radius={raio}>
+          {!horizontal ? <LabelList dataKey="b" position="top" formatter={rot} fill="hsl(var(--foreground))" fontSize={10} /> : null}
         </Bar>
-      </BarChart>
+  ) : null;
+  const barA = (
+    <Bar dataKey="a" name={nomeA} fill="var(--chart-1)" radius={raio}>
+      {!horizontal ? <LabelList dataKey="a" position="top" formatter={rot} fill="hsl(var(--foreground))" fontSize={10} /> : null}
+    </Bar>
+  );
+  const rotulo = `${nomeA}${nomeB ? ` e ${nomeB}` : ''}${nomeRef ? ` e ${nomeRef}` : ''}`;
+  if (horizontal) {
+    return (
+      <Moldura altura={altura} rotulo={rotulo}>
+        <BarChart data={dados} layout="vertical" margin={{ top: 4, right: 16, bottom: 0, left: 8 }}>
+          <CartesianGrid horizontal={false} stroke="var(--chart-grade)" />
+          <XAxis type="number" tick={TICK} tickLine={false} axisLine={false} unit={unidade} />
+          <YAxis type="category" dataKey="x" tick={TICK} tickLine={false} axisLine={false} width={150} interval={0} />
+          <Tooltip {...DICA} formatter={fmt} />
+          <Legend {...LEGENDA} itemSorter={null} />
+          {barB}
+          {barA}
+        </BarChart>
+      </Moldura>
+    );
+  }
+  return (
+    <Moldura altura={altura} rotulo={rotulo}>
+      <ComposedChart data={dados} margin={{ top: 22, right: 12, bottom: 0, left: -12 }}>
+        <CartesianGrid vertical={false} stroke="var(--chart-grade)" />
+        <XAxis dataKey="x" tick={renderTick} height={56} interval={0} tickLine={false} axisLine={false} />
+        <YAxis tick={TICK} tickLine={false} axisLine={false} unit={unidade} />
+        <Tooltip {...DICA} formatter={fmt} />
+        <Legend {...LEGENDA} itemSorter={null} />
+        {barB}
+        {barA}
+        {nomeRef ? (
+          <Line type="linear" dataKey="pers" name={nomeRef} stroke="var(--chart-3)" strokeWidth={ligar ? 2 : 0} strokeDasharray="5 4" dot={{ r: 5, strokeWidth: 2, stroke: 'hsl(var(--card))', fill: 'var(--chart-3)' }} connectNulls={false} />
+        ) : null}
+      </ComposedChart>
     </Moldura>
   );
 }
@@ -208,30 +326,6 @@ export function TempoTreino({ dados }: { dados: Benchmark }) {
             <Cell key={p.nome} fill={p.cor} />
           ))}
           <LabelList dataKey="tempo" position="right" formatter={(v) => `${br(Number(v))} s`} fill="hsl(var(--foreground))" fontSize={11} />
-        </Bar>
-      </BarChart>
-    </Moldura>
-  );
-}
-
-export function Congestionamento({ geral, congestionado, modelo }: { geral: [number, number]; congestionado: [number, number]; modelo: string }) {
-  const pontos = [
-    { grupo: 'Todas as observações', baseline: geral[0], lia: geral[1] },
-    { grupo: 'Trechos congestionados', baseline: congestionado[0], lia: congestionado[1] },
-  ];
-  return (
-    <Moldura altura={250}>
-      <BarChart data={pontos} margin={{ top: 22, right: 12, bottom: 0, left: -8 }}>
-        <CartesianGrid vertical={false} stroke="var(--chart-grade)" />
-        <XAxis dataKey="grupo" tick={TICK} tickLine={false} axisLine={false} />
-        <YAxis tick={TICK} tickLine={false} axisLine={false} unit=" s" />
-        <Tooltip {...DICA} formatter={(v) => `${br(Number(v))} s`} />
-        <Legend {...LEGENDA} />
-        <Bar dataKey="baseline" name="Baseline histórico" fill="var(--chart-neutro)" radius={[4, 4, 0, 0]}>
-          <LabelList dataKey="baseline" position="top" formatter={(v) => br(Number(v))} fill="hsl(var(--foreground))" fontSize={11} />
-        </Bar>
-        <Bar dataKey="lia" name={modelo} fill="var(--chart-1)" radius={[4, 4, 0, 0]}>
-          <LabelList dataKey="lia" position="top" formatter={(v) => br(Number(v))} fill="hsl(var(--foreground))" fontSize={11} />
         </Bar>
       </BarChart>
     </Moldura>

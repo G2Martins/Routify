@@ -27,7 +27,7 @@ export function versaoMaisNova(linhas: LiaTreino[]): string | null {
 }
 
 /** Anterior = maior número abaixo do da atual; entre variantes do mesmo número, a versão limpa (sem sufixo). */
-function anterior(linhas: LiaTreino[], atual: LiaTreino, m: Metrica): LiaTreino | null {
+export function anterior(linhas: LiaTreino[], atual: LiaTreino, m: Metrica): LiaTreino | null {
   const n = numeroVersao(atual.versao);
   if (!n) return null;
   const abaixo = comparaveis(linhas, m).filter((l) => cmp(numeroVersao(l.versao)!, n) < 0);
@@ -38,7 +38,7 @@ function anterior(linhas: LiaTreino[], atual: LiaTreino, m: Metrica): LiaTreino 
 const variacao = (de: number, para: number) => ((para - de) / de) * 100;
 
 /** CV de bases diferentes usa cortes diferentes: o número não se compara entre elas. Sem total publicado, assume a mesma. */
-const mesmaBase = (a: LiaTreino, b: LiaTreino) => {
+export const mesmaBase = (a: LiaTreino, b: LiaTreino) => {
   const x = num(a.total_amostras);
   const y = num(b.total_amostras);
   return x === null || y === null || Math.abs(x - y) / y < 0.01;
@@ -49,7 +49,7 @@ const fmtPct = (p: number) => `${fmtDec(Math.abs(p))}%`;
  * Frase de leitura do gráfico MAE/RMSE por versão, só com números do dado: atual × anterior × melhor × baseline.
  * Devolve uma lista de frases curtas.
  */
-export function lerVersoes(linhas: LiaTreino[], versaoAtual: string, m: Metrica): string[] {
+export function lerVersoes(linhas: LiaTreino[], versaoAtual: string, m: Metrica, contra?: string): string[] {
   const atual = linhas.find((l) => l.versao === versaoAtual);
   const v = atual ? num(atual[m]) : null;
   if (!atual || v === null) return [];
@@ -61,10 +61,10 @@ export function lerVersoes(linhas: LiaTreino[], versaoAtual: string, m: Metrica)
     return [`${rot} usa validação não temporal: o ${nome} dela não é comparável com as outras versões.`];
   }
 
-  const ant = anterior(linhas, atual, m);
+  const ant = linhas.find((l) => l.versao === contra && l.versao !== atual.versao) ?? anterior(linhas, atual, m);
   const vAnt = ant ? num(ant[m]) : null;
   if (ant && vAnt !== null && !mesmaBase(atual, ant)) {
-    frases.push(`${rot} treinou com outra base (${fmtInt(num(atual.total_amostras))} amostras) e outros cortes: ${fmtDec(v)} s não se compara aos ${fmtDec(vAnt)} s da ${rotuloVersao(ant.versao)}. A comparação justa é o teste fora do tempo, abaixo.`);
+    frases.push(`${rot} treinou com outra base (${fmtInt(num(atual.total_amostras))} amostras) e outros cortes: ${fmtDec(v)} s não se compara aos ${fmtDec(vAnt)} s da ${rotuloVersao(ant.versao)}. A comparação justa é o bloco "Atual × anterior em leituras novas", no topo.`);
   } else if (ant && vAnt !== null && vAnt > 0) {
     const p = variacao(vAnt, v);
     const verbo = Math.abs(p) < 0.5 ? 'manteve' : p < 0 ? 'reduziu' : 'aumentou';
@@ -77,10 +77,12 @@ export function lerVersoes(linhas: LiaTreino[], versaoAtual: string, m: Metrica)
     frases.push(`${rot} é a primeira versão comparável: não há anterior para medir a evolução.`);
   }
 
-  const melhor = comparaveis(linhas, m).filter((l) => mesmaBase(atual, l)).reduce<LiaTreino | null>((b, l) => (b === null || num(l[m])! < num(b[m])! ? l : b), null);
-  if (melhor) {
-    if (melhor.versao === atual.versao) frases.push(`É o menor ${nome} entre as ${comparaveis(linhas, m).length} versões comparáveis.`);
-    else frases.push(`O menor ${nome} é o da ${rotuloVersao(melhor.versao)} (${fmtDec(num(melhor[m]))} s), ${fmtPct(variacao(v, num(melhor[m])!))} menor que o da atual.`);
+  const mesmas = comparaveis(linhas, m).filter((l) => mesmaBase(atual, l));
+  const melhor = mesmas.reduce<LiaTreino | null>((b, l) => (b === null || num(l[m])! < num(b[m])! ? l : b), null);
+  if (mesmas.length < 2) frases.push('Nenhuma outra versão tem a mesma base de treino: o CV dela não tem com quem se comparar.');
+  else if (melhor) {
+    if (melhor.versao === atual.versao) frases.push(`É o menor ${nome} entre as ${mesmas.length} versões da mesma base.`);
+    else frases.push(`O menor ${nome} entre as versões da mesma base é o da ${rotuloVersao(melhor.versao)} (${fmtDec(num(melhor[m]))} s), ${fmtPct(variacao(v, num(melhor[m])!))} menor que o da atual.`);
   }
 
   const base = num(atual[BASE[m]]);
@@ -93,19 +95,8 @@ export function lerVersoes(linhas: LiaTreino[], versaoAtual: string, m: Metrica)
     );
   }
   if (linhas.some((l) => l.validacao !== 'temporal')) {
-    frases.push('A LIA 1.0 (hachurada) usou validação não temporal e fica fora da comparação.');
+    frases.push('A LIA 1.0 (hachura diagonal) usou validação não temporal e fica fora da comparação.');
   }
-  return frases;
-}
-
-/** Leitura do gráfico geral × congestionado da versão atual. */
-export function lerCongestionamento(a: LiaTreino): string[] {
-  const g = num(a.rmse_seg);
-  const c = num(a.rmse_congestionado_seg);
-  if (g === null || c === null || g === 0) return [];
-  const bc = num(a.baseline_rmse_congestionado_seg);
-  const frases = [`Nos trechos congestionados o RMSE da ${rotuloVersao(a.versao)} é ${fmtDec(c)} s, ${fmtDec(c / g, 1)} vezes o erro geral (${fmtDec(g)} s).`];
-  if (bc) frases.push(`O baseline erra ${fmtDec(bc)} s ali: a LIA fica ${fmtPct(variacao(bc, c))} ${c < bc ? 'abaixo' : 'acima'}.`);
   return frases;
 }
 
