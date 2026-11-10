@@ -12,6 +12,7 @@ import { useTheme } from '../context/ThemeContext';
 import { BotaoIcone, Selo, Surgir, useMenosMovimento } from './ui';
 import Icon from './Icon';
 import Button from './Button';
+import { carregarRadares, radaresNaRota, type RadarNaRota } from '../lib/radares';
 
 interface ResumoTrajeto {
   degradado: boolean;
@@ -38,6 +39,7 @@ export interface Economia {
 }
 
 interface RouteSummary {
+  polyline?: number[][];
   tempo_total_seg: number;
   distancia_km: number;
   via_principal: string;
@@ -116,6 +118,17 @@ export default function NavigationPanel({ route, navigating, compacto, onStart, 
   const ganhouTempo = !!eco && eco.minutos >= 1;
   const clima = route.clima;
   const temAvisos = nIncidentes > 0 || !!route.semaforos_na_rota || !!route.alternativa || (tt?.interdicoes_na_rota ?? 0) > 0;
+  const [radares, setRadares] = useState<RadarNaRota[]>([]);
+  useEffect(() => {
+    let vivo = true;
+    const linha = route.polyline;
+    if (!linha) return setRadares([]);
+    carregarRadares().then((lista) => vivo && setRadares(radaresNaRota(linha, lista)));
+    return () => {
+      vivo = false;
+    };
+  }, [route.polyline]);
+  const limites = radares.map((r) => r.limite_kmh).filter((v): v is number => v != null);
 
   return (
     <View
@@ -255,6 +268,33 @@ export default function NavigationPanel({ route, navigating, compacto, onStart, 
         </View>
       ) : null}
 
+      {detalhes && radares.length ? (
+        <View style={[styles.radares, { backgroundColor: c.surfaceAlt, borderColor: c.border }]}>
+          <View style={styles.avisoItem}>
+            <Icon name="mdi:cctv" size={14} color={c.warning} />
+            <Text style={[theme.typography.caption, { color: c.textMuted, fontSize: 12, flex: 1 }]}>
+              <Text style={[mono, { color: c.text }]}>{radares.length}</Text>
+              {radares.length === 1 ? ' radar no trajeto' : ' radares no trajeto'}
+              {limites.length ? (
+                <>
+                  {' · limite médio '}
+                  <Text style={[mono, { color: c.text }]}>{Math.round(limites.reduce((a, b) => a + b, 0) / limites.length)}</Text>
+                  {' km/h'}
+                </>
+              ) : null}
+            </Text>
+          </View>
+          <View style={styles.selos} accessibilityLabel="Limite de cada radar, na ordem do trajeto">
+            {radares.slice(0, 8).map((r, i) => (
+              <Selo key={i} tom={r.limite_kmh != null && r.limite_kmh <= 40 ? 'alerta' : 'neutro'}>
+                {`km ${km(r.km)} · ${r.limite_kmh != null ? `${r.limite_kmh} km/h` : 'sem limite'}`}
+              </Selo>
+            ))}
+            {radares.length > 8 ? <Selo>{`+${radares.length - 8}`}</Selo> : null}
+          </View>
+        </View>
+      ) : null}
+
       <View style={styles.acoes}>
         {!navigating ? (
           <Pressable
@@ -313,6 +353,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   avisoItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  radares: { gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, borderWidth: 1 },
   acoes: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   fechar: {
     width: 44,
