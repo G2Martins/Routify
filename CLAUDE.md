@@ -224,6 +224,11 @@ CI (`.github/workflows/`):
   que importava a rota passava no PC e quebrava no CI.
 - **Mapa no celular (`LEVE` em `MapaVetorial.web.tsx`):** tela ≤ 820 px ou toque = densidade 2×, sem prédios 3D, sem vinheta e
   sem cometa. Animação que mexe em fonte do mapa (`setData`) a cada quadro nunca pode ser eterna.
+- **Peso do primeiro acesso (2026-11-09):** o bundle principal (~1,3 MB, ~375 KB gzip) é quase todo react-native-web,
+  react-dom, navegação e Supabase; o MapLibre vem em chunk à parte. Fontes em subconjunto (`apps/mobile/assets/fontes`),
+  logo da interface em 192 px e polyfill de URL só no nativo. O `next.config.ts` marca `/_expo/static` e `/assets` como
+  imutáveis (nome com hash); sem isso o Next servia `max-age=0`. Medir com `npx expo export -p web --source-maps` e
+  atribuir bytes por pacote pelo source map, não por palpite.
 - **Ícones da web são um subconjunto offline** (`apps/mobile/src/constants/icones.json`, de `scripts/icones.mjs`), só em
   `Icon.web.tsx`; o `Icon.tsx` (celular) usa o `@expo/vector-icons`, que no bundle web levava ~460 KB de mapas de glifos. O
   `@iconify/react` online punha SVG da API deles no `innerHTML`. Ícone novo → `node scripts/icones.mjs` (o teste

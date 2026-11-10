@@ -31,7 +31,11 @@ Cliente do **Routify** rodando em **iOS, Android e Web** via Expo + React Native
   Painel lateral no desktop, folha de baixo no celular; Esc fecha;
 - **Radares** (`BotaoRadares.tsx`, `src/lib/radares.ts`): camada nos três mapas, de `/radares_df.json` (OpenStreetMap), baixada
   quando o primeiro mapa abre. Ligar e desligar fica em `localStorage`, por conta. Sem o arquivo, ou no nativo, o botão não
-  aparece. Nome e limite só entram como texto (`Popup.setText`);
+  aparece. Nome e limite só entram como texto (`Popup.setText`). No card da rota (`NavigationPanel`), `radaresNaRota` lista
+  os radares a até 15 m do traçado, na ordem do trajeto, com o limite de cada um e o limite médio (sem o sentido da via no
+  arquivo, um canteiro estreito ainda pode contar o radar da pista oposta);
+- **Fontes**: `assets/fontes/` é um subconjunto latino das Geist do `@expo-google-fonts` (566 → 202 KB; o app espera por
+  elas antes de desenhar). O comando para refazer está no `App.tsx`; licença em `assets/fontes/OFL.txt`;
 - histórico de rotas, perfil e dashboard de métricas.
 
 **Ícones:** na web, `@iconify/react/offline` só desenha o que está em `src/constants/icones.json` (nada vai à rede;

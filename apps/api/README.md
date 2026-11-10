@@ -13,7 +13,7 @@
 
 ---
 
-**Última revisão:** 2026-11-03
+**Última revisão:** 2026-11-09
 
 ## 🎯 Função
 
@@ -447,7 +447,9 @@ Autocomplete: a base local (malha de ~38 mil vias do DF, com cache de 1 h, as 60
 atrações, com os nomes alternativos) e a TomTom Search (typeahead,
 20 resultados, cache 24 h) rodam em paralelo e são **juntadas e ranqueadas numa lista só**
 (`ranquear()` em `routers/search.py`). O Nominatim só entra se o ranking final tiver menos de
-3 resultados e a consulta, 4+ letras (a política da OSMF proíbe autocomplete).
+3 resultados e a consulta, 4+ letras (a política da OSMF proíbe autocomplete), ou se a consulta tem número de casa
+e nada casou com ele ("Avenida Pau Brasil 14": a TomTom quase não tem número no DF, o OSM tem). Com `addressdetails`,
+o rótulo vira "Rua, número" e o prédio vai para baixo; a via sem o número segue logo depois do endereço exato.
 
 Bateria de pontos famosos (`scripts/bateria_busca.py`, 79 lugares de `services/collector/pontos_df.json`, 5 jeitos
 de digitar cada um): em 2026-11-02 a produção achava 72,7% entre as 5 primeiras e só 49,6% das estações de
